@@ -59,12 +59,7 @@ func (sshExec *SSHExecutor) Init(config SSHConfig) error {
 }
 
 // Exec run the command via SSH
-func (sshExec *SSHExecutor) Exec(cmd string, stdin []byte, sudo bool) ([]byte, []byte, error) {
-	// NOTE: stdin is not supported by easyssh.Run(), as it seems we don't need
-	// it as well (for now), I'll just leave it and ignore the arg.
-	// If at some point in the future we need to pass stdin to a command, we'll
-	// need to refactor this functhin with easyssh.Connect()
-
+func (sshExec *SSHExecutor) Exec(cmd string, sudo bool) ([]byte, []byte, error) {
 	// try to acquire root permission
 	if sudo {
 		cmd = fmt.Sprintf("/bin/bash -c 'sudo -H -u root %s'", cmd)

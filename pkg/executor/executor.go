@@ -18,8 +18,13 @@ package executor
 type TiOpsExecutor interface {
 	// Init builds and initializes an executor
 	Init(config interface{}) error
+
 	// Exec run the command, then return it's stdout and stderr
-	Exec(cmd string, stdin []byte, sudo bool) (stdout []byte, stderr []byte, err error)
+	// NOTE: stdin is not supported as it seems we don't need it (for now). If
+	// at some point in the future we need to pass stdin to a command, we'll
+	// need to refactor this functhin and its implementations.
+	Exec(cmd string, sudo bool) (stdout []byte, stderr []byte, err error)
+
 	// Transfer copies files from or to a target
 	Transfer(src string, dst string) error
 }
