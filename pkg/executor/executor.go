@@ -13,7 +13,7 @@
 
 package executor
 
-// TiOpsExecutor is the executor interface for TiOps, any tasks will in the end
+// TiOpsExecutor is the executor interface for TiOps, all tasks will in the end
 // be passed to a executor and then be actually performed.
 type TiOpsExecutor interface {
 	// Init builds and initializes an executor
@@ -22,7 +22,7 @@ type TiOpsExecutor interface {
 	// Exec run the command, then return it's stdout and stderr
 	// NOTE: stdin is not supported as it seems we don't need it (for now). If
 	// at some point in the future we need to pass stdin to a command, we'll
-	// need to refactor this functhin and its implementations.
+	// need to refactor this function and its implementations.
 	Exec(cmd string, sudo bool) (stdout []byte, stderr []byte, err error)
 
 	// Transfer copies files from or to a target

@@ -76,6 +76,7 @@ func (sshExec *SSHExecutor) Exec(cmd string, sudo bool) ([]byte, []byte, error) 
 }
 
 // Transfer copies files via SCP
+// This function depends on `scp` (a tool from OpenSSH)
 func (sshExec *SSHExecutor) Transfer(src string, dst string) error {
 	return sshExec.Config.Scp(src, dst)
 }
