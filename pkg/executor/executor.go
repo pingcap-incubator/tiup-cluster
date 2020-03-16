@@ -13,17 +13,13 @@
 
 package executor
 
-// TiOpsExecutorConfig is a config passed to TiOpsExecutor
-type TiOpsExecutorConfig map[string]string
-
 // TiOpsExecutor is the executor interface for TiOps, any tasks will in the end
 // be passed to a executor and then be actually performed.
 type TiOpsExecutor interface {
 	// Init builds and initializes an executor
-	Init(config *TiOpsExecutorConfig) error
-	// Exec run the command, and return it's stdout, if there is any stderr, it
-	// should be returned in an error object
-	Exec(cmd string, stdin []byte, sudo bool) (stdout []byte, err error)
+	Init(config interface{}) error
+	// Exec run the command, then return it's stdout and stderr
+	Exec(cmd string, stdin []byte, sudo bool) (stdout []byte, stderr []byte, err error)
 	// Transfer copies files from or to a target
 	Transfer(src string, dst string) error
 }
