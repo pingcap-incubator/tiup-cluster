@@ -18,6 +18,7 @@ import (
 	"os"
 
 	"github.com/fatih/color"
+	"github.com/pingcap-incubator/tiops/pkg/version"
 	"github.com/spf13/cobra"
 )
 
@@ -25,12 +26,26 @@ var rootCmd *cobra.Command
 
 func init() {
 	rootCmd = &cobra.Command{
-		Use:   "tiops",
-		Short: "Deploy a TiDB cluster for production",
+		Use:     "tiops",
+		Short:   "Deploy a TiDB cluster for production",
+		Version: version.NewTiOpsVersion().String(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return cmd.Help()
 		},
 	}
+
+	rootCmd.AddCommand(
+		newDeploy(),
+		newStartCmd(),
+		newStopCmd(),
+		newRestartCmd(),
+		newScaleInCmd(),
+		newScaleOutCmd(),
+		newDestroyCmd(),
+		newUpgradeCmd(),
+		newReloadCmd(),
+		newExecCmd(),
+	)
 }
 
 // Execute executes the root command
