@@ -25,6 +25,8 @@ import (
 var rootCmd *cobra.Command
 
 func init() {
+	cobra.EnableCommandSorting = false
+
 	rootCmd = &cobra.Command{
 		Use:     "tiops",
 		Short:   "Deploy a TiDB cluster for production",
