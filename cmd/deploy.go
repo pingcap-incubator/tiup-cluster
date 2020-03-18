@@ -31,7 +31,13 @@ func newDeploy() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			t := task.NewBuilder().
 				RootSSH(host, key, user).
+				SSHKeyGen(".ssh/tiops/id_rsa").
 				EnvInit(host).
+				Download("tidb", "v3.0.10").
+				// Switch the SSH tunnel to the `tidb` user
+				UserSSH(host).
+				Mkdir(host, "/tiops/tidb", "/tiops/tidb/data", "/tiops/tidb/logs", "/tiops/tidb/bin").
+				CopyComponent("tidb", "v3.0.10", host, "/tiops/tidb/bin/").
 				Build()
 			return t.Execute(&task.Context{})
 		},

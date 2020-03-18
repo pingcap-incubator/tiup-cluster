@@ -74,6 +74,17 @@ func (b *Builder) CopyFile(src, dstHost, dstPath string) *Builder {
 	return b
 }
 
+// CopyComponent appends a CopyComponent task to the current task collection
+func (b *Builder) CopyComponent(component string, version repository.Version, dstHost, dstPath string) *Builder {
+	b.tasks = append(b.tasks, &CopyComponent{
+		component: component,
+		version:   version,
+		host:      dstHost,
+		path:      dstPath,
+	})
+	return b
+}
+
 // Download appends a Downloader task to the current task collection
 func (b *Builder) Download(component string, version repository.Version) *Builder {
 	b.tasks = append(b.tasks, &Downloader{
@@ -124,6 +135,15 @@ func (b *Builder) ClusterOperate(
 		w:      os.Stdout,
 	})
 
+	return b
+}
+
+// Mkdir appends a Mkdir task to the current task collection
+func (b *Builder) Mkdir(host string, dirs ...string) *Builder {
+	b.tasks = append(b.tasks, &Mkdir{
+		host: host,
+		dirs: dirs,
+	})
 	return b
 }
 
