@@ -52,14 +52,14 @@ func GetProfileDir() string {
 // cluster, it is a subdir in the profile dir of the user, with the cluster name
 // as its name.
 // It is not garenteed the path already exist.
-func GetClusterPath(cluster, subpath string) string {
+func GetClusterPath(cluster string, subpath ...string) string {
 	if cluster == "" {
 		// keep the same behavior with legancy version of TiOps, we could change
 		// it in the future if needed.
 		cluster = "default-cluster"
 	}
 
-	return path.Join(GetProfileDir(), cluster, subpath)
+	return path.Join(append([]string{GetProfileDir(), cluster}, subpath...)...)
 }
 
 // CreateDir creates the directory if it not alerady exist.
