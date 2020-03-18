@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package topology
+package meta
 
 // TiDBSpec represents the TiDB topology specification in topology.yml
 type TiDBSpec struct {
@@ -79,8 +79,8 @@ type AlertManagerSpec struct {
 	DataDir     string `yml:"data_dir"`
 }
 
-// Specification represents the specification of topology.yml
-type Specification struct {
+// TopologySpecification represents the specification of topology.yml
+type TopologySpecification struct {
 	TiDBServers  []TiDBSpec
 	TiKVServers  []TiKVSpec
 	PDServers    []PDSpec
