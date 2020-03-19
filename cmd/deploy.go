@@ -15,36 +15,51 @@ package cmd
 
 import (
 	"github.com/pingcap-incubator/tiops/pkg/task"
+	"github.com/pingcap-incubator/tiup/pkg/meta"
+	"github.com/pingcap-incubator/tiup/pkg/repository"
 	"github.com/spf13/cobra"
 )
 
 func newDeploy() *cobra.Command {
 	// for test
 	var (
-		user string
-		host string
-		key  string
+		host       string // hostname of the SSH server
+		port       int    // port of the SSH server
+		user       string // username to login to the SSH server
+		password   string // password of the user
+		keyFile    string // path to the private key file
+		passphrase string // passphrase of the private key file
 	)
 	cmd := &cobra.Command{
-		Use:   "deploy",
-		Short: "Deploy a cluster for production",
+		Use:          "deploy",
+		Short:        "Deploy a cluster for production",
+		SilenceUsage: true,
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			return meta.InitRepository(repository.Options{})
+		},
+		PostRunE: func(cmd *cobra.Command, args []string) error {
+			return meta.Repository().Mirror().Close()
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			t := task.NewBuilder().
-				RootSSH(host, key, user).
-				SSHKeyGen(".ssh/tiops/id_rsa").
+				RootSSH(host, port, user, password, keyFile, passphrase).
+				SSHKeyGen("ssh/tiops/id_rsa").
 				EnvInit(host).
 				Download("tidb", "v3.0.10").
 				// Switch the SSH tunnel to the `tidb` user
 				UserSSH(host).
-				Mkdir(host, "/tiops/tidb", "/tiops/tidb/data", "/tiops/tidb/logs", "/tiops/tidb/bin").
-				CopyComponent("tidb", "v3.0.10", host, "/tiops/tidb/bin/").
+				Mkdir(host, "~/deploy/tidb/bin", "~/deploy/tidb/logs", "~/deploy/tidb/data").
+				CopyComponent("tidb", "v3.0.10", host, "~/deploy/tidb/bin/tidb-server").
 				Build()
-			return t.Execute(&task.Context{})
+			return t.Execute(task.NewContext())
 		},
 	}
 
-	cmd.Flags().StringVar(&key, "key", ".ssh/id_rsa", "keypath")
 	cmd.Flags().StringVar(&host, "host", "", "deploy to host")
+	cmd.Flags().IntVar(&port, "port", 22, "deploy to host")
 	cmd.Flags().StringVar(&user, "user", "root", "system user root")
+	cmd.Flags().StringVar(&password, "password", "", "system user root")
+	cmd.Flags().StringVar(&keyFile, "key", "", "keypath")
+	cmd.Flags().StringVar(&passphrase, "passphrase", "", "passphrase")
 	return cmd
 }

@@ -13,6 +13,13 @@
 
 package task
 
+import (
+	"fmt"
+	"strings"
+
+	"github.com/pingcap/errors"
+)
+
 // Mkdir is used to create directory on the target host
 type Mkdir struct {
 	host string
@@ -21,10 +28,25 @@ type Mkdir struct {
 
 // Execute implements the Task interface
 func (m *Mkdir) Execute(ctx *Context) error {
-	panic("implement me")
+	exec, found := ctx.GetExecutor(m.host)
+	if !found {
+		return ErrNoExecutor
+	}
+
+	cmd := fmt.Sprintf(`mkdir -p {%s}`, strings.Join(m.dirs, ","))
+	fmt.Println("Create directories cmd: ", cmd)
+
+	stdout, stderr, err := exec.Execute(cmd, false)
+	if err != nil {
+		return errors.Trace(err)
+	}
+
+	fmt.Println("Create directories stdout: ", string(stdout))
+	fmt.Println("Create directories stderr: ", string(stderr))
+	return nil
 }
 
 // Rollback implements the Task interface
 func (m *Mkdir) Rollback(ctx *Context) error {
-	panic("implement me")
+	return ErrUnsupportRollback
 }

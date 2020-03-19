@@ -31,11 +31,14 @@ func NewBuilder() *Builder {
 }
 
 // RootSSH appends a RootSSH task to the current task collection
-func (b *Builder) RootSSH(host, keypath, user string) *Builder {
+func (b *Builder) RootSSH(host string, port int, user, password, keyFile, passphrase string) *Builder {
 	b.tasks = append(b.tasks, RootSSH{
-		host:    host,
-		keypath: keypath,
-		user:    user,
+		host:       host,
+		port:       port,
+		user:       user,
+		password:   password,
+		keyFile:    keyFile,
+		passphrase: passphrase,
 	})
 	return b
 }
@@ -80,7 +83,7 @@ func (b *Builder) CopyComponent(component string, version repository.Version, ds
 		component: component,
 		version:   version,
 		host:      dstHost,
-		path:      dstPath,
+		dstPath:   dstPath,
 	})
 	return b
 }

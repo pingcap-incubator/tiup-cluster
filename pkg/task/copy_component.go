@@ -13,7 +13,13 @@
 
 package task
 
-import "github.com/pingcap-incubator/tiup/pkg/repository"
+import (
+	"fmt"
+
+	"github.com/pingcap-incubator/tiup/pkg/meta"
+	"github.com/pingcap-incubator/tiup/pkg/repository"
+	"github.com/pingcap/errors"
+)
 
 // CopyComponent is used to copy all files related the specific version a component
 // to the target directory of path
@@ -21,15 +27,39 @@ type CopyComponent struct {
 	component string
 	version   repository.Version
 	host      string
-	path      string
+	dstPath   string
 }
 
 // Execute implements the Task interface
 func (c *CopyComponent) Execute(ctx *Context) error {
-	panic("implement me")
+	binPath, err := meta.BinaryPath(c.component, c.version)
+	if err != nil {
+		return err
+	}
+
+	exec, found := ctx.GetExecutor(c.host)
+	if !found {
+		return ErrNoExecutor
+	}
+
+	err = exec.Transfer(binPath, c.dstPath)
+	if err != nil {
+		return errors.Trace(err)
+	}
+
+	cmd := fmt.Sprintf(`chmod 755 %s`, c.dstPath)
+
+	stdout, stderr, err := exec.Execute(cmd, false)
+	if err != nil {
+		return errors.Trace(err)
+	}
+
+	fmt.Println("Change binary permission stdout: ", string(stdout))
+	fmt.Println("Change binary permission stderr: ", string(stderr))
+	return nil
 }
 
 // Rollback implements the Task interface
 func (c *CopyComponent) Rollback(ctx *Context) error {
-	panic("implement me")
+	return ErrUnsupportRollback
 }
