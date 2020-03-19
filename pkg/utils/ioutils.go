@@ -37,7 +37,6 @@ func GetProfileDir() string {
 	if tiupData == "" {
 		homeDir, err := getHomeDir()
 		if err != nil {
-			// TODO: output a warning or just fail here
 			return ""
 		}
 		homeDir = path.Join(homeDir, ".tiops")
@@ -70,12 +69,9 @@ func GetClusterPath(cluster string, subpath ...string) string {
 func CreateDir(path string) error {
 	if _, err := os.Stat(path); err != nil {
 		if os.IsNotExist(err) {
-			err = os.MkdirAll(path, 0755)
-			if err != nil {
-				return errors.Trace(err)
-			}
+			return os.MkdirAll(path, 0755)
 		}
-		return errors.Trace(err)
+		return err
 	}
 	return nil
 }
