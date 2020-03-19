@@ -211,7 +211,10 @@ func setCustomDefaults(field reflect.Value) error {
 				// TODO: remove empty server from topology
 			}
 		case "UUID":
-			// TODO: generate UUID if not set
+			if field.Field(j).String() == "" {
+				ip := field.FieldByName("IP").String()
+				field.Field(j).Set(reflect.ValueOf(utils.UUID(ip)))
+			}
 		case "DeployDir":
 			// fill default path for empty value
 			if defaults.CanUpdate(field.Field(j).Interface()) {
