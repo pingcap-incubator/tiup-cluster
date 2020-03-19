@@ -161,8 +161,11 @@ func fillCustomDefaults(data interface{}) error {
 	v := reflect.ValueOf(data).Elem()
 	t := v.Type()
 
+	var err error
 	for i := 0; i < t.NumField(); i++ {
-		setCustomDefaults(v.Field(i))
+		if err = setCustomDefaults(v.Field(i)); err != nil {
+			return err
+		}
 	}
 
 	return nil
