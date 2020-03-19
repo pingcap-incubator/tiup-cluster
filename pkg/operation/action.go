@@ -7,14 +7,14 @@ import (
 	"time"
 
 	"github.com/pingcap-incubator/tiops/pkg/executor"
+	"github.com/pingcap-incubator/tiops/pkg/meta"
 	"github.com/pingcap-incubator/tiops/pkg/module"
-	"github.com/pingcap-incubator/tiops/pkg/topology"
 	"github.com/pingcap/errors"
 )
 
 var defaultTimeoutForReady = time.Second * 60
 
-func filterComponent(comps []topology.Component, component string) (res []topology.Component) {
+func filterComponent(comps []meta.Component, component string) (res []meta.Component) {
 	if component == "" {
 		res = comps
 		return
@@ -31,7 +31,7 @@ func filterComponent(comps []topology.Component, component string) (res []topolo
 	return
 }
 
-func filterInstance(instances []topology.Instance, node string) (res []topology.Instance) {
+func filterInstance(instances []meta.Instance, node string) (res []meta.Instance) {
 	if node == "" {
 		res = instances
 		return
@@ -57,7 +57,7 @@ type ExecutorGetter interface {
 func Start(
 	getter ExecutorGetter,
 	w io.Writer,
-	spec *topology.Specification,
+	spec *meta.Specification,
 	component string,
 	node string,
 ) error {
@@ -78,7 +78,7 @@ func Start(
 func Stop(
 	getter ExecutorGetter,
 	w io.Writer,
-	spec *topology.Specification,
+	spec *meta.Specification,
 	component string,
 	node string,
 ) error {
@@ -98,7 +98,7 @@ func Stop(
 func Restart(
 	getter ExecutorGetter,
 	w io.Writer,
-	spec *topology.Specification,
+	spec *meta.Specification,
 	component string,
 	node string,
 ) error {
@@ -124,7 +124,7 @@ func Restart(
 func Destroy(
 	getter ExecutorGetter,
 	w io.Writer,
-	spec *topology.Specification,
+	spec *meta.Specification,
 	component string,
 	node string,
 ) error {
@@ -133,7 +133,7 @@ func Destroy(
 }
 
 // StartComponent start the instances.
-func StartComponent(getter ExecutorGetter, w io.Writer, instances []topology.Instance) error {
+func StartComponent(getter ExecutorGetter, w io.Writer, instances []meta.Instance) error {
 	if len(instances) <= 0 {
 		return nil
 	}
@@ -176,7 +176,7 @@ func StartComponent(getter ExecutorGetter, w io.Writer, instances []topology.Ins
 }
 
 // StopComponent stop the instances.
-func StopComponent(getter ExecutorGetter, w io.Writer, instances []topology.Instance) error {
+func StopComponent(getter ExecutorGetter, w io.Writer, instances []meta.Instance) error {
 	if len(instances) <= 0 {
 		return nil
 	}
@@ -218,7 +218,7 @@ func StopComponent(getter ExecutorGetter, w io.Writer, instances []topology.Inst
 }
 
 // PrintClusterStatus print cluster status into the io.Writer.
-func PrintClusterStatus(getter ExecutorGetter, w io.Writer, spec *topology.Specification) (health bool) {
+func PrintClusterStatus(getter ExecutorGetter, w io.Writer, spec *meta.Specification) (health bool) {
 	// TODO
 
 	return true

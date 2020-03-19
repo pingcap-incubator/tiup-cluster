@@ -16,7 +16,7 @@ package task
 import (
 	"os"
 
-	"github.com/pingcap-incubator/tiops/pkg/topology"
+	"github.com/pingcap-incubator/tiops/pkg/meta"
 	"github.com/pingcap-incubator/tiup/pkg/repository"
 )
 
@@ -49,7 +49,7 @@ func (b *Builder) UserSSH(host string) *Builder {
 }
 
 // ClusterSSH init all UserSSH need for the cluster.
-func (b *Builder) ClusterSSH(spec *topology.Specification) *Builder {
+func (b *Builder) ClusterSSH(spec *meta.Specification) *Builder {
 	var tasks []Task
 	for _, com := range spec.ComponentsByStartOrder() {
 		for _, in := range com.Instances() {
@@ -111,7 +111,7 @@ func (b *Builder) EnvInit(host string) *Builder {
 // ClusterOperate appends a cluster operation task.
 // All the UserSSH needed must be init first.
 func (b *Builder) ClusterOperate(
-	spec *topology.Specification,
+	spec *meta.Specification,
 	op string,
 	role string,
 	nodeID string,
