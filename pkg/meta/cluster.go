@@ -19,8 +19,8 @@ const (
 
 // ClusterMeta is the specification of generic cluster metadata
 type ClusterMeta struct {
-	User    string `yml:"user"`         // the user to run and manage cluster on remote
-	Version string `yml:"tidb_version"` // the version of TiDB cluster
-	//EnableTLS      bool   `yml:"enable_tls"`
-	//EnableFirewall bool   `yml:"firewall"`
+	User    string `yaml:"user"`         // the user to run and manage cluster on remote
+	Version string `yaml:"tidb_version"` // the version of TiDB cluster
+	//EnableTLS      bool   `yaml:"enable_tls"`
+	//EnableFirewall bool   `yaml:"firewall"`
 }

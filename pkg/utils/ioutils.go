@@ -19,11 +19,10 @@ import (
 	"os/user"
 	"path"
 
-	"gopkg.in/yaml.v2"
-
 	"github.com/pingcap-incubator/tiops/pkg/meta"
 	tiuplocaldata "github.com/pingcap-incubator/tiup/pkg/localdata"
 	"github.com/pingcap/errors"
+	"gopkg.in/yaml.v2"
 )
 
 // GetProfileDir returns the full profile directory path of TiOps. If the
