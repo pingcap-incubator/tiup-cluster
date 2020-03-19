@@ -17,7 +17,10 @@ import (
 	"reflect"
 
 	"github.com/creasty/defaults"
-	//"gopkg.in/yaml.v2"
+)
+
+const (
+	TopologyFileName = "topology.yaml"
 )
 
 // TiDBSpec represents the TiDB topology specification in topology.yml
@@ -144,13 +147,14 @@ func (topo *TopologySpecification) UnmarshalYAML(unmarshal func(interface{}) err
 	return unmarshal(topo)
 }
 
+// SetDefaults fills the topology with custom default values before calling defaults
+// specified in field tags
 func (topo *TopologySpecification) SetDefaults() {
-	topo.fillDefaults()
-	defaults.Set(topo)
+	defaults.Set(topo.fillCustomDefaults())
 }
 
 // fillDefaults tries to fill custom fields to their default values
-func (topo *TopologySpecification) fillDefaults() {
+func (topo *TopologySpecification) fillCustomDefaults() *TopologySpecification {
 	v := reflect.ValueOf(topo).Elem()
 	t := v.Type()
 
@@ -174,4 +178,6 @@ func (topo *TopologySpecification) fillDefaults() {
 			}
 		}
 	}
+
+	return topo
 }
