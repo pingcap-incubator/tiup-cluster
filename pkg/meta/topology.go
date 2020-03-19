@@ -14,6 +14,8 @@
 package meta
 
 import (
+	"reflect"
+
 	"github.com/creasty/defaults"
 	//"gopkg.in/yaml.v2"
 )
@@ -25,7 +27,7 @@ type TiDBSpec struct {
 	StatusPort int    `yml:"status_port" default:"10080"`
 	UUID       string `yml:"uuid,omitempty"`
 	SSHPort    int    `yml:"ssh_port,omitempty" default:"22"`
-	DeployDir  string `yml:"deploy_dir"`
+	DeployDir  string `yml:"deploy_dir,omitempty"`
 	NumaNode   bool   `yml:"numa_node,omitempty" default:"false"`
 }
 
@@ -36,9 +38,9 @@ type TiKVSpec struct {
 	StatusPort int      `yml:"status_port" default:"20180"`
 	UUID       string   `yml:"uuid,omitempty"`
 	SSHPort    int      `yml:"ssh_port,omitempty" default:"22"`
-	DeployDir  string   `yml:"deploy_dir"`
-	DataDir    string   `yml:"data_dir"`
-	Offline    bool     `yml:"offline" default:"false"`
+	DeployDir  string   `yml:"deploy_dir,omitempty"`
+	DataDir    string   `yml:"data_dir,omitempty"`
+	Offline    bool     `yml:"offline,omitempty" default:"false"`
 	Labels     []string `yml:"labels,omitempty"`
 	NumaNode   bool     `yml:"numa_node,omitempty" default:"false"`
 }
@@ -50,8 +52,8 @@ type PDSpec struct {
 	PeerPort   int    `yml:"peer_port" default:"2380"`
 	UUID       string `yml:"uuid,omitempty"`
 	SSHPort    int    `yml:"ssh_port,omitempty" default:"22"`
-	DeployDir  string `yml:"deploy_dir"`
-	DataDir    string `yml:"data_dir"`
+	DeployDir  string `yml:"deploy_dir,omitempty"`
+	DataDir    string `yml:"data_dir,omitempty"`
 	NumaNode   bool   `yml:"numa_node,omitempty" default:"false"`
 }
 
@@ -61,9 +63,9 @@ type PumpSpec struct {
 	Port      int    `yml:"port" default:"8250"`
 	UUID      string `yml:"uuid,omitempty"`
 	SSHPort   int    `yml:"ssh_port,omitempty" default:"22"`
-	DeployDir string `yml:"deploy_dir"`
-	DataDir   string `yml:"data_dir"`
-	Offline   bool   `yml:"offline" default:"false"`
+	DeployDir string `yml:"deploy_dir,omitempty"`
+	DataDir   string `yml:"data_dir,omitempty"`
+	Offline   bool   `yml:"offline,omitempty" default:"false"`
 	NumaNode  bool   `yml:"numa_node,omitempty" default:"false"`
 }
 
@@ -73,10 +75,10 @@ type DrainerSpec struct {
 	Port      int    `yml:"port" default:"8249"`
 	UUID      string `yml:"uuid,omitempty"`
 	SSHPort   int    `yml:"ssh_port,omitempty" default:"22"`
-	DeployDir string `yml:"deploy_dir"`
-	DataDir   string `yml:"data_dir"`
-	CommitTS  string `yml:"commit_ts"`
-	Offline   bool   `yml:"offline" default:"false"`
+	DeployDir string `yml:"deploy_dir,omitempty"`
+	DataDir   string `yml:"data_dir,omitempty"`
+	CommitTS  string `yml:"commit_ts,omitempty"`
+	Offline   bool   `yml:"offline,omitempty" default:"false"`
 	NumaNode  bool   `yml:"numa_node,omitempty" default:"false"`
 }
 
@@ -86,8 +88,8 @@ type PrometheusSpec struct {
 	Port      int    `yml:"port" default:"9090"`
 	UUID      string `yml:"uuid,omitempty"`
 	SSHPort   int    `yml:"ssh_port,omitempty" default:"22"`
-	DeployDir string `yml:"deploy_dir"`
-	DataDir   string `yml:"data_dir"`
+	DeployDir string `yml:"deploy_dir,omitempty"`
+	DataDir   string `yml:"data_dir,omitempty"`
 }
 
 // GrafanaSpec represents the Grafana topology specification in topology.yml
@@ -96,7 +98,7 @@ type GrafanaSpec struct {
 	Port      int    `yml:"port" default:"3000"`
 	UUID      string `yml:"uuid,omitempty"`
 	SSHPort   int    `yml:"ssh_port,omitempty" default:"22"`
-	DeployDir string `yml:"deploy_dir"`
+	DeployDir string `yml:"deploy_dir,omitempty"`
 }
 
 // AlertManagerSpec represents the AlertManager topology specification in topology.yml
@@ -106,8 +108,8 @@ type AlertManagerSpec struct {
 	ClusterPort int    `yml:"cluster_port" default:"9094"`
 	UUID        string `yml:"uuid,omitempty"`
 	SSHPort     int    `yml:"ssh_port,omitempty" default:"22"`
-	DeployDir   string `yml:"deploy_dir"`
-	DataDir     string `yml:"data_dir"`
+	DeployDir   string `yml:"deploy_dir,omitempty"`
+	DataDir     string `yml:"data_dir,omitempty"`
 }
 
 /*
@@ -136,11 +138,40 @@ type TopologySpecification struct {
 }
 
 // UnmarshalYAML sets default values when unmarshaling the topology file
-func (t *TopologySpecification) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	defaults.Set(t)
+func (topo *TopologySpecification) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	defaults.Set(topo)
 
-	if err := unmarshal(t); err != nil {
-		return err
+	return unmarshal(topo)
+}
+
+func (topo *TopologySpecification) SetDefaults() {
+	topo.fillDefaults()
+	defaults.Set(topo)
+}
+
+// fillDefaults tries to fill custom fields to their default values
+func (topo *TopologySpecification) fillDefaults() {
+	v := reflect.ValueOf(topo).Elem()
+	t := v.Type()
+
+	for i := 0; i < t.NumField(); i++ {
+		if !v.Field(i).CanSet() {
+			continue
+		}
+
+		switch t.Field(i).Name {
+		case "UUID":
+			// TODO: generate UUID if not set
+			continue
+		case "DeployDir":
+			// fill default path for empty value
+			if defaults.CanUpdate(v.Field(i).Interface()) {
+				v.Field(i).Set(reflect.ValueOf("/home/tidb/deploy"))
+			}
+		case "DataDir":
+			if defaults.CanUpdate(v.Field(i).Interface()) {
+				v.Field(i).Set(reflect.ValueOf("/home/tidb/data"))
+			}
+		}
 	}
-	return nil
 }
