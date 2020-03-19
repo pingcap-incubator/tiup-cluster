@@ -16,6 +16,12 @@ package cmd
 import "github.com/spf13/cobra"
 
 func newStartCmd() *cobra.Command {
+	var (
+		clusterName string
+		role        string
+		node        string
+	)
+
 	cmd := &cobra.Command{
 		Use:   "start",
 		Short: "Start a TiDB cluster",
@@ -23,5 +29,9 @@ func newStartCmd() *cobra.Command {
 			return cmd.Help()
 		},
 	}
+
+	cmd.Flags().StringVar(&clusterName, "cluster_name", "", "cluster name")
+	cmd.Flags().StringVar(&role, "role", "", "role name")
+	cmd.Flags().StringVar(&node, "node-id", "", "node id")
 	return cmd
 }
