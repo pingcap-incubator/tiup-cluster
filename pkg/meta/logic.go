@@ -17,6 +17,7 @@ import (
 	"strconv"
 
 	"github.com/pingcap-incubator/tiops/pkg/executor"
+	"github.com/pingcap-incubator/tiops/pkg/module"
 )
 
 // Specification of cluster
@@ -28,7 +29,12 @@ var _ Instance = &TiDBSpec{}
 
 // Ready implements Instance interface.
 func (s *TiDBSpec) Ready(e executor.TiOpsExecutor) error {
-	return nil
+	return portStarted(e, s.Port)
+}
+
+// WaitForDown implements Instance interface.
+func (s *TiDBSpec) WaitForDown(e executor.TiOpsExecutor) error {
+	return portStopped(e, s.Port)
 }
 
 // ComponentName implements Instance interface.
@@ -48,9 +54,32 @@ func (s *TiDBSpec) GetIP() string {
 
 var _ Instance = &TiKVSpec{}
 
+func portStarted(e executor.TiOpsExecutor, port int) error {
+	c := module.WaitForConfig{
+		Port:  port,
+		State: "started",
+	}
+	w := module.NewWaitFor(c)
+	return w.Execute(e)
+}
+
+func portStopped(e executor.TiOpsExecutor, port int) error {
+	c := module.WaitForConfig{
+		Port:  port,
+		State: "stopped",
+	}
+	w := module.NewWaitFor(c)
+	return w.Execute(e)
+}
+
 // Ready implements Instance interface.
 func (s *TiKVSpec) Ready(e executor.TiOpsExecutor) error {
-	return nil
+	return portStarted(e, s.Port)
+}
+
+// WaitForDown implements Instance interface.
+func (s *TiKVSpec) WaitForDown(e executor.TiOpsExecutor) error {
+	return portStopped(e, s.Port)
 }
 
 // ComponentName implements Instance interface.
@@ -72,7 +101,14 @@ var _ Instance = &PDSpec{}
 
 // Ready implements Instance interface.
 func (s *PDSpec) Ready(e executor.TiOpsExecutor) error {
-	return nil
+	return portStarted(e, s.ClientPort)
+	// TODO: check health?
+	// url="http://{{ host }}:{{ client_port }}/health"
+}
+
+// WaitForDown implements Instance interface.
+func (s *PDSpec) WaitForDown(e executor.TiOpsExecutor) error {
+	return portStopped(e, s.ClientPort)
 }
 
 // ComponentName implements Instance interface.
@@ -94,7 +130,12 @@ var _ Instance = &PumpSpec{}
 
 // Ready implements Instance interface.
 func (s *PumpSpec) Ready(e executor.TiOpsExecutor) error {
-	return nil
+	return portStarted(e, s.Port)
+}
+
+// WaitForDown implements Instance interface.
+func (s *PumpSpec) WaitForDown(e executor.TiOpsExecutor) error {
+	return portStopped(e, s.Port)
 }
 
 // ComponentName implements Instance interface.
@@ -116,7 +157,12 @@ var _ Instance = &DrainerSpec{}
 
 // Ready implements Instance interface.
 func (s *DrainerSpec) Ready(e executor.TiOpsExecutor) error {
-	return nil
+	return portStarted(e, s.Port)
+}
+
+// WaitForDown implements Instance interface.
+func (s *DrainerSpec) WaitForDown(e executor.TiOpsExecutor) error {
+	return portStopped(e, s.Port)
 }
 
 // ComponentName implements Instance interface.
@@ -138,7 +184,12 @@ var _ Instance = &PrometheusSpec{}
 
 // Ready implements Instance interface.
 func (s *PrometheusSpec) Ready(e executor.TiOpsExecutor) error {
-	return nil
+	return portStarted(e, s.Port)
+}
+
+// WaitForDown implements Instance interface.
+func (s *PrometheusSpec) WaitForDown(e executor.TiOpsExecutor) error {
+	return portStopped(e, s.Port)
 }
 
 // ComponentName implements Instance interface.
@@ -160,7 +211,12 @@ var _ Instance = &GrafanaSpec{}
 
 // Ready implements Instance interface.
 func (s *GrafanaSpec) Ready(e executor.TiOpsExecutor) error {
-	return nil
+	return portStarted(e, s.Port)
+}
+
+// WaitForDown implements Instance interface.
+func (s *GrafanaSpec) WaitForDown(e executor.TiOpsExecutor) error {
+	return portStopped(e, s.Port)
 }
 
 // ComponentName implements Instance interface.
@@ -182,7 +238,12 @@ var _ Instance = &AlertManagerSpec{}
 
 // Ready implements Instance interface.
 func (s *AlertManagerSpec) Ready(e executor.TiOpsExecutor) error {
-	return nil
+	return portStarted(e, s.WebPort)
+}
+
+// WaitForDown implements Instance interface.
+func (s *AlertManagerSpec) WaitForDown(e executor.TiOpsExecutor) error {
+	return portStopped(e, s.WebPort)
 }
 
 // ComponentName implements Instance interface.
@@ -358,13 +419,10 @@ type Component interface {
 	Instances() []Instance
 }
 
-// pd may need check this
-// url="http://{{ ansible_host }}:{{ client_port }}/health"
-// other just check pont is listen
-
 // Instance represents the instance.
 type Instance interface {
 	Ready(executor.TiOpsExecutor) error
+	WaitForDown(executor.TiOpsExecutor) error
 	ComponentName() string
 	ServiceName() string
 	GetIP() string

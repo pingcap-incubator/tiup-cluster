@@ -204,7 +204,7 @@ func StopComponent(getter ExecutorGetter, w io.Writer, instances []meta.Instance
 			return errors.Annotatef(err, "failed to stop: %s", ins.GetIP())
 		}
 
-		err = ins.Ready(e)
+		err = ins.WaitForDown(e)
 		if err != nil {
 			str := fmt.Sprintf("%s failed to stop: %s", ins.GetIP(), err)
 			fmt.Fprintln(w, str)
