@@ -13,7 +13,11 @@
 
 package topology
 
-import "github.com/pingcap-incubator/tiops/pkg/executor"
+import (
+	"strconv"
+
+	"github.com/pingcap-incubator/tiops/pkg/executor"
+)
 
 // TiDBSpec represents the TiDB topology specification in topology.yml
 type TiDBSpec struct {
@@ -109,7 +113,7 @@ func (s *TiDBSpec) ComponentName() string {
 
 // ServiceName implements Instance interface.
 func (s *TiDBSpec) ServiceName() string {
-	return "tidb-" + s.IP + ".service"
+	return "tidb-" + strconv.Itoa(s.Port) + ".service"
 }
 
 // GetIP implements Instance interface.
