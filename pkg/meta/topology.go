@@ -15,9 +15,13 @@ package meta
 
 import (
 	//"fmt"
+	"io/ioutil"
 	"reflect"
 
 	"github.com/creasty/defaults"
+	"github.com/pingcap-incubator/tiops/pkg/utils"
+	"github.com/pingcap/errors"
+	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -221,4 +225,20 @@ func setCustomDefaults(field reflect.Value) error {
 	}
 
 	return nil
+}
+
+// ClusterTopology tries to read the topology of a cluster from file
+func ClusterTopology(clusterName string) (*TopologySpecification, error) {
+	var topo TopologySpecification
+	topoFile := utils.GetClusterPath(clusterName, TopologyFileName)
+
+	yamlFile, err := ioutil.ReadFile(topoFile)
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+
+	if err = yaml.Unmarshal(yamlFile, &topo); err != nil {
+		return nil, errors.Trace(err)
+	}
+	return &topo, nil
 }
