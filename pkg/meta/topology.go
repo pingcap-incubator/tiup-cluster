@@ -149,9 +149,6 @@ func (topo *TopologySpecification) UnmarshalYAML(unmarshal func(interface{}) err
 	}
 
 	defaults.Set(topo)
-
-	// fill custom default values to some special fields
-	// NOTE: not working yet
 	if err := fillCustomDefaults(topo); err != nil {
 		return err
 	}
@@ -165,23 +162,7 @@ func fillCustomDefaults(data interface{}) error {
 	t := v.Type()
 
 	for i := 0; i < t.NumField(); i++ {
-		switch v.Field(i).Kind() {
-		case reflect.Struct:
-			ref := reflect.New(v.Field(i).Type())
-			ref.Elem().Set(v.Field(i))
-			if err := setCustomDefaults(ref); err != nil {
-				return err
-			}
-			v.Field(i).Set(ref.Elem())
-		case reflect.Slice:
-			for j := 0; j < v.Field(i).Len(); j++ {
-				if err := setCustomDefaults(v.Field(i).Index(j)); err != nil {
-					return err
-				}
-			}
-		case reflect.Ptr:
-			setCustomDefaults(v.Field(i).Elem())
-		}
+		setCustomDefaults(v.Field(i))
 	}
 
 	return nil
@@ -192,18 +173,47 @@ func setCustomDefaults(field reflect.Value) error {
 		return nil
 	}
 
-	switch field.Type().Name() {
-	case "UUID":
-		// TODO: generate UUID if not set
-	case "DeployDir":
-		// fill default path for empty value
-		if defaults.CanUpdate(field.Interface()) {
-			field.Set(reflect.ValueOf("/home/tidb/deploy"))
+	switch field.Kind() {
+	case reflect.Slice:
+		for i := 0; i < field.Len(); i++ {
+			if err := setCustomDefaults(field.Index(i)); err != nil {
+				return err
+			}
 		}
-	case "DataDir":
-		if defaults.CanUpdate(field.Interface()) {
-			field.Set(reflect.ValueOf("/home/tidb/data"))
+	case reflect.Struct:
+		ref := reflect.New(field.Type())
+		ref.Elem().Set(field)
+		if err := fillCustomDefaults(ref.Interface()); err != nil {
+			return err
+		}
+		field.Set(ref.Elem())
+	case reflect.Ptr:
+		setCustomDefaults(field.Elem())
+	}
+
+	if field.Kind() != reflect.Struct {
+		return nil
+	}
+
+	for j := 0; j < field.NumField(); j++ {
+		switch field.Type().Field(j).Name {
+		case "IP":
+			if field.Field(j).String() == "" {
+				// TODO: remove empty server from topology
+			}
+		case "UUID":
+			// TODO: generate UUID if not set
+		case "DeployDir":
+			// fill default path for empty value
+			if defaults.CanUpdate(field.Field(j).Interface()) {
+				field.Field(j).Set(reflect.ValueOf("/home/tidb/deploy"))
+			}
+		case "DataDir":
+			if defaults.CanUpdate(field.Field(j).Interface()) {
+				field.Field(j).Set(reflect.ValueOf("/home/tidb/data"))
+			}
 		}
 	}
+
 	return nil
 }
