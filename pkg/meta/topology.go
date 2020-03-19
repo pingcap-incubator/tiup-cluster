@@ -14,6 +14,9 @@
 package meta
 
 import (
+	"fmt"
+	"strings"
+
 	//"fmt"
 	"io/ioutil"
 	"reflect"
@@ -212,22 +215,47 @@ func setCustomDefaults(field reflect.Value) error {
 			}
 		case "UUID":
 			if field.Field(j).String() == "" {
-				ip := field.FieldByName("IP").String()
-				field.Field(j).Set(reflect.ValueOf(utils.UUID(ip)))
+				field.Field(j).Set(reflect.ValueOf(getNodeID(field)))
 			}
-		case "DeployDir":
-			// fill default path for empty value
-			if defaults.CanUpdate(field.Field(j).Interface()) {
-				field.Field(j).Set(reflect.ValueOf("/home/tidb/deploy"))
+		case "DeployDir", "DataDir":
+			if field.Field(j).String() != "" {
+				continue
 			}
-		case "DataDir":
+
+			// fill default path for empty value, default paths are reletive
+			// ones, when using the value, remember to check and fill base
+			// paths of them.
 			if defaults.CanUpdate(field.Field(j).Interface()) {
-				field.Field(j).Set(reflect.ValueOf("/home/tidb/data"))
+				role := strings.TrimSuffix(field.Type().Name(), "Spec")
+				dir := fmt.Sprintf("%s-%s",
+					strings.ToLower(role),
+					getNodeID(field))
+				field.Field(j).Set(reflect.ValueOf(dir))
 			}
 		}
 	}
 
 	return nil
+}
+
+// getNodeID tries to build an UUID from the node's IP and service port
+func getNodeID(v reflect.Value) string {
+	ip := ""
+	port := ""
+
+	for i := 0; i < v.NumField(); i++ {
+		switch v.Type().Field(i).Name {
+		case "UUID": // return if UUID is already set
+			if v.Field(i).String() != "" {
+				return v.Field(i).String()
+			}
+		case "IP":
+			ip = v.Field(i).String()
+		case "Port", "ClientPort", "WebPort":
+			port = v.Field(i).String()
+		}
+	}
+	return utils.UUID(fmt.Sprintf("%s:%s", ip, port))
 }
 
 // ClusterTopology tries to read the topology of a cluster from file
