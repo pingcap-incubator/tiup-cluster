@@ -32,7 +32,7 @@ type TiDBSpec struct {
 	UUID       string `yaml:"uuid,omitempty"`
 	SSHPort    int    `yaml:"ssh_port,omitempty" default:"22"`
 	DeployDir  string `yaml:"deploy_dir,omitempty"`
-	NumaNode   bool   `yaml:"numa_node,omitempty" default:"false"`
+	NumaNode   bool   `yaml:"numa_node,omitempty"`
 }
 
 // TiKVSpec represents the TiKV topology specification in topology.yaml
@@ -44,9 +44,9 @@ type TiKVSpec struct {
 	SSHPort    int      `yaml:"ssh_port,omitempty" default:"22"`
 	DeployDir  string   `yaml:"deploy_dir,omitempty"`
 	DataDir    string   `yaml:"data_dir,omitempty"`
-	Offline    bool     `yaml:"offline,omitempty" default:"false"`
+	Offline    bool     `yaml:"offline,omitempty"`
 	Labels     []string `yaml:"labels,omitempty"`
-	NumaNode   bool     `yaml:"numa_node,omitempty" default:"false"`
+	NumaNode   bool     `yaml:"numa_node,omitempty"`
 }
 
 // PDSpec represents the PD topology specification in topology.yaml
@@ -58,7 +58,7 @@ type PDSpec struct {
 	SSHPort    int    `yaml:"ssh_port,omitempty" default:"22"`
 	DeployDir  string `yaml:"deploy_dir,omitempty"`
 	DataDir    string `yaml:"data_dir,omitempty"`
-	NumaNode   bool   `yaml:"numa_node,omitempty" default:"false"`
+	NumaNode   bool   `yaml:"numa_node,omitempty"`
 }
 
 // PumpSpec represents the Pump topology specification in topology.yaml
@@ -69,8 +69,8 @@ type PumpSpec struct {
 	SSHPort   int    `yaml:"ssh_port,omitempty" default:"22"`
 	DeployDir string `yaml:"deploy_dir,omitempty"`
 	DataDir   string `yaml:"data_dir,omitempty"`
-	Offline   bool   `yaml:"offline,omitempty" default:"false"`
-	NumaNode  bool   `yaml:"numa_node,omitempty" default:"false"`
+	Offline   bool   `yaml:"offline,omitempty"`
+	NumaNode  bool   `yaml:"numa_node,omitempty"`
 }
 
 // DrainerSpec represents the Drainer topology specification in topology.yaml
@@ -82,8 +82,8 @@ type DrainerSpec struct {
 	DeployDir string `yaml:"deploy_dir,omitempty"`
 	DataDir   string `yaml:"data_dir,omitempty"`
 	CommitTS  string `yaml:"commit_ts,omitempty"`
-	Offline   bool   `yaml:"offline,omitempty" default:"false"`
-	NumaNode  bool   `yaml:"numa_node,omitempty" default:"false"`
+	Offline   bool   `yaml:"offline,omitempty"`
+	NumaNode  bool   `yaml:"numa_node,omitempty"`
 }
 
 // PrometheusSpec represents the Prometheus Server topology specification in topology.yaml
