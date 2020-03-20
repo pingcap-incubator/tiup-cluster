@@ -14,45 +14,23 @@
 package meta
 
 import (
-	"strconv"
+	"fmt"
 
 	"github.com/pingcap-incubator/tiops/pkg/executor"
 	"github.com/pingcap-incubator/tiops/pkg/module"
 )
 
-// Specification of cluster
-type Specification = TopologySpecification
-
-// implements instance.
-//
-var _ Instance = &TiDBSpec{}
-
-// Ready implements Instance interface.
-func (s *TiDBSpec) Ready(e executor.TiOpsExecutor) error {
-	return portStarted(e, s.Port)
-}
-
-// WaitForDown implements Instance interface.
-func (s *TiDBSpec) WaitForDown(e executor.TiOpsExecutor) error {
-	return portStopped(e, s.Port)
-}
-
-// ComponentName implements Instance interface.
-func (s *TiDBSpec) ComponentName() string {
-	return "tidb"
-}
-
-// ServiceName implements Instance interface.
-func (s *TiDBSpec) ServiceName() string {
-	return "tidb-" + strconv.Itoa(s.Port) + ".service"
-}
-
-// GetIP implements Instance interface.
-func (s *TiDBSpec) GetIP() string {
-	return s.IP
-}
-
-var _ Instance = &TiKVSpec{}
+const (
+	ComponentTiDB         = "tidb"
+	ComponentTiKV         = "tikv"
+	ComponentPD           = "pd"
+	ComponentGrafana      = "grafana"
+	ComponentDrainer      = "drainer"
+	ComponentMonitor      = "monitor"
+	ComponentPump         = "pump"
+	ComponentAlertManager = "alertmanager"
+	ComponentPrometheus   = "prometheus"
+)
 
 func portStarted(e executor.TiOpsExecutor, port int) error {
 	c := module.WaitForConfig{
@@ -72,210 +50,79 @@ func portStopped(e executor.TiOpsExecutor, port int) error {
 	return w.Execute(e)
 }
 
-// Ready implements Instance interface.
-func (s *TiKVSpec) Ready(e executor.TiOpsExecutor) error {
-	return portStarted(e, s.Port)
+type instanceBase struct {
+	name string
+	host string
+	port int
+	sshp int
+	spec interface{}
 }
 
-// WaitForDown implements Instance interface.
-func (s *TiKVSpec) WaitForDown(e executor.TiOpsExecutor) error {
-	return portStopped(e, s.Port)
+// Ready implements Instance interface
+func (i *instanceBase) Ready(e executor.TiOpsExecutor) error {
+	return portStarted(e, i.port)
 }
 
-// ComponentName implements Instance interface.
-func (s *TiKVSpec) ComponentName() string {
-	return "tikv"
+// WaitForDown implements Instance interface
+func (i *instanceBase) WaitForDown(e executor.TiOpsExecutor) error {
+	return portStopped(e, i.port)
 }
 
-// ServiceName implements Instance interface.
-func (s *TiKVSpec) ServiceName() string {
-	return "tikv-" + s.IP + ".service"
+// ComponentName implements Instance interface
+func (i *instanceBase) ComponentName() string {
+	return i.name
 }
 
-// GetIP implements Instance interface.
-func (s *TiKVSpec) GetIP() string {
-	return s.IP
+// InstanceName implements Instance interface
+func (i *instanceBase) InstanceName() string {
+	if i.port > 0 {
+		return fmt.Sprintf("%s%d", i.name, i.port)
+	}
+	return i.ComponentName()
 }
 
-var _ Instance = &PDSpec{}
-
-// Ready implements Instance interface.
-func (s *PDSpec) Ready(e executor.TiOpsExecutor) error {
-	return portStarted(e, s.ClientPort)
-	// TODO: check health?
-	// url="http://{{ host }}:{{ client_port }}/health"
+// ServiceName implements Instance interface
+func (i *instanceBase) ServiceName() string {
+	if i.port > 0 {
+		return fmt.Sprintf("%s-%d.service", i.name, i.port)
+	}
+	return fmt.Sprintf("%s.service", i.name)
 }
 
-// WaitForDown implements Instance interface.
-func (s *PDSpec) WaitForDown(e executor.TiOpsExecutor) error {
-	return portStopped(e, s.ClientPort)
+// GetIP implements Instance interface
+func (i *instanceBase) GetIP() string {
+	return i.host
 }
 
-// ComponentName implements Instance interface.
-func (s *PDSpec) ComponentName() string {
-	return "pd"
+// GetSSHPort implements Instance interface
+func (i *instanceBase) GetSSHPort() int {
+	return i.sshp
 }
 
-// ServiceName implements Instance interface.
-func (s *PDSpec) ServiceName() string {
-	return "pd-" + s.IP + ".service"
-}
-
-// GetIP implements Instance interface.
-func (s *PDSpec) GetIP() string {
-	return s.IP
-}
-
-var _ Instance = &PumpSpec{}
-
-// Ready implements Instance interface.
-func (s *PumpSpec) Ready(e executor.TiOpsExecutor) error {
-	return portStarted(e, s.Port)
-}
-
-// WaitForDown implements Instance interface.
-func (s *PumpSpec) WaitForDown(e executor.TiOpsExecutor) error {
-	return portStopped(e, s.Port)
-}
-
-// ComponentName implements Instance interface.
-func (s *PumpSpec) ComponentName() string {
-	return "pump"
-}
-
-// ServiceName implements Instance interface.
-func (s *PumpSpec) ServiceName() string {
-	return "pump-" + s.IP + ".service"
-}
-
-// GetIP implements Instance interface.
-func (s *PumpSpec) GetIP() string {
-	return s.IP
-}
-
-var _ Instance = &DrainerSpec{}
-
-// Ready implements Instance interface.
-func (s *DrainerSpec) Ready(e executor.TiOpsExecutor) error {
-	return portStarted(e, s.Port)
-}
-
-// WaitForDown implements Instance interface.
-func (s *DrainerSpec) WaitForDown(e executor.TiOpsExecutor) error {
-	return portStopped(e, s.Port)
-}
-
-// ComponentName implements Instance interface.
-func (s *DrainerSpec) ComponentName() string {
-	return "drainer"
-}
-
-// ServiceName implements Instance interface.
-func (s *DrainerSpec) ServiceName() string {
-	return "drainer-" + s.IP + ".service"
-}
-
-// GetIP implements Instance interface.
-func (s *DrainerSpec) GetIP() string {
-	return s.IP
-}
-
-var _ Instance = &PrometheusSpec{}
-
-// Ready implements Instance interface.
-func (s *PrometheusSpec) Ready(e executor.TiOpsExecutor) error {
-	return portStarted(e, s.Port)
-}
-
-// WaitForDown implements Instance interface.
-func (s *PrometheusSpec) WaitForDown(e executor.TiOpsExecutor) error {
-	return portStopped(e, s.Port)
-}
-
-// ComponentName implements Instance interface.
-func (s *PrometheusSpec) ComponentName() string {
-	return "monitor"
-}
-
-// ServiceName implements Instance interface.
-func (s *PrometheusSpec) ServiceName() string {
-	return "monitor-" + s.IP + ".service"
-}
-
-// GetIP implements Instance interface.
-func (s *PrometheusSpec) GetIP() string {
-	return s.IP
-}
-
-var _ Instance = &GrafanaSpec{}
-
-// Ready implements Instance interface.
-func (s *GrafanaSpec) Ready(e executor.TiOpsExecutor) error {
-	return portStarted(e, s.Port)
-}
-
-// WaitForDown implements Instance interface.
-func (s *GrafanaSpec) WaitForDown(e executor.TiOpsExecutor) error {
-	return portStopped(e, s.Port)
-}
-
-// ComponentName implements Instance interface.
-func (s *GrafanaSpec) ComponentName() string {
-	return "grafana"
-}
-
-// ServiceName implements Instance interface.
-func (s *GrafanaSpec) ServiceName() string {
-	return "grafana-" + s.IP + ".service"
-}
-
-// GetIP implements Instance interface.
-func (s *GrafanaSpec) GetIP() string {
-	return s.IP
-}
-
-var _ Instance = &AlertManagerSpec{}
-
-// Ready implements Instance interface.
-func (s *AlertManagerSpec) Ready(e executor.TiOpsExecutor) error {
-	return portStarted(e, s.WebPort)
-}
-
-// WaitForDown implements Instance interface.
-func (s *AlertManagerSpec) WaitForDown(e executor.TiOpsExecutor) error {
-	return portStopped(e, s.WebPort)
-}
-
-// ComponentName implements Instance interface.
-func (s *AlertManagerSpec) ComponentName() string {
-	return "alertmanager"
-}
-
-// ServiceName implements Instance interface.
-func (s *AlertManagerSpec) ServiceName() string {
-	return "alertmanager-" + s.IP + ".service"
-}
-
-// GetIP implements Instance interface.
-func (s *AlertManagerSpec) GetIP() string {
-	return s.IP
-}
+// Specification of cluster
+type Specification = TopologySpecification
 
 // TiDBComponent represents TiDB component.
 type TiDBComponent []TiDBSpec
 
 // Name implements Component interface.
 func (c TiDBComponent) Name() string {
-	return "tidb"
+	return ComponentTiDB
 }
 
 // Instances implements Component interface.
-func (c TiDBComponent) Instances() (ins []Instance) {
+func (c TiDBComponent) Instances() []Instance {
+	ins := make([]Instance, 0, len(c))
 	for _, s := range c {
-		ins = append(ins, &s)
+		ins = append(ins, &instanceBase{
+			name: c.Name(),
+			host: s.IP,
+			port: s.Port,
+			sshp: s.SSHPort,
+			spec: s,
+		})
 	}
-
-	return
+	return ins
 }
 
 // TiKVComponent represents TiKV component.
@@ -283,16 +130,22 @@ type TiKVComponent []TiKVSpec
 
 // Name implements Component interface.
 func (c TiKVComponent) Name() string {
-	return "tikv"
+	return ComponentTiKV
 }
 
 // Instances implements Component interface.
-func (c TiKVComponent) Instances() (ins []Instance) {
+func (c TiKVComponent) Instances() []Instance {
+	ins := make([]Instance, 0, len(c))
 	for _, s := range c {
-		ins = append(ins, &s)
+		ins = append(ins, &instanceBase{
+			name: c.Name(),
+			host: s.IP,
+			port: s.Port,
+			sshp: s.SSHPort,
+			spec: s,
+		})
 	}
-
-	return
+	return ins
 }
 
 // PDComponent represents PD component.
@@ -300,16 +153,22 @@ type PDComponent []PDSpec
 
 // Name implements Component interface.
 func (c PDComponent) Name() string {
-	return "pd"
+	return ComponentPD
 }
 
 // Instances implements Component interface.
-func (c PDComponent) Instances() (ins []Instance) {
+func (c PDComponent) Instances() []Instance {
+	ins := make([]Instance, 0, len(c))
 	for _, s := range c {
-		ins = append(ins, &s)
+		ins = append(ins, &instanceBase{
+			name: c.Name(),
+			host: s.IP,
+			port: s.ClientPort,
+			sshp: s.SSHPort,
+			spec: s,
+		})
 	}
-
-	return
+	return ins
 }
 
 // PumpComponent represents Pump component.
@@ -317,16 +176,22 @@ type PumpComponent []PumpSpec
 
 // Name implements Component interface.
 func (c PumpComponent) Name() string {
-	return "pd"
+	return ComponentPump
 }
 
 // Instances implements Component interface.
-func (c PumpComponent) Instances() (ins []Instance) {
+func (c PumpComponent) Instances() []Instance {
+	ins := make([]Instance, 0, len(c))
 	for _, s := range c {
-		ins = append(ins, &s)
+		ins = append(ins, &instanceBase{
+			name: c.Name(),
+			host: s.IP,
+			port: s.Port,
+			sshp: s.SSHPort,
+			spec: s,
+		})
 	}
-
-	return
+	return ins
 }
 
 // DrainerComponent represents Drainer component.
@@ -334,16 +199,22 @@ type DrainerComponent []DrainerSpec
 
 // Name implements Component interface.
 func (c DrainerComponent) Name() string {
-	return "drainer"
+	return ComponentDrainer
 }
 
 // Instances implements Component interface.
-func (c DrainerComponent) Instances() (ins []Instance) {
+func (c DrainerComponent) Instances() []Instance {
+	ins := make([]Instance, 0, len(c))
 	for _, s := range c {
-		ins = append(ins, &s)
+		ins = append(ins, &instanceBase{
+			name: c.Name(),
+			host: s.IP,
+			port: s.Port,
+			sshp: s.SSHPort,
+			spec: s,
+		})
 	}
-
-	return
+	return ins
 }
 
 // MonitorComponent represents Monitor component.
@@ -351,16 +222,22 @@ type MonitorComponent []PrometheusSpec
 
 // Name implements Component interface.
 func (c MonitorComponent) Name() string {
-	return "monitor"
+	return ComponentMonitor
 }
 
 // Instances implements Component interface.
-func (c MonitorComponent) Instances() (ins []Instance) {
+func (c MonitorComponent) Instances() []Instance {
+	ins := make([]Instance, 0, len(c))
 	for _, s := range c {
-		ins = append(ins, &s)
+		ins = append(ins, &instanceBase{
+			name: c.Name(),
+			host: s.IP,
+			port: s.Port,
+			sshp: s.SSHPort,
+			spec: s,
+		})
 	}
-
-	return
+	return ins
 }
 
 // GrafanaComponent represents Grafana component.
@@ -368,16 +245,22 @@ type GrafanaComponent []GrafanaSpec
 
 // Name implements Component interface.
 func (c GrafanaComponent) Name() string {
-	return "grafana"
+	return ComponentGrafana
 }
 
 // Instances implements Component interface.
-func (c GrafanaComponent) Instances() (ins []Instance) {
+func (c GrafanaComponent) Instances() []Instance {
+	ins := make([]Instance, 0, len(c))
 	for _, s := range c {
-		ins = append(ins, &s)
+		ins = append(ins, &instanceBase{
+			name: c.Name(),
+			host: s.IP,
+			port: s.Port,
+			sshp: s.SSHPort,
+			spec: s,
+		})
 	}
-
-	return
+	return ins
 }
 
 // AlertmanagerComponent represents Alertmanager component.
@@ -385,16 +268,21 @@ type AlertmanagerComponent []AlertManagerSpec
 
 // Name implements Component interface.
 func (c AlertmanagerComponent) Name() string {
-	return "alertmanager"
+	return ComponentAlertManager
 }
 
 // Instances implements Component interface.
-func (c AlertmanagerComponent) Instances() (ins []Instance) {
+func (c AlertmanagerComponent) Instances() []Instance {
+	ins := make([]Instance, 0, len(c))
 	for _, s := range c {
-		ins = append(ins, &s)
+		ins = append(ins, &instanceBase{
+			name: c.Name(),
+			host: s.IP,
+			sshp: s.SSHPort,
+			spec: s,
+		})
 	}
-
-	return
+	return ins
 }
 
 // ComponentsByStartOrder return component in the order need to start.
@@ -424,6 +312,8 @@ type Instance interface {
 	Ready(executor.TiOpsExecutor) error
 	WaitForDown(executor.TiOpsExecutor) error
 	ComponentName() string
+	InstanceName() string
 	ServiceName() string
 	GetIP() string
+	GetSSHPort() int
 }
