@@ -17,9 +17,7 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/pingcap-incubator/tiup/pkg/meta"
 	"github.com/pingcap-incubator/tiup/pkg/repository"
-	"github.com/pingcap-incubator/tiup/pkg/utils"
 	"github.com/pingcap/errors"
 )
 
@@ -36,29 +34,6 @@ type CopyComponent struct {
 
 // Execute implements the Task interface
 func (c *CopyComponent) Execute(ctx *Context) error {
-	resName := fmt.Sprintf("%s-%s", c.component, c.version)
-	fileName := fmt.Sprintf("%s-linux-amd64.tar.gz", resName)
-	srcPath := filepath.Join(cacheTarballDir, fileName)
-
-	// Download from repository if not exists
-	if utils.IsNotExist(srcPath) {
-		mirror := repository.NewMirror(meta.Mirror())
-		if err := mirror.Open(); err != nil {
-			return errors.Trace(err)
-		}
-		defer mirror.Close()
-
-		repo := repository.NewRepository(mirror, repository.Options{
-			GOOS:              "linux",
-			GOARCH:            "amd64",
-			DisableDecompress: true,
-		})
-
-		err := repo.DownloadFile(cacheTarballDir, resName)
-		if err != nil {
-			return errors.Trace(err)
-		}
-	}
 
 	// Copy to remote server
 	exec, found := ctx.GetExecutor(c.host)
@@ -66,6 +41,9 @@ func (c *CopyComponent) Execute(ctx *Context) error {
 		return ErrNoExecutor
 	}
 
+	resName := fmt.Sprintf("%s-%s", c.component, c.version)
+	fileName := fmt.Sprintf("%s-linux-amd64.tar.gz", resName)
+	srcPath := filepath.Join(cacheTarballDir, fileName)
 	dstPath := filepath.Join(c.dstDir, fileName)
 
 	err := exec.Transfer(srcPath, dstPath)
