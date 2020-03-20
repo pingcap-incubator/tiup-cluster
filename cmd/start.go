@@ -30,7 +30,6 @@ func newStartCmd() *cobra.Command {
 		Use:   "start",
 		Short: "Start a TiDB cluster",
 		RunE: func(cmd *cobra.Command, args []string) error {
-
 			spec, err := utils.ReadClusterTopology(clusterName)
 			if err != nil {
 				return err

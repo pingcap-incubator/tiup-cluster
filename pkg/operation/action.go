@@ -278,9 +278,9 @@ func PrintClusterStatus(getter ExecutorGetter, w io.Writer, spec *meta.Specifica
 			active, err := getServiceStatus(e, ins.ServiceName())
 			if err != nil {
 				health = false
-				fmt.Fprintf(w, "\t%s\n", err.Error())
+				fmt.Fprintf(w, "\t\t%s\n", err.Error())
 			} else {
-				fmt.Fprintf(w, "\t%s\n", active)
+				fmt.Fprintf(w, "\t\t%s\n", active)
 			}
 		}
 
