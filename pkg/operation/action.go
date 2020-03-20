@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"strings"
 	"time"
 
 	"github.com/pingcap-incubator/tiops/pkg/executor"
@@ -217,9 +218,60 @@ func StopComponent(getter ExecutorGetter, w io.Writer, instances []meta.Instance
 	return nil
 }
 
+/*
+[tidb@ip-172-16-5-70 deploy]$ sudo systemctl status drainer-8249.service
+● drainer-8249.service - drainer-8249 service
+   Loaded: loaded (/etc/systemd/system/drainer-8249.service; disabled; vendor preset: disabled)
+   Active: active (running) since Mon 2020-03-09 13:56:19 CST; 1 weeks 3 days ago
+ Main PID: 36718 (drainer)
+   CGroup: /system.slice/drainer-8249.service
+           └─36718 bin/drainer --addr=172.16.5.70:8249 --pd-urls=http://172.16.5.70:2379 --data-dir=/data1/deploy/data.drainer --log-file=/data1/deploy/log/drainer.log --config=conf/drainer.toml --initial-commit-ts=408375872006389761
+
+Mar 09 13:56:19 ip-172-16-5-70 systemd[1]: Started drainer-8249 service.
+*/
+// getServiceStatus return the Acitive line of status.
+func getServiceStatus(e executor.TiOpsExecutor, name string) (active string, err error) {
+	c := module.SystemdModuleConfig{
+		Unit:   name,
+		Action: "status",
+	}
+	systemd := module.NewSystemdModule(c)
+	stdout, _, err := systemd.Execute(e)
+	if err != nil {
+		return
+	}
+
+	lines := strings.Split(string(stdout), "\n")
+	if len(lines) < 3 {
+		return "", errors.Errorf("unexpected output: %s", string(stdout))
+	}
+
+	return lines[2], nil
+}
+
 // PrintClusterStatus print cluster status into the io.Writer.
 func PrintClusterStatus(getter ExecutorGetter, w io.Writer, spec *meta.Specification) (health bool) {
-	// TODO
+	health = true
 
-	return true
+	for _, com := range spec.ComponentsByStartOrder() {
+		if len(com.Instances()) == 0 {
+			continue
+		}
+
+		fmt.Fprintln(w, com.Name())
+		for _, ins := range com.Instances() {
+			fmt.Fprintf(w, "\t%s\n", ins.GetIP())
+			e := getter.Get(ins.GetIP())
+			active, err := getServiceStatus(e, ins.ServiceName())
+			if err != nil {
+				health = false
+				fmt.Fprintf(w, "\t%s\n", err.Error())
+			} else {
+				fmt.Fprintf(w, "\t%s\n", active)
+			}
+		}
+
+	}
+
+	return
 }
