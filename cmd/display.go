@@ -14,40 +14,45 @@
 package cmd
 
 import (
+	"fmt"
+	"io/ioutil"
+
+	//"github.com/pingcap-incubator/tiops/pkg/task"
 	"github.com/pingcap-incubator/tiops/pkg/meta"
-	"github.com/pingcap-incubator/tiops/pkg/task"
 	"github.com/spf13/cobra"
+	"gopkg.in/yaml.v2"
 )
 
-func newStopCmd() *cobra.Command {
+func newDisplayCmd() *cobra.Command {
 	var (
-		clusterName string
-		role        string
-		node        string
+		//clusterName  string
+		topologyFile string
 	)
 
 	cmd := &cobra.Command{
-		Use:   "stop",
-		Short: "Stop a TiDB cluster",
+		Use:    "display",
+		Short:  "Display information of a TiDB cluster",
+		Hidden: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			var topo meta.TopologySpecification
 
-			spec, err := meta.ClusterTopology(clusterName)
+			yamlFile, err := ioutil.ReadFile(topologyFile)
 			if err != nil {
 				return err
 			}
 
-			t := task.NewBuilder().
-				ClusterSSH(spec).
-				ClusterOperate(spec, "stop", role, node).
-				Build()
+			if err = yaml.Unmarshal(yamlFile, &topo); err != nil {
+				return err
+			}
 
-			return t.Execute(task.NewContext())
-
+			topoData, err := yaml.Marshal(topo)
+			fmt.Printf("%s", topoData)
+			return nil
 		},
 	}
 
-	cmd.Flags().StringVar(&clusterName, "cluster_name", "", "cluster name")
-	cmd.Flags().StringVar(&role, "role", "", "role name")
-	cmd.Flags().StringVar(&node, "node-id", "", "node id")
+	//cmd.Flags().StringVar(&clusterName, "name", "", "name of TiDB cluster")
+	cmd.Flags().StringVar(&topologyFile, "topology", "", "path to the topology file")
+
 	return cmd
 }

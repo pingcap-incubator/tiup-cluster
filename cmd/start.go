@@ -14,8 +14,8 @@
 package cmd
 
 import (
+	"github.com/pingcap-incubator/tiops/pkg/meta"
 	"github.com/pingcap-incubator/tiops/pkg/task"
-	"github.com/pingcap-incubator/tiops/pkg/utils"
 	"github.com/spf13/cobra"
 )
 
@@ -30,7 +30,7 @@ func newStartCmd() *cobra.Command {
 		Use:   "start",
 		Short: "Start a TiDB cluster",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			spec, err := utils.ReadClusterTopology(clusterName)
+			spec, err := meta.ClusterTopology(clusterName)
 			if err != nil {
 				return err
 			}

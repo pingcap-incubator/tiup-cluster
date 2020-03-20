@@ -14,9 +14,9 @@
 package cmd
 
 import (
+	"github.com/pingcap-incubator/tiops/pkg/meta"
 	"github.com/pingcap-incubator/tiops/pkg/task"
 	"github.com/pingcap-incubator/tiops/pkg/topology"
-	"github.com/pingcap-incubator/tiops/pkg/utils"
 	"github.com/spf13/cobra"
 )
 
@@ -33,7 +33,7 @@ func newRestartCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 
 			var spec *topology.Specification
-			spec, err := utils.ReadClusterTopology(clusterName)
+			spec, err := meta.ClusterTopology(clusterName)
 			if err != nil {
 				return err
 			}

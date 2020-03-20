@@ -52,7 +52,7 @@ func filterInstance(instances []meta.Instance, node string) (res []meta.Instance
 	}
 
 	for _, c := range instances {
-		if c.GetIP() != node {
+		if c.GetHost() != node {
 			continue
 		}
 
@@ -156,8 +156,8 @@ func StartComponent(getter ExecutorGetter, w io.Writer, instances []meta.Instanc
 	fmt.Fprintf(w, "Starting component %s", name)
 
 	for _, ins := range instances {
-		e := getter.Get(ins.GetIP())
-		fmt.Fprintf(w, "Starting instance %s", ins.GetIP())
+		e := getter.Get(ins.GetHost())
+		fmt.Fprintf(w, "Starting instance %s", ins.GetHost())
 
 		// Start by systemd.
 		c := module.SystemdModuleConfig{
@@ -172,18 +172,18 @@ func StartComponent(getter ExecutorGetter, w io.Writer, instances []meta.Instanc
 		io.Copy(w, bytes.NewReader(stderr))
 
 		if err != nil {
-			return errors.Annotatef(err, "failed to start: %s", ins.GetIP())
+			return errors.Annotatef(err, "failed to start: %s", ins.GetHost())
 		}
 
 		// Check ready.
 		err = ins.Ready(e)
 		if err != nil {
-			str := fmt.Sprintf("%s failed to start: %s", ins.GetIP(), err)
+			str := fmt.Sprintf("%s failed to start: %s", ins.GetHost(), err)
 			fmt.Fprintln(w, str)
 			return errors.Annotatef(err, str)
 		}
 
-		fmt.Fprintf(w, "Start %s success", ins.GetIP())
+		fmt.Fprintf(w, "Start %s success", ins.GetHost())
 	}
 
 	return nil
@@ -199,8 +199,8 @@ func StopComponent(getter ExecutorGetter, w io.Writer, instances []meta.Instance
 	fmt.Fprintf(w, "Stopping component %s", name)
 
 	for _, ins := range instances {
-		e := getter.Get(ins.GetIP())
-		fmt.Fprintf(w, "Stopping instance %s", ins.GetIP())
+		e := getter.Get(ins.GetHost())
+		fmt.Fprintf(w, "Stopping instance %s", ins.GetHost())
 
 		// Stop by systemd.
 		c := module.SystemdModuleConfig{
@@ -215,17 +215,17 @@ func StopComponent(getter ExecutorGetter, w io.Writer, instances []meta.Instance
 		io.Copy(w, bytes.NewReader(stderr))
 
 		if err != nil {
-			return errors.Annotatef(err, "failed to stop: %s", ins.GetIP())
+			return errors.Annotatef(err, "failed to stop: %s", ins.GetHost())
 		}
 
 		err = ins.WaitForDown(e)
 		if err != nil {
-			str := fmt.Sprintf("%s failed to stop: %s", ins.GetIP(), err)
+			str := fmt.Sprintf("%s failed to stop: %s", ins.GetHost(), err)
 			fmt.Fprintln(w, str)
 			return errors.Annotatef(err, str)
 		}
 
-		fmt.Fprintf(w, "Stop %s success", ins.GetIP())
+		fmt.Fprintf(w, "Stop %s success", ins.GetHost())
 	}
 
 	return nil
@@ -273,8 +273,8 @@ func PrintClusterStatus(getter ExecutorGetter, w io.Writer, spec *meta.Specifica
 
 		fmt.Fprintln(w, com.Name())
 		for _, ins := range com.Instances() {
-			fmt.Fprintf(w, "\t%s\n", ins.GetIP())
-			e := getter.Get(ins.GetIP())
+			fmt.Fprintf(w, "\t%s\n", ins.GetHost())
+			e := getter.Get(ins.GetHost())
 			active, err := getServiceStatus(e, ins.ServiceName())
 			if err != nil {
 				health = false
