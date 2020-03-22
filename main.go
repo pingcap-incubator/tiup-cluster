@@ -13,8 +13,19 @@
 
 package main
 
-import "github.com/pingcap-incubator/tiops/cmd"
+import (
+	"fmt"
+
+	"github.com/pingcap-incubator/tiops/pkg/template/config"
+)
 
 func main() {
-	cmd.Execute()
+	//cmd.Execute()
+	d := config.NewPrometheusConfig("test-cluster")
+	d.AddPump("127.0.0.1", 1194)
+	d.AddKafka("127.0.0.1", 1194)
+	d.AddLightning("127.0.0.1", 1194)
+	d.AddAlertmanager("127.0.0.1", 1194)
+	d.AddPushgateway("127.0.0.1", 1194)
+	fmt.Println(d.Config())
 }
