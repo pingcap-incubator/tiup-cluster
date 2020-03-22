@@ -14,10 +14,11 @@
 package cmd
 
 import (
+	"os"
+
 	"github.com/pingcap-incubator/tiops/pkg/meta"
 	"github.com/pingcap-incubator/tiops/pkg/task"
 	"github.com/spf13/cobra"
-	"os"
 )
 
 type execOptions struct {
