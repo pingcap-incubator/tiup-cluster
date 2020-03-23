@@ -53,6 +53,9 @@ func newDisplayCmd() *cobra.Command {
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := displayClusterMeta(clusterName); err != nil {
+				return err
+			}
 			return displayClusterTopology(clusterName, topologyFile)
 		},
 	}
@@ -61,13 +64,22 @@ func newDisplayCmd() *cobra.Command {
 
 	return cmd
 }
-
-func displayClusterTopology(name, topoFile string) error {
+func displayClusterMeta(name string) error {
 	/*
 		clsMeta, err := meta.ClusterMetadata(name)
 		if err != nil {
 			return err
 		}
+	*/
+	clsVer := "v4.0.0-demover"
+
+	fmt.Printf("TiDB Cluster: %s\n", name)
+	fmt.Printf("TiDB Version: %s\n", clsVer)
+	return nil
+}
+
+func displayClusterTopology(name, topoFile string) error {
+	/*
 		clsTopo, err := meta.ClusterTopology(name)
 		if err != nil {
 			return err
