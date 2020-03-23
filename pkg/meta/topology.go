@@ -48,6 +48,7 @@ type InstanceSpec interface {
 	GetPort() []int
 	GetSSHPort() int
 	GetDir() []string
+	GetStatus() string
 	Role() string
 }
 
@@ -89,6 +90,11 @@ func (s TiDBSpec) GetDir() []string {
 	return []string{
 		s.DeployDir,
 	}
+}
+
+// GetStatus queries current status of the instance
+func (s TiDBSpec) GetStatus() string {
+	return "N/A"
 }
 
 // Role returns the component role of the instance
@@ -141,6 +147,11 @@ func (s TiKVSpec) GetDir() []string {
 	}
 }
 
+// GetStatus queries current status of the instance
+func (s TiKVSpec) GetStatus() string {
+	return "N/A"
+}
+
 // Role returns the component role of the instance
 func (s TiKVSpec) Role() string {
 	return RoleTiKV
@@ -190,6 +201,11 @@ func (s PDSpec) GetDir() []string {
 	}
 }
 
+// GetStatus queries current status of the instance
+func (s PDSpec) GetStatus() string {
+	return "N/A"
+}
+
 // Role returns the component role of the instance
 func (s PDSpec) Role() string {
 	return RolePD
@@ -235,6 +251,11 @@ func (s PumpSpec) GetDir() []string {
 		s.DeployDir,
 		s.DataDir,
 	}
+}
+
+// GetStatus queries current status of the instance
+func (s PumpSpec) GetStatus() string {
+	return "N/A"
 }
 
 // Role returns the component role of the instance
@@ -285,6 +306,11 @@ func (s DrainerSpec) GetDir() []string {
 	}
 }
 
+// GetStatus queries current status of the instance
+func (s DrainerSpec) GetStatus() string {
+	return "N/A"
+}
+
 // Role returns the component role of the instance
 func (s DrainerSpec) Role() string {
 	return RoleDrainer
@@ -330,6 +356,11 @@ func (s PrometheusSpec) GetDir() []string {
 	}
 }
 
+// GetStatus queries current status of the instance
+func (s PrometheusSpec) GetStatus() string {
+	return "-"
+}
+
 // Role returns the component role of the instance
 func (s PrometheusSpec) Role() string {
 	return RoleMonitor
@@ -371,6 +402,11 @@ func (s GrafanaSpec) GetDir() []string {
 	return []string{
 		s.DeployDir,
 	}
+}
+
+// GetStatus queries current status of the instance
+func (s GrafanaSpec) GetStatus() string {
+	return "-"
 }
 
 // Role returns the component role of the instance
@@ -418,6 +454,11 @@ func (s AlertManagerSpec) GetDir() []string {
 		s.DeployDir,
 		s.DataDir,
 	}
+}
+
+// GetStatus queries current status of the instance
+func (s AlertManagerSpec) GetStatus() string {
+	return "-"
 }
 
 // Role returns the component role of the instance

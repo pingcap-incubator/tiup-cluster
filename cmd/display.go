@@ -16,7 +16,6 @@ package cmd
 import (
 	"fmt"
 	"reflect"
-	"strings"
 
 	"github.com/fatih/color"
 	"github.com/pingcap-incubator/tiops/pkg/meta"
@@ -26,8 +25,8 @@ import (
 
 func newDisplayCmd() *cobra.Command {
 	var (
-		clusterName  string
-		topologyFile string
+		clusterName string
+		showStatus  bool
 	)
 
 	cmd := &cobra.Command{
@@ -35,30 +34,22 @@ func newDisplayCmd() *cobra.Command {
 		Short:  "Display information of a TiDB cluster",
 		Hidden: true,
 		Args: func(cmd *cobra.Command, args []string) error {
-			switch len(args) {
-			case 0:
+			if len(args) < 1 {
 				cmd.Help()
 				return fmt.Errorf("cluster name not specified")
-			case 1:
-				fallthrough
-			default:
-				if strings.HasPrefix(args[0], "-") {
-					cmd.Help()
-					return fmt.Errorf("cluster name not specified")
-				}
-				clusterName = args[0]
 			}
+			clusterName = args[0]
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := displayClusterMeta(clusterName); err != nil {
 				return err
 			}
-			return displayClusterTopology(clusterName, topologyFile)
+			return displayClusterTopology(clusterName, showStatus)
 		},
 	}
 
-	cmd.Flags().StringVarP(&topologyFile, "topology", "T", "", "path to the topology file")
+	cmd.Flags().BoolVarP(&showStatus, "status", "s", false, "test and show current node status")
 
 	return cmd
 }
@@ -73,47 +64,65 @@ func displayClusterMeta(name string) error {
 
 	fmt.Printf("TiDB Cluster: %s\n", green.Sprint(name))
 	fmt.Printf("TiDB Version: %s\n", cyan.Sprint(clsMeta.Version))
+
 	return nil
 }
 
-func displayClusterTopology(name, topoFile string) error {
+func displayClusterTopology(name string, showStatus bool) error {
 	clsTopo, err := meta.ClusterTopology(name)
 	if err != nil {
 		return err
 	}
 
 	var clusterTable [][]string
-	clusterTable = append(clusterTable,
-		[]string{"ID", "Role", "Host", "Ports", "Data Dir", "Deploy Dir"})
+	if showStatus {
+		clusterTable = append(clusterTable,
+			[]string{"ID",
+				"Role",
+				"Host",
+				"Ports",
+				"Status",
+				"Data Dir",
+				"Deploy Dir"})
+	} else {
+		clusterTable = append(clusterTable,
+			[]string{"ID",
+				"Role",
+				"Host",
+				"Ports",
+				"Data Dir",
+				"Deploy Dir"})
+	}
 
 	v := reflect.ValueOf(*clsTopo)
 	t := v.Type()
 	for i := 0; i < t.NumField(); i++ {
-		subTable, err := buildTable(v.Field(i))
+		subTable, err := buildTable(v.Field(i), showStatus)
 		if err != nil {
 			continue
 		}
 		clusterTable = append(clusterTable, subTable...)
 	}
+
 	utils.PrintTable(clusterTable, true)
 
 	return nil
 }
 
-func buildTable(field reflect.Value) ([][]string, error) {
+func buildTable(field reflect.Value, showStatus bool) ([][]string, error) {
 	var resTable [][]string
 
 	switch field.Kind() {
 	case reflect.Slice:
 		for i := 0; i < field.Len(); i++ {
-			subTable, err := buildTable(field.Index(i))
+			subTable, err := buildTable(field.Index(i), showStatus)
 			if err != nil {
 				return nil, err
 			}
 			resTable = append(resTable, subTable...)
 		}
 	case reflect.Ptr:
-		subTable, err := buildTable(field.Elem())
+		subTable, err := buildTable(field.Elem(), showStatus)
 		if err != nil {
 			return nil, err
 		}
@@ -128,14 +137,26 @@ func buildTable(field reflect.Value) ([][]string, error) {
 			dataDir = insDirs[1]
 		}
 
-		resTable = append(resTable, []string{
-			ins.GetID(),
-			ins.Role(),
-			ins.GetHost(),
-			utils.JoinInt(ins.GetPort(), "/"),
-			dataDir,
-			deployDir,
-		})
+		if showStatus {
+			resTable = append(resTable, []string{
+				ins.GetID(),
+				ins.Role(),
+				ins.GetHost(),
+				utils.JoinInt(ins.GetPort(), "/"),
+				ins.GetStatus(),
+				dataDir,
+				deployDir,
+			})
+		} else {
+			resTable = append(resTable, []string{
+				ins.GetID(),
+				ins.Role(),
+				ins.GetHost(),
+				utils.JoinInt(ins.GetPort(), "/"),
+				dataDir,
+				deployDir,
+			})
+		}
 	}
 
 	return resTable, nil
