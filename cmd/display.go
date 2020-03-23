@@ -16,6 +16,7 @@ package cmd
 import (
 	"fmt"
 	"reflect"
+	"strings"
 
 	"github.com/fatih/color"
 	"github.com/pingcap-incubator/tiops/pkg/meta"
@@ -59,10 +60,9 @@ func displayClusterMeta(name string) error {
 		return err
 	}
 
-	green := color.New(color.FgGreen, color.Bold)
 	cyan := color.New(color.FgCyan, color.Bold)
 
-	fmt.Printf("TiDB Cluster: %s\n", green.Sprint(name))
+	fmt.Printf("TiDB Cluster: %s\n", cyan.Sprint(name))
 	fmt.Printf("TiDB Version: %s\n", cyan.Sprint(clsMeta.Version))
 
 	return nil
@@ -139,17 +139,17 @@ func buildTable(field reflect.Value, showStatus bool) ([][]string, error) {
 
 		if showStatus {
 			resTable = append(resTable, []string{
-				ins.GetID(),
+				color.CyanString(ins.GetID()),
 				ins.Role(),
 				ins.GetHost(),
 				utils.JoinInt(ins.GetPort(), "/"),
-				ins.GetStatus(),
+				formatInstanceStatus(ins.GetStatus()),
 				dataDir,
 				deployDir,
 			})
 		} else {
 			resTable = append(resTable, []string{
-				ins.GetID(),
+				color.CyanString(ins.GetID()),
 				ins.Role(),
 				ins.GetHost(),
 				utils.JoinInt(ins.GetPort(), "/"),
@@ -160,4 +160,15 @@ func buildTable(field reflect.Value, showStatus bool) ([][]string, error) {
 	}
 
 	return resTable, nil
+}
+
+func formatInstanceStatus(status string) string {
+	switch strings.ToLower(status) {
+	case "up":
+		return color.GreenString(status)
+	case "down", "offline", "tombstone":
+		return color.RedString(status)
+	default:
+		return status
+	}
 }

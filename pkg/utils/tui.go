@@ -17,7 +17,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/cheynewallace/tabby"
+	"github.com/AstroProfundis/tabby"
 )
 
 // PrintTable accepts a matrix of strings and print them as ASCII table to terminal

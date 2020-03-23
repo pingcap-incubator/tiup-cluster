@@ -17,7 +17,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"reflect"
-	"strings"
 
 	"github.com/creasty/defaults"
 	"github.com/pingcap-incubator/tiops/pkg/utils"
@@ -569,9 +568,8 @@ func setCustomDefaults(field reflect.Value) error {
 			// ones, when using the value, remember to check and fill base
 			// paths of them.
 			if defaults.CanUpdate(field.Field(j).Interface()) {
-				role := strings.TrimSuffix(field.Type().Name(), "Spec")
 				dir := fmt.Sprintf("%s-%s",
-					strings.ToLower(role),
+					field.Interface().(InstanceSpec).Role(),
 					getPort(field))
 				field.Field(j).Set(reflect.ValueOf(dir))
 			}
