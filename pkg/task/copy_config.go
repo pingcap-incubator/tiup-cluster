@@ -29,6 +29,7 @@ type CopyConfig struct {
 	topology  *meta.TopologySpecification
 	component string
 	host      string
+	port      int
 	dstDir    string
 }
 
