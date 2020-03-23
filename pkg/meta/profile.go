@@ -79,5 +79,9 @@ func ClusterPath(cluster string, subpath ...string) string {
 		cluster = "default-cluster"
 	}
 
-	return path.Join(append([]string{profileDir, cluster}, subpath...)...)
+	return path.Join(append([]string{
+		profileDir,
+		"clusters",
+		cluster,
+	}, subpath...)...)
 }
