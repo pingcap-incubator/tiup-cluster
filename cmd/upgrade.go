@@ -15,7 +15,7 @@ package cmd
 
 import (
 	"errors"
-	"golang.org/x/tools/go/ssa/interp/testdata/src/fmt"
+	"fmt"
 	"os"
 	"regexp"
 	"strings"

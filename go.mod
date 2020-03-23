@@ -11,5 +11,6 @@ require (
 	github.com/pingcap/errors v0.11.5-0.20190809092503-95897b64e011
 	github.com/spf13/cobra v0.0.5
 	golang.org/x/crypto v0.0.0-20200109152110-61a87790db17
+	golang.org/x/tools v0.0.0-20200225022059-a0ec867d517c
 	gopkg.in/yaml.v2 v2.2.8
 )
