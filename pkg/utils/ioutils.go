@@ -15,6 +15,8 @@ package utils
 
 import (
 	"os"
+	"strconv"
+	"strings"
 )
 
 // CreateDir creates the directory if it not alerady exist.
@@ -26,4 +28,14 @@ func CreateDir(path string) error {
 		return err
 	}
 	return nil
+}
+
+// JoinInt joins a slice of int to string
+func JoinInt(nums []int, delim string) string {
+	result := ""
+	for _, i := range nums {
+		result += strconv.Itoa(i)
+		result += delim
+	}
+	return strings.TrimSuffix(result, delim)
 }
