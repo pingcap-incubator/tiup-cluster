@@ -81,7 +81,6 @@ func (c *CopyComponent) TransferConfig(exec executor.TiOpsExecutor) error {
 	}
 	tgt := filepath.Join("/tmp", c.component+"_"+uuid.New().String()+".service")
 	if err := exec.Transfer(sysCfg, tgt); err != nil {
-		fmt.Println(2)
 		return err
 	}
 	if outp, errp, err := exec.Execute(fmt.Sprintf("cp %s /etc/systemd/system/%s.service", tgt, c.component), true); err != nil {
