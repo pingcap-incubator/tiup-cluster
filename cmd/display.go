@@ -15,15 +15,13 @@ package cmd
 
 import (
 	"fmt"
-	"io/ioutil"
 	"reflect"
 	"strings"
 
-	//"github.com/pingcap-incubator/tiops/pkg/task"
+	"github.com/fatih/color"
 	"github.com/pingcap-incubator/tiops/pkg/meta"
 	"github.com/pingcap-incubator/tiops/pkg/utils"
 	"github.com/spf13/cobra"
-	"gopkg.in/yaml.v2"
 )
 
 func newDisplayCmd() *cobra.Command {
@@ -65,35 +63,22 @@ func newDisplayCmd() *cobra.Command {
 	return cmd
 }
 func displayClusterMeta(name string) error {
-	/*
-		clsMeta, err := meta.ClusterMetadata(name)
-		if err != nil {
-			return err
-		}
-	*/
-	clsVer := "v4.0.0-demover"
+	clsMeta, err := meta.ClusterMetadata(name)
+	if err != nil {
+		return err
+	}
 
-	fmt.Printf("TiDB Cluster: %s\n", name)
-	fmt.Printf("TiDB Version: %s\n", clsVer)
+	green := color.New(color.FgGreen, color.Bold)
+	cyan := color.New(color.FgCyan, color.Bold)
+
+	fmt.Printf("TiDB Cluster: %s\n", green.Sprint(name))
+	fmt.Printf("TiDB Version: %s\n", cyan.Sprint(clsMeta.Version))
 	return nil
 }
 
 func displayClusterTopology(name, topoFile string) error {
-	/*
-		clsTopo, err := meta.ClusterTopology(name)
-		if err != nil {
-			return err
-		}
-	*/
-
-	//var clsMeta meta.ClusterMeta
-	var clsTopo meta.TopologySpecification
-
-	yamlFile, err := ioutil.ReadFile(topoFile)
+	clsTopo, err := meta.ClusterTopology(name)
 	if err != nil {
-		return err
-	}
-	if err = yaml.Unmarshal(yamlFile, &clsTopo); err != nil {
 		return err
 	}
 
@@ -101,7 +86,7 @@ func displayClusterTopology(name, topoFile string) error {
 	clusterTable = append(clusterTable,
 		[]string{"ID", "Role", "Host", "Ports", "Data Dir", "Deploy Dir"})
 
-	v := reflect.ValueOf(clsTopo)
+	v := reflect.ValueOf(*clsTopo)
 	t := v.Type()
 	for i := 0; i < t.NumField(); i++ {
 		subTable, err := buildTable(v.Field(i))
