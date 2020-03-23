@@ -135,13 +135,13 @@ func deploy(name, topoFile string, opt deployOptions) error {
 			// Deploy component
 			t := task.NewBuilder().
 				Mkdir(inst.GetHost(),
-					filepath.Join("~/deply", inst.InstanceName(), "bin"),
-					filepath.Join("~/deply", inst.InstanceName(), "data"),
-					filepath.Join("~/deply", inst.InstanceName(), "config"),
-					filepath.Join("~/deply", inst.InstanceName(), "scripts"),
-					filepath.Join("~/deply", inst.InstanceName(), "logs")).
+					filepath.Join("~/deploy", inst.InstanceName(), "bin"),
+					filepath.Join("~/deploy", inst.InstanceName(), "data"),
+					filepath.Join("~/deploy", inst.InstanceName(), "config"),
+					filepath.Join("~/deploy", inst.InstanceName(), "scripts"),
+					filepath.Join("~/deploy", inst.InstanceName(), "log")).
 				CopyComponent(topo, inst.ComponentName(), version, inst.GetHost(),
-					filepath.Join("~/deply", inst.InstanceName())).
+					filepath.Join("~/deploy", inst.InstanceName())).
 				Build()
 			copyCompTasks = append(copyCompTasks, t)
 		}

@@ -18,9 +18,11 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/google/uuid"
 	"github.com/pingcap-incubator/tiops/pkg/executor"
 	"github.com/pingcap-incubator/tiops/pkg/meta"
 	"github.com/pingcap-incubator/tiops/pkg/template/scripts"
+	system "github.com/pingcap-incubator/tiops/pkg/template/systemd"
 	"github.com/pingcap-incubator/tiup/pkg/repository"
 	"github.com/pingcap/errors"
 )
@@ -73,15 +75,20 @@ func (c *CopyComponent) Execute(ctx *Context) error {
 
 // TransferConfig transfer config file to server
 func (c *CopyComponent) TransferConfig(exec executor.TiOpsExecutor) error {
-	/*
-		sysCfg := filepath.Join(cacheConfigDir, c.component+".service")
-		if err := system.NewSystemConfig(c.component, "tidb", c.dstDir).ConfigToFile(sysCfg); err != nil {
-			return err
-		}
-		if err := exec.Transfer(sysCfg, filepath.Join("/etc/systemd/system", c.component+"./service")); err != nil {
-			return err
-		}
-	*/
+	sysCfg := filepath.Join(cacheConfigDir, c.component+".service")
+	if err := system.NewSystemConfig(c.component, "tidb", c.dstDir).ConfigToFile(sysCfg); err != nil {
+		return err
+	}
+	tgt := filepath.Join("/tmp", c.component+"_"+uuid.New().String()+".service")
+	if err := exec.Transfer(sysCfg, tgt); err != nil {
+		fmt.Println(2)
+		return err
+	}
+	if outp, errp, err := exec.Execute(fmt.Sprintf("cp %s /etc/systemd/system/%s.service", tgt, c.component), true); err != nil {
+		fmt.Println(string(outp), string(errp))
+		return err
+	}
+
 	if err := os.MkdirAll(cacheConfigDir, 0755); err != nil {
 		return err
 	}
@@ -101,7 +108,7 @@ func (c *CopyComponent) endpoints() []*scripts.PDScript {
 	ends := []*scripts.PDScript{}
 	for _, spec := range c.topology.PDServers {
 		ends = append(ends, scripts.NewPDScript(
-			"pd"+spec.Host,
+			"pd-"+spec.Host,
 			spec.Host,
 			spec.DeployDir,
 			spec.DataDir,
