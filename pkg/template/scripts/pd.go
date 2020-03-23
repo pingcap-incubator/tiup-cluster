@@ -81,26 +81,35 @@ func (c *PDScript) AppendEndpoints(ends ...*PDScript) *PDScript {
 
 // Config read ${localdata.EnvNameComponentInstallDir}/templates/scripts/run_pd.sh.tpl as template
 // and generate the config by ConfigWithTemplate
-func (c *PDScript) Config() (string, error) {
+func (c *PDScript) Config() ([]byte, error) {
 	fp := path.Join(os.Getenv(localdata.EnvNameComponentInstallDir), "templates", "scripts", "run_pd.sh.tpl")
 	tpl, err := ioutil.ReadFile(fp)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	return c.ConfigWithTemplate(string(tpl))
 }
 
+// ConfigToFile write config content to specific path
+func (c *PDScript) ConfigToFile(file string) error {
+	config, err := c.Config()
+	if err != nil {
+		return err
+	}
+	return ioutil.WriteFile(file, config, 0755)
+}
+
 // ConfigWithTemplate generate the PD config content by tpl
-func (c *PDScript) ConfigWithTemplate(tpl string) (string, error) {
+func (c *PDScript) ConfigWithTemplate(tpl string) ([]byte, error) {
 	tmpl, err := template.New("PD").Parse(tpl)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	content := bytes.NewBufferString("")
 	if err := tmpl.Execute(content, c); err != nil {
-		return "", err
+		return nil, err
 	}
 
-	return content.String(), nil
+	return content.Bytes(), nil
 }

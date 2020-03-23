@@ -69,26 +69,35 @@ func (c *TiDBScript) AppendEndpoints(ends ...*PDScript) *TiDBScript {
 
 // Config read ${localdata.EnvNameComponentInstallDir}/templates/scripts/run_tidb.sh.tpl as template
 // and generate the config by ConfigWithTemplate
-func (c *TiDBScript) Config() (string, error) {
+func (c *TiDBScript) Config() ([]byte, error) {
 	fp := path.Join(os.Getenv(localdata.EnvNameComponentInstallDir), "templates", "scripts", "run_tidb.sh.tpl")
 	tpl, err := ioutil.ReadFile(fp)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	return c.ConfigWithTemplate(string(tpl))
 }
 
+// ConfigToFile write config content to specific path
+func (c *TiDBScript) ConfigToFile(file string) error {
+	config, err := c.Config()
+	if err != nil {
+		return err
+	}
+	return ioutil.WriteFile(file, config, 0755)
+}
+
 // ConfigWithTemplate generate the TiDB config content by tpl
-func (c *TiDBScript) ConfigWithTemplate(tpl string) (string, error) {
+func (c *TiDBScript) ConfigWithTemplate(tpl string) ([]byte, error) {
 	tmpl, err := template.New("TiDB").Parse(tpl)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	content := bytes.NewBufferString("")
 	if err := tmpl.Execute(content, c); err != nil {
-		return "", err
+		return nil, err
 	}
 
-	return content.String(), nil
+	return content.Bytes(), nil
 }

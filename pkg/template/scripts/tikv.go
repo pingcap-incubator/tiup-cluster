@@ -71,26 +71,35 @@ func (c *TiKVScript) AppendEndpoints(ends ...*PDScript) *TiKVScript {
 
 // Config read ${localdata.EnvNameComponentInstallDir}/templates/scripts/run_TiKV.sh.tpl as template
 // and generate the config by ConfigWithTemplate
-func (c *TiKVScript) Config() (string, error) {
+func (c *TiKVScript) Config() ([]byte, error) {
 	fp := path.Join(os.Getenv(localdata.EnvNameComponentInstallDir), "templates", "scripts", "run_TiKV.sh.tpl")
 	tpl, err := ioutil.ReadFile(fp)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	return c.ConfigWithTemplate(string(tpl))
 }
 
+// ConfigToFile write config content to specific path
+func (c *TiKVScript) ConfigToFile(file string) error {
+	config, err := c.Config()
+	if err != nil {
+		return err
+	}
+	return ioutil.WriteFile(file, config, 0755)
+}
+
 // ConfigWithTemplate generate the TiKV config content by tpl
-func (c *TiKVScript) ConfigWithTemplate(tpl string) (string, error) {
+func (c *TiKVScript) ConfigWithTemplate(tpl string) ([]byte, error) {
 	tmpl, err := template.New("TiKV").Parse(tpl)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	content := bytes.NewBufferString("")
 	if err := tmpl.Execute(content, c); err != nil {
-		return "", err
+		return nil, err
 	}
 
-	return content.String(), nil
+	return content.Bytes(), nil
 }

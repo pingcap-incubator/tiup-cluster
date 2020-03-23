@@ -67,28 +67,37 @@ func (c *SystemConfig) WithIOWriteBandwidthMax(io uint) *SystemConfig {
 	return c
 }
 
+// ConfigToFile write config content to specific path
+func (c *SystemConfig) ConfigToFile(file string) error {
+	config, err := c.Config()
+	if err != nil {
+		return err
+	}
+	return ioutil.WriteFile(file, config, 0755)
+}
+
 // Config read ${localdata.EnvNameComponentInstallDir}/templates/systemd/system.service.tpl as template
 // and generate the config by ConfigWithTemplate
-func (c *SystemConfig) Config() (string, error) {
+func (c *SystemConfig) Config() ([]byte, error) {
 	fp := path.Join(os.Getenv(localdata.EnvNameComponentInstallDir), "templates", "systemd", "system.service.tpl")
 	tpl, err := ioutil.ReadFile(fp)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	return c.ConfigWithTemplate(string(tpl))
 }
 
 // ConfigWithTemplate generate the system config content by tpl
-func (c *SystemConfig) ConfigWithTemplate(tpl string) (string, error) {
+func (c *SystemConfig) ConfigWithTemplate(tpl string) ([]byte, error) {
 	tmpl, err := template.New("system").Parse(tpl)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	content := bytes.NewBufferString("")
 	if err := tmpl.Execute(content, c); err != nil {
-		return "", err
+		return nil, err
 	}
 
-	return content.String(), nil
+	return content.Bytes(), nil
 }
