@@ -62,6 +62,13 @@ func NewUserModule(config UserModuleConfig) *UserModule {
 			cmd = fmt.Sprintf("/usr/bin/mkdir -p %s && %s -d %s",
 				config.Home, cmd, config.Home)
 		}
+		// You have to use -m, otherwise no home directory will be created. If you want to specify the path of the home directory, use -d and specify the path
+		// useradd -m -d /PATH/TO/FOLDER
+		cmd += " -m"
+		if config.Home != "" {
+			cmd += " -d" + config.Home
+		}
+
 		// set user's login shell
 		if config.Shell != "" {
 			cmd = fmt.Sprintf("%s -s %s", cmd, config.Shell)
