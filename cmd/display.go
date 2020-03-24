@@ -164,9 +164,9 @@ func buildTable(field reflect.Value, showStatus bool) ([][]string, error) {
 
 func formatInstanceStatus(status string) string {
 	switch strings.ToLower(status) {
-	case "up":
+	case "up", "healthy":
 		return color.GreenString(status)
-	case "down", "offline", "tombstone":
+	case "down", "unhealthy", "offline", "tombstone", "err":
 		return color.RedString(status)
 	default:
 		return status

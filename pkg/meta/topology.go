@@ -18,7 +18,13 @@ import (
 	"reflect"
 
 	"github.com/creasty/defaults"
+	"github.com/pingcap-incubator/tiops/pkg/api"
 	"github.com/pingcap-incubator/tiops/pkg/utils"
+)
+
+const (
+	// Timeout in second when quering node status
+	statusQueryTimeout = 2
 )
 
 // Roles of components
@@ -85,7 +91,18 @@ func (s TiDBSpec) GetDir() []string {
 
 // GetStatus queries current status of the instance
 func (s TiDBSpec) GetStatus() string {
-	return "N/A"
+	client := utils.NewHTTPClient(statusQueryTimeout, nil)
+	url := fmt.Sprintf("http://%s:%d/status", s.Host, s.StatusPort)
+
+	// body doesn't have any status section needed
+	body, err := client.GetURL(url)
+	if err != nil {
+		return "ERR"
+	}
+	if body == nil {
+		return "Down"
+	}
+	return "Up"
 }
 
 // Role returns the component role of the instance
@@ -194,6 +211,23 @@ func (s PDSpec) GetDir() []string {
 
 // GetStatus queries current status of the instance
 func (s PDSpec) GetStatus() string {
+	pdapi := api.NewPDClient(s.Host, s.ClientPort, statusQueryTimeout, nil)
+	healths, err := pdapi.GetHealth()
+	if err != nil {
+		return "ERR"
+	}
+
+	pdUrl := pdapi.GetURL()
+	for _, member := range healths.Healths {
+		for _, cUrl := range member.ClientUrls {
+			if pdUrl == cUrl {
+				if member.Health {
+					return "Healthy"
+				}
+				return "Unhealthy"
+			}
+		}
+	}
 	return "N/A"
 }
 
