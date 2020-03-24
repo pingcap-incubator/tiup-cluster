@@ -45,7 +45,7 @@ type InstanceSpec interface {
 	GetPort() []int
 	GetSSHPort() int
 	GetDir() []string
-	GetStatus() string
+	GetStatus(pdList ...string) string
 	Role() string
 }
 
@@ -90,7 +90,7 @@ func (s TiDBSpec) GetDir() []string {
 }
 
 // GetStatus queries current status of the instance
-func (s TiDBSpec) GetStatus() string {
+func (s TiDBSpec) GetStatus(pdList ...string) string {
 	client := utils.NewHTTPClient(statusQueryTimeout, nil)
 	url := fmt.Sprintf("http://%s:%d/status", s.Host, s.StatusPort)
 
@@ -156,7 +156,22 @@ func (s TiKVSpec) GetDir() []string {
 }
 
 // GetStatus queries current status of the instance
-func (s TiKVSpec) GetStatus() string {
+func (s TiKVSpec) GetStatus(pdList ...string) string {
+	if len(pdList) < 1 {
+		return "N/A"
+	}
+	pdapi := api.NewPDClient(pdList[0], statusQueryTimeout, nil)
+	stores, err := pdapi.GetStores()
+	if err != nil {
+		return "ERR"
+	}
+
+	name := fmt.Sprintf("%s:%d", s.Host, s.Port)
+	for _, store := range stores.Stores {
+		if name == store.Store.Address {
+			return store.Store.StateName
+		}
+	}
 	return "N/A"
 }
 
@@ -210,23 +225,22 @@ func (s PDSpec) GetDir() []string {
 }
 
 // GetStatus queries current status of the instance
-func (s PDSpec) GetStatus() string {
-	pdapi := api.NewPDClient(s.Host, s.ClientPort, statusQueryTimeout, nil)
+func (s PDSpec) GetStatus(pdList ...string) string {
+	pdapi := api.NewPDClient(fmt.Sprintf("%s:%d", s.Host, s.ClientPort),
+		statusQueryTimeout, nil)
 	healths, err := pdapi.GetHealth()
 	if err != nil {
 		return "ERR"
 	}
 
-	pdUrl := pdapi.GetURL()
 	for _, member := range healths.Healths {
-		for _, cUrl := range member.ClientUrls {
-			if pdUrl == cUrl {
-				if member.Health {
-					return "Healthy"
-				}
-				return "Unhealthy"
-			}
+		if s.UUID != member.Name {
+			continue
 		}
+		if member.Health {
+			return "Healthy"
+		}
+		return "Unhealthy"
 	}
 	return "N/A"
 }
@@ -279,7 +293,7 @@ func (s PumpSpec) GetDir() []string {
 }
 
 // GetStatus queries current status of the instance
-func (s PumpSpec) GetStatus() string {
+func (s PumpSpec) GetStatus(pdList ...string) string {
 	return "N/A"
 }
 
@@ -332,7 +346,7 @@ func (s DrainerSpec) GetDir() []string {
 }
 
 // GetStatus queries current status of the instance
-func (s DrainerSpec) GetStatus() string {
+func (s DrainerSpec) GetStatus(pdList ...string) string {
 	return "N/A"
 }
 
@@ -382,7 +396,7 @@ func (s PrometheusSpec) GetDir() []string {
 }
 
 // GetStatus queries current status of the instance
-func (s PrometheusSpec) GetStatus() string {
+func (s PrometheusSpec) GetStatus(pdList ...string) string {
 	return "-"
 }
 
@@ -430,7 +444,7 @@ func (s GrafanaSpec) GetDir() []string {
 }
 
 // GetStatus queries current status of the instance
-func (s GrafanaSpec) GetStatus() string {
+func (s GrafanaSpec) GetStatus(pdList ...string) string {
 	return "-"
 }
 
@@ -482,7 +496,7 @@ func (s AlertManagerSpec) GetDir() []string {
 }
 
 // GetStatus queries current status of the instance
-func (s AlertManagerSpec) GetStatus() string {
+func (s AlertManagerSpec) GetStatus(pdList ...string) string {
 	return "-"
 }
 
@@ -529,6 +543,17 @@ func (topo *TopologySpecification) UnmarshalYAML(unmarshal func(interface{}) err
 	}
 
 	return nil
+}
+
+// GetPDList returns a list of PD API hosts of the current cluster
+func (topo *TopologySpecification) GetPDList() []string {
+	var pdList []string
+
+	for _, pd := range topo.PDServers {
+		pdList = append(pdList, fmt.Sprintf("%s:%d", pd.Host, pd.ClientPort))
+	}
+
+	return pdList
 }
 
 // fillDefaults tries to fill custom fields to their default values

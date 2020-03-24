@@ -95,9 +95,9 @@ func displayClusterTopology(name string, showStatus bool) error {
 	}
 
 	v := reflect.ValueOf(*clsTopo)
-	t := v.Type()
-	for i := 0; i < t.NumField(); i++ {
-		subTable, err := buildTable(v.Field(i), showStatus)
+	pdList := clsTopo.GetPDList()
+	for i := 0; i < v.Type().NumField(); i++ {
+		subTable, err := buildTable(v.Field(i), showStatus, pdList)
 		if err != nil {
 			continue
 		}
@@ -109,20 +109,20 @@ func displayClusterTopology(name string, showStatus bool) error {
 	return nil
 }
 
-func buildTable(field reflect.Value, showStatus bool) ([][]string, error) {
+func buildTable(field reflect.Value, showStatus bool, pdList []string) ([][]string, error) {
 	var resTable [][]string
 
 	switch field.Kind() {
 	case reflect.Slice:
 		for i := 0; i < field.Len(); i++ {
-			subTable, err := buildTable(field.Index(i), showStatus)
+			subTable, err := buildTable(field.Index(i), showStatus, pdList)
 			if err != nil {
 				return nil, err
 			}
 			resTable = append(resTable, subTable...)
 		}
 	case reflect.Ptr:
-		subTable, err := buildTable(field.Elem(), showStatus)
+		subTable, err := buildTable(field.Elem(), showStatus, pdList)
 		if err != nil {
 			return nil, err
 		}
@@ -143,7 +143,7 @@ func buildTable(field reflect.Value, showStatus bool) ([][]string, error) {
 				ins.Role(),
 				ins.GetHost(),
 				utils.JoinInt(ins.GetPort(), "/"),
-				formatInstanceStatus(ins.GetStatus()),
+				formatInstanceStatus(ins.GetStatus(pdList...)),
 				dataDir,
 				deployDir,
 			})

@@ -22,13 +22,12 @@ import (
 // PDClient is an HTTP client of the PD server "Host"
 type PDClient struct {
 	Host       string
-	Port       int
 	tlsEnabled bool
 	httpClient *utils.HTTPClient
 }
 
 // NewPDClient returns a new PDClient
-func NewPDClient(host string, port int, timeout int, tlsConfig *tls.Config) *PDClient {
+func NewPDClient(host string, timeout int, tlsConfig *tls.Config) *PDClient {
 	enableTls := false
 	if tlsConfig != nil {
 		enableTls = true
@@ -36,10 +35,18 @@ func NewPDClient(host string, port int, timeout int, tlsConfig *tls.Config) *PDC
 
 	return &PDClient{
 		Host:       host,
-		Port:       port,
 		tlsEnabled: enableTls,
 		httpClient: utils.NewHTTPClient(timeout, tlsConfig),
 	}
+}
+
+// GetURL builds the the client URL of PDClient
+func (pc *PDClient) GetURL() string {
+	httpPrefix := "http"
+	if pc.tlsEnabled {
+		httpPrefix = "https"
+	}
+	return fmt.Sprintf("%s://%s", httpPrefix, pc.Host)
 }
 
 var (
@@ -74,11 +81,17 @@ func (pc *PDClient) GetHealth() (*PDHealthInfo, error) {
 	return &PDHealthInfo{healths}, nil
 }
 
-// GetURL builds the the client URL of PDClient
-func (pc *PDClient) GetURL() string {
-	httpPrefix := "http"
-	if pc.tlsEnabled {
-		httpPrefix = "https"
+// GetStores queries the stores info from PD server
+func (pc *PDClient) GetStores() (*pdserverapi.StoresInfo, error) {
+	url := fmt.Sprintf("%s/%s", pc.GetURL(), pdStoresURI)
+	body, err := pc.httpClient.GetURL(url)
+	if err != nil {
+		return nil, err
 	}
-	return fmt.Sprintf("%s://%s:%d", httpPrefix, pc.Host, pc.Port)
+
+	storesInfo := pdserverapi.StoresInfo{}
+	if err := json.Unmarshal(body, &storesInfo); err != nil {
+		return nil, err
+	}
+	return &storesInfo, nil
 }
