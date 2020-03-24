@@ -59,13 +59,18 @@ func newUpgradeCmd() *cobra.Command {
 }
 
 func versionCompare(curVersion, newVersion string) error {
-	if curVersion == "nightly" && newVersion == "nightly" { // imperfect
+
+	switch semver.Compare(curVersion, newVersion) {
+	case -1:
 		return nil
-	}
-	if semver.Compare(curVersion, newVersion) == -1 {
-		return nil
-	} else {
-		return errors.New(fmt.Sprintf("unsupport upgrade from %s to %s", curVersion, newVersion))
+	case 1:
+		if newVersion == "nightly" {
+			return nil
+		} else {
+			return errors.New(fmt.Sprintf("unsupport upgrade from %s to %s", curVersion, newVersion))
+		}
+	default:
+		return errors.New("unkown error")
 	}
 }
 
