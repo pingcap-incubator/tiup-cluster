@@ -16,6 +16,7 @@ import (
 	"fmt"
 
 	"github.com/pingcap-incubator/tiops/pkg/utils"
+	"github.com/pingcap/kvproto/pkg/pdpb"
 	pdserverapi "github.com/pingcap/pd/v4/server/api"
 )
 
@@ -69,7 +70,7 @@ type PDHealthInfo struct {
 // GetHealth queries the health info from PD server
 func (pc *PDClient) GetHealth() (*PDHealthInfo, error) {
 	url := fmt.Sprintf("%s/%s", pc.GetURL(), pdHealthURI)
-	body, err := pc.httpClient.GetURL(url)
+	body, err := pc.httpClient.Get(url)
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +85,7 @@ func (pc *PDClient) GetHealth() (*PDHealthInfo, error) {
 // GetStores queries the stores info from PD server
 func (pc *PDClient) GetStores() (*pdserverapi.StoresInfo, error) {
 	url := fmt.Sprintf("%s/%s", pc.GetURL(), pdStoresURI)
-	body, err := pc.httpClient.GetURL(url)
+	body, err := pc.httpClient.Get(url)
 	if err != nil {
 		return nil, err
 	}
@@ -94,4 +95,19 @@ func (pc *PDClient) GetStores() (*pdserverapi.StoresInfo, error) {
 		return nil, err
 	}
 	return &storesInfo, nil
+}
+
+// GetLeader queries the leader node of PD cluster
+func (pc *PDClient) GetLeader() (*pdpb.Member, error) {
+	url := fmt.Sprintf("%s/%s", pc.GetURL(), pdLeaderURI)
+	body, err := pc.httpClient.Get(url)
+	if err != nil {
+		return nil, err
+	}
+
+	leader := pdpb.Member{}
+	if err := json.Unmarshal(body, &leader); err != nil {
+		return nil, err
+	}
+	return &leader, nil
 }

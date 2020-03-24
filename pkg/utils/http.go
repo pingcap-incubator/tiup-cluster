@@ -38,8 +38,8 @@ func NewHTTPClient(timeout int, tlsConfig *tls.Config) *HTTPClient {
 	}
 }
 
-// GetURL fetch an URL with GET method and returns the response
-func (c *HTTPClient) GetURL(url string) ([]byte, error) {
+// Get fetch an URL with GET method and returns the response
+func (c *HTTPClient) Get(url string) ([]byte, error) {
 	res, err := c.client.Get(url)
 	if err != nil {
 		return nil, err

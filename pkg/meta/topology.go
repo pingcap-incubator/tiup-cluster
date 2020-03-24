@@ -95,7 +95,7 @@ func (s TiDBSpec) GetStatus(pdList ...string) string {
 	url := fmt.Sprintf("http://%s:%d/status", s.Host, s.StatusPort)
 
 	// body doesn't have any status section needed
-	body, err := client.GetURL(url)
+	body, err := client.Get(url)
 	if err != nil {
 		return "ERR"
 	}
@@ -233,12 +233,22 @@ func (s PDSpec) GetStatus(pdList ...string) string {
 		return "ERR"
 	}
 
+	// find leader node
+	leader, err := pdapi.GetLeader()
+	if err != nil {
+		return "ERR"
+	}
+
 	for _, member := range healths.Healths {
+		suffix := ""
 		if s.UUID != member.Name {
 			continue
 		}
+		if s.UUID == leader.Name {
+			suffix = "|L"
+		}
 		if member.Health {
-			return "Healthy"
+			return "Healthy" + suffix
 		}
 		return "Unhealthy"
 	}
