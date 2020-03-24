@@ -18,6 +18,7 @@ import (
 	"os"
 
 	"github.com/fatih/color"
+	"github.com/pingcap-incubator/tiops/pkg/meta"
 	"github.com/pingcap-incubator/tiops/pkg/version"
 	"github.com/spf13/cobra"
 )
@@ -32,7 +33,10 @@ func init() {
 		Short:         "Deploy a TiDB cluster for production",
 		SilenceUsage:  true,
 		SilenceErrors: true,
-		Version:       version.NewTiOpsVersion().String(),
+		Version:       version.NewTiOpsVersion().FullInfo(),
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			return meta.Initialize()
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return cmd.Help()
 		},

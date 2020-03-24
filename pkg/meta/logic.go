@@ -15,21 +15,24 @@ package meta
 
 import (
 	"fmt"
+	"reflect"
 
 	"github.com/pingcap-incubator/tiops/pkg/executor"
 	"github.com/pingcap-incubator/tiops/pkg/module"
 )
 
 const (
-	ComponentTiDB         = "tidb"
-	ComponentTiKV         = "tikv"
-	ComponentPD           = "pd"
-	ComponentGrafana      = "grafana"
-	ComponentDrainer      = "drainer"
-	ComponentMonitor      = "monitor"
-	ComponentPump         = "pump"
-	ComponentAlertManager = "alertmanager"
-	ComponentPrometheus   = "prometheus"
+	ComponentTiDB             = "tidb"
+	ComponentTiKV             = "tikv"
+	ComponentPD               = "pd"
+	ComponentGrafana          = "grafana"
+	ComponentDrainer          = "drainer"
+	ComponentPump             = "pump"
+	ComponentAlertManager     = "alertmanager"
+	ComponentPrometheus       = "prometheus"
+	ComponentPushwaygate      = "pushgateway"
+	ComponentBlackboxExporter = "blackbox_exporter"
+	ComponentNodeExporter     = "node_exporter"
 )
 
 func portStarted(e executor.TiOpsExecutor, port int) error {
@@ -97,6 +100,14 @@ func (i *instanceBase) GetHost() string {
 // GetSSHPort implements Instance interface
 func (i *instanceBase) GetSSHPort() int {
 	return i.sshp
+}
+
+func (i *instanceBase) DeployDir() string {
+	return reflect.ValueOf(i.spec).FieldByName("DeployDir").Interface().(string)
+}
+
+func (i *instanceBase) GetPort() int {
+	return i.port
 }
 
 // Specification of cluster
@@ -222,7 +233,7 @@ type MonitorComponent []PrometheusSpec
 
 // Name implements Component interface.
 func (c MonitorComponent) Name() string {
-	return ComponentMonitor
+	return ComponentPrometheus
 }
 
 // Instances implements Component interface.
@@ -315,5 +326,7 @@ type Instance interface {
 	InstanceName() string
 	ServiceName() string
 	GetHost() string
+	GetPort() int
 	GetSSHPort() int
+	DeployDir() string
 }

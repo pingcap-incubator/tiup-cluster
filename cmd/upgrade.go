@@ -16,6 +16,7 @@ package cmd
 import (
 	"errors"
 	"fmt"
+
 	"github.com/pingcap-incubator/tiops/pkg/meta"
 	"github.com/spf13/cobra"
 	"golang.org/x/mod/semver"

@@ -16,6 +16,7 @@ package cmd
 import (
 	"io/ioutil"
 	"path/filepath"
+	"strings"
 
 	"github.com/pingcap-incubator/tiops/pkg/meta"
 	"github.com/pingcap-incubator/tiops/pkg/task"
@@ -51,11 +52,11 @@ func newDeploy() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&opt.user, "user", "root", "system user root")
-	cmd.Flags().StringVar(&opt.password, "password", "", "system user root")
-	cmd.Flags().StringVar(&opt.keyFile, "key", "", "keypath")
-	cmd.Flags().StringVar(&opt.passphrase, "passphrase", "", "passphrase")
-	cmd.Flags().StringVar(&opt.version, "version", "", "version of cluster")
+	cmd.Flags().StringVar(&opt.user, "user", "root", "Specify the system user name")
+	cmd.Flags().StringVar(&opt.password, "password", "", "Specify the password of system user")
+	cmd.Flags().StringVar(&opt.keyFile, "key", "", "Specify the key path of system user")
+	cmd.Flags().StringVar(&opt.passphrase, "passphrase", "", "Specify the passphrase of the key")
+	cmd.Flags().StringVar(&opt.version, "version", "", "Specify the deploy version of cluster")
 
 	_ = cmd.MarkFlagRequired("version")
 
@@ -65,8 +66,18 @@ func newDeploy() *cobra.Command {
 // getComponentVersion maps the TiDB version to the third components binding version
 func getComponentVersion(comp, version string) repository.Version {
 	switch comp {
-	case meta.ComponentPrometheus: // TODO: other components
+	case meta.ComponentPrometheus:
 		return "v2.16.0"
+	case meta.ComponentGrafana:
+		return "v6.7.1"
+	case meta.ComponentAlertManager:
+		return "v0.20.0"
+	case meta.ComponentBlackboxExporter:
+		return "v0.16.0"
+	case meta.ComponentNodeExporter:
+		return "v0.18.1"
+	case meta.ComponentPushwaygate:
+		return "v1.2.0"
 	default:
 		return repository.Version(version)
 	}
@@ -100,6 +111,9 @@ func deploy(name, topoFile string, opt deployOptions) error {
 	for _, comp := range topo.ComponentsByStartOrder() {
 		for _, inst := range comp.Instances() {
 			version := getComponentVersion(inst.ComponentName(), opt.version)
+			if version == "" {
+				return errors.Errorf("unsupported component: %v", inst.ComponentName())
+			}
 			compInfo := componentInfo{
 				component: inst.ComponentName(),
 				version:   version,
@@ -125,21 +139,27 @@ func deploy(name, topoFile string, opt deployOptions) error {
 				envInitTasks = append(envInitTasks, t)
 			}
 
+			deployDir := inst.DeployDir()
+			if !strings.HasPrefix(deployDir, "/") {
+				deployDir = filepath.Join("/home/tidb/deploy", deployDir)
+			}
 			// Deploy component
 			t := task.NewBuilder().
 				Mkdir(inst.GetHost(),
-					filepath.Join("~/deply", inst.InstanceName(), "bin"),
-					filepath.Join("~/deply", inst.InstanceName(), "data"),
-					filepath.Join("~/deply", inst.InstanceName(), "logs")).
-				CopyComponent(inst.ComponentName(), version, inst.GetHost(),
-					filepath.Join("~/deply", inst.InstanceName(), "bin")).
+					filepath.Join(deployDir, "bin"),
+					filepath.Join(deployDir, "data"),
+					filepath.Join(deployDir, "config"),
+					filepath.Join(deployDir, "scripts"),
+					filepath.Join(deployDir, "logs")).
+				CopyComponent(inst.ComponentName(), version, inst.GetHost(), deployDir).
+				CopyConfig(name, &topo, inst.ComponentName(), inst.GetHost(), inst.GetPort(), deployDir).
 				Build()
 			copyCompTasks = append(copyCompTasks, t)
 		}
 	}
 
 	t := task.NewBuilder().
-		SSHKeyGen(filepath.Join("ssh", name, "id_rsa")).
+		SSHKeyGen(meta.ClusterPath(name, "ssh", "id_rsa")).
 		Parallel(envInitTasks...).
 		Parallel(downloadCompTasks...).
 		Parallel(copyCompTasks...).
