@@ -141,7 +141,7 @@ func deploy(name, topoFile string, opt deployOptions) error {
 
 			deployDir := inst.DeployDir()
 			if !strings.HasPrefix(deployDir, "/") {
-				deployDir = filepath.Join("~/deploy", deployDir)
+				deployDir = filepath.Join("/home/tidb/deploy", deployDir)
 			}
 			// Deploy component
 			t := task.NewBuilder().
