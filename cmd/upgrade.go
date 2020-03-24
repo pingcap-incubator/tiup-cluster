@@ -14,10 +14,11 @@
 package cmd
 
 import (
-	"errors"
 	"fmt"
-
 	"github.com/pingcap-incubator/tiops/pkg/meta"
+	"github.com/pingcap-incubator/tiops/pkg/task"
+	"github.com/pingcap-incubator/tiup/pkg/repository"
+	"github.com/pingcap/errors"
 	"github.com/spf13/cobra"
 	"golang.org/x/mod/semver"
 )
@@ -47,7 +48,7 @@ func newUpgradeCmd() *cobra.Command {
 			if err := versionCompare(curVersion, newVersion); err != nil {
 				return err
 			}
-			return upgrade() // TODO
+			return upgrade(args[0], opt) // TODO
 		},
 	}
 
@@ -75,6 +76,58 @@ func versionCompare(curVersion, newVersion string) error {
 }
 
 // TODO
-func upgrade() error {
-	return nil
+func upgrade(name string, opt upgradeOptions) error {
+	topo, err := meta.ClusterTopology(name)
+	if err != nil {
+		return err
+	}
+
+	type componentInfo struct {
+		component string
+		version   repository.Version
+	}
+
+	var (
+		uniqueComps = map[componentInfo]struct{}{}
+		//upgradeTasks []task.Task
+	)
+	upgradeTasks := task.NewBuilder()
+
+	for _, comp := range topo.ComponentsByStartOrder() {
+		for _, inst := range comp.Instances() {
+			version := getComponentVersion(inst.ComponentName(), opt.version)
+			if version == "" {
+				return errors.Errorf("unsupported component: %v", inst.ComponentName())
+			}
+			compInfo := componentInfo{
+				component: inst.ComponentName(),
+				version:   version,
+			}
+
+			// Download component from repository
+			if _, found := uniqueComps[compInfo]; !found {
+				uniqueComps[compInfo] = struct{}{}
+				upgradeTasks.Download(inst.ComponentName(), version)
+			}
+
+			deployDir := inst.DeployDir()
+
+			switch inst.ComponentName() {
+			case meta.ComponentPD:
+				return nil // TODO: 1. check pd cluster status; 2. split pd node to follower and leader; 3. upgrade follower node; 4. transfer leader first and upgrade leader node
+			case meta.ComponentTiKV:
+				return nil // TODO: 1. add evict scheduler in pd to evict all region leader until leader count is 0; 2. upgrade tikv; 3. remove evict scheduler from pd
+			case meta.ComponentPump:
+				return nil // TODO(need to discuss, maybe step is): 1. stop pump; 2. upgrade; 3. start
+			default:
+				upgradeTasks.ClusterOperate(topo, "stop", inst.ComponentName(), inst.GetUuid()).
+					CopyComponent(inst.ComponentName(), version, inst.GetHost(), deployDir).
+					CopyConfig(name, topo, inst.ComponentName(), inst.GetHost(), inst.GetPort(), deployDir).
+					ClusterOperate(topo, "start", inst.ComponentName(), inst.GetUuid())
+				//return nil // TODO: 1. stop; 2. upgrade; 3. start
+
+			}
+		}
+	}
+	return upgradeTasks.Build().Execute(task.NewContext())
 }
