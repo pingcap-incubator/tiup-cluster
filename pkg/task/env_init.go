@@ -35,13 +35,20 @@ func (e *EnvInit) Execute(ctx *Context) error {
 		return ErrNoExecutor
 	}
 
+	// ulimit -u unlimited
+	cmd := `sudo sh -c "ulimit -u unlimited"`
+	stdout, stderr, err := exec.Execute(cmd, false)
+	if err != nil {
+		return errors.Trace(err)
+	}
+
 	um := module.NewUserModule(module.UserModuleConfig{
 		Action: module.UserActionAdd,
 		Name:   generatedUserName,
 		Sudoer: true,
 	})
 
-	stdout, stderr, err := um.Execute(exec)
+	stdout, stderr, err = um.Execute(exec)
 	if err != nil {
 		return errors.Trace(err)
 	}
