@@ -29,10 +29,10 @@ func JoinInt(nums []int, delim string) string {
 	return strings.TrimSuffix(result, delim)
 }
 
-// InSlice checks if a element is present in a slice
+// InSlice checks if a element is present in a slice, returns false if slice is
+// empty, or any other error occurs
 func InSlice(elem interface{}, slice interface{}) bool {
 	s := reflect.ValueOf(slice)
-
 	if s.Kind() != reflect.Slice {
 		return false
 	}

@@ -136,11 +136,11 @@ func buildTable(field reflect.Value, opt *displayOption, pdList []string) ([][]s
 		ins := field.Interface().(meta.InstanceSpec)
 
 		// filter by role
-		if !utils.InSlice(ins.Role(), opt.filterRole) {
+		if opt.filterRole != nil && !utils.InSlice(ins.Role(), opt.filterRole) {
 			return nil, nil
 		}
 		// filter by node
-		if !utils.InSlice(ins.GetID(), opt.filterNode) {
+		if opt.filterNode != nil && !utils.InSlice(ins.GetID(), opt.filterNode) {
 			return nil, nil
 		}
 
