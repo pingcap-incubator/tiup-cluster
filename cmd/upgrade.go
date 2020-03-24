@@ -16,12 +16,9 @@ package cmd
 import (
 	"errors"
 	"fmt"
-	"os"
-	"regexp"
-	"strings"
-
 	"github.com/pingcap-incubator/tiops/pkg/meta"
 	"github.com/spf13/cobra"
+	"golang.org/x/mod/semver"
 )
 
 type upgradeOptions struct {
@@ -37,10 +34,10 @@ func newUpgradeCmd() *cobra.Command {
 		Use:   "upgrade <cluster-name>",
 		Short: "Upgrade a specified TiDB cluster",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if len(os.Args) != 1 {
+			if len(args) != 1 {
 				return cmd.Help()
 			}
-			metaInfo, err := meta.ClusterMetadata(os.Args[1])
+			metaInfo, err := meta.ClusterMetadata(args[0])
 			if err != nil {
 				return err
 			}
@@ -61,31 +58,14 @@ func newUpgradeCmd() *cobra.Command {
 }
 
 func versionCompare(curVersion, newVersion string) error {
-	curVersionNotRelease, _ := regexp.MatchString("[0-9]+.*-", curVersion)
-	newVersionNotRelease, _ := regexp.MatchString("[0-9]+.*-", newVersion)
-	curVersionRelease, _ := regexp.MatchString("[0-9]+", curVersion)
-	newVersionRelease, _ := regexp.MatchString("[0-9]+", newVersion)
-
-	if !newVersionNotRelease && !newVersionRelease {
+	if curVersion == "nightly" && newVersion == "nightly" { // imperfect
 		return nil
-	} else if newVersionRelease {
-		switch {
-		case curVersionRelease && newVersion > curVersion:
-			return nil
-		case curVersionNotRelease:
-			if newVersion > curVersion || strings.Contains(curVersion, newVersion) {
-				return nil
-			}
-		}
-	} else {
-		switch {
-		case curVersionRelease && (!strings.Contains(newVersion, curVersion) && newVersion > curVersion):
-			return nil
-		case curVersionNotRelease && newVersion > curVersion:
-			return nil
-		}
 	}
-	return errors.New(fmt.Sprintf("unsupport upgrade from %s to %s", curVersion, newVersion))
+	if semver.Compare(curVersion, newVersion) == -1 {
+		return nil
+	} else {
+		return errors.New(fmt.Sprintf("unsupport upgrade from %s to %s", curVersion, newVersion))
+	}
 }
 
 // TODO
