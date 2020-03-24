@@ -15,10 +15,15 @@ package meta
 
 import (
 	"fmt"
+	"path/filepath"
 	"reflect"
 
+	"github.com/google/uuid"
 	"github.com/pingcap-incubator/tiops/pkg/executor"
 	"github.com/pingcap-incubator/tiops/pkg/module"
+	"github.com/pingcap-incubator/tiops/pkg/template/config"
+	"github.com/pingcap-incubator/tiops/pkg/template/scripts"
+	system "github.com/pingcap-incubator/tiops/pkg/template/systemd"
 )
 
 const (
@@ -69,6 +74,26 @@ func (i *instanceBase) Ready(e executor.TiOpsExecutor) error {
 // WaitForDown implements Instance interface
 func (i *instanceBase) WaitForDown(e executor.TiOpsExecutor) error {
 	return portStopped(e, i.port)
+}
+
+func (i *instanceBase) InitConfig(e executor.TiOpsExecutor, t *TopologySpecification, d string) error {
+	comp := i.ComponentName()
+	port := i.GetPort()
+	sysCfg := filepath.Join(d, fmt.Sprintf("%s-%d.service", comp, port))
+	if err := system.NewSystemConfig(comp, "tidb", i.DeployDir()).ConfigToFile(sysCfg); err != nil {
+		return err
+	}
+	fmt.Println("config path:", sysCfg)
+	tgt := filepath.Join("/tmp", comp+"_"+uuid.New().String()+".service")
+	if err := e.Transfer(sysCfg, tgt); err != nil {
+		return err
+	}
+	if outp, errp, err := e.Execute(fmt.Sprintf("mv %s /etc/systemd/system/%s-%d.service", tgt, comp, port), true); err != nil {
+		fmt.Println(string(outp), string(errp))
+		return err
+	}
+
+	return nil
 }
 
 // ComponentName implements Instance interface
@@ -125,15 +150,42 @@ func (c TiDBComponent) Name() string {
 func (c TiDBComponent) Instances() []Instance {
 	ins := make([]Instance, 0, len(c))
 	for _, s := range c {
-		ins = append(ins, &instanceBase{
+		ins = append(ins, &TiDBInstance{instanceBase{
 			name: c.Name(),
 			host: s.Host,
 			port: s.Port,
 			sshp: s.SSHPort,
 			spec: s,
-		})
+		}})
 	}
 	return ins
+}
+
+// TiDBInstance represent the TiDB instance
+type TiDBInstance struct {
+	instanceBase
+}
+
+// InitConfig implement Instance interface
+func (i *TiDBInstance) InitConfig(e executor.TiOpsExecutor, t *TopologySpecification, d string) error {
+	if err := i.instanceBase.InitConfig(e, t, d); err != nil {
+		return err
+	}
+	ends := []*scripts.PDScript{}
+	for _, spec := range t.PDServers {
+		ends = append(ends, scripts.NewPDScript(spec.Name, spec.Host, spec.DeployDir, spec.DataDir))
+	}
+	cfg := scripts.NewTiDBScript(i.GetHost(), i.DeployDir()).AppendEndpoints(ends...)
+	fp := filepath.Join(d, fmt.Sprintf("run_tidb_%s.sh", i.GetHost()))
+	if err := cfg.ConfigToFile(fp); err != nil {
+		return err
+	}
+	dst := filepath.Join(i.DeployDir(), "scripts", "run_tidb.sh")
+	if err := e.Transfer(fp, dst); err != nil {
+		fmt.Println("cccc", fp, dst)
+		return err
+	}
+	return nil
 }
 
 // TiKVComponent represents TiKV component.
@@ -148,15 +200,54 @@ func (c TiKVComponent) Name() string {
 func (c TiKVComponent) Instances() []Instance {
 	ins := make([]Instance, 0, len(c))
 	for _, s := range c {
-		ins = append(ins, &instanceBase{
+		ins = append(ins, &TiKVInstance{instanceBase{
 			name: c.Name(),
 			host: s.Host,
 			port: s.Port,
 			sshp: s.SSHPort,
 			spec: s,
-		})
+		}})
 	}
 	return ins
+}
+
+// TiKVInstance represent the TiDB instance
+type TiKVInstance struct {
+	instanceBase
+}
+
+// InitConfig implement Instance interface
+func (i *TiKVInstance) InitConfig(e executor.TiOpsExecutor, t *TopologySpecification, d string) error {
+	if err := i.instanceBase.InitConfig(e, t, d); err != nil {
+		return err
+	}
+
+	// transfer run script
+	ends := []*scripts.PDScript{}
+	for _, spec := range t.PDServers {
+		ends = append(ends, scripts.NewPDScript(spec.Name, spec.Host, spec.DeployDir, spec.DataDir))
+	}
+	cfg := scripts.NewTiKVScript(i.GetHost(), i.DeployDir(), filepath.Join(i.DeployDir(), "data")).AppendEndpoints(ends...)
+	fp := filepath.Join(d, fmt.Sprintf("run_tikv_%s_%d.sh", i.GetHost(), i.GetPort()))
+	if err := cfg.ConfigToFile(fp); err != nil {
+		return err
+	}
+	dst := filepath.Join(i.DeployDir(), "scripts", "run_tikv.sh")
+	if err := e.Transfer(fp, dst); err != nil {
+		return err
+	}
+
+	// transfer config
+	fp = filepath.Join(d, fmt.Sprintf("tikv_%s.toml", i.GetHost()))
+	if err := config.NewTiKVConfig().ConfigToFile(fp); err != nil {
+		return err
+	}
+	dst = filepath.Join(i.DeployDir(), "config", "tikv.toml")
+	if err := e.Transfer(fp, dst); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // PDComponent represents PD component.
@@ -171,15 +262,47 @@ func (c PDComponent) Name() string {
 func (c PDComponent) Instances() []Instance {
 	ins := make([]Instance, 0, len(c))
 	for _, s := range c {
-		ins = append(ins, &instanceBase{
+		ins = append(ins, &PDInstance{instanceBase{
 			name: c.Name(),
 			host: s.Host,
 			port: s.ClientPort,
 			sshp: s.SSHPort,
 			spec: s,
-		})
+		}})
 	}
 	return ins
+}
+
+// PDInstance represent the TiDB instance
+type PDInstance struct {
+	instanceBase
+}
+
+// InitConfig implement Instance interface
+func (i *PDInstance) InitConfig(e executor.TiOpsExecutor, t *TopologySpecification, d string) error {
+	if err := i.instanceBase.InitConfig(e, t, d); err != nil {
+		return err
+	}
+
+	ends := []*scripts.PDScript{}
+	name := ""
+	for _, spec := range t.PDServers {
+		if spec.Host == i.GetHost() {
+			name = spec.Name
+		}
+		ends = append(ends, scripts.NewPDScript(spec.Name, spec.Host, spec.DeployDir, spec.DataDir))
+	}
+
+	cfg := scripts.NewPDScript(name, i.GetHost(), i.DeployDir(), filepath.Join(i.DeployDir(), "data")).AppendEndpoints(ends...)
+	fp := filepath.Join(d, fmt.Sprintf("run_pd_%s.sh", i.GetHost()))
+	if err := cfg.ConfigToFile(fp); err != nil {
+		return err
+	}
+	dst := filepath.Join(i.DeployDir(), "scripts", "run_pd.sh")
+	if err := e.Transfer(fp, dst); err != nil {
+		return err
+	}
+	return nil
 }
 
 // PumpComponent represents Pump component.
@@ -322,6 +445,7 @@ type Component interface {
 type Instance interface {
 	Ready(executor.TiOpsExecutor) error
 	WaitForDown(executor.TiOpsExecutor) error
+	InitConfig(executor.TiOpsExecutor, *TopologySpecification, string) error
 	ComponentName() string
 	InstanceName() string
 	ServiceName() string

@@ -15,6 +15,7 @@ package cmd
 
 import (
 	"io/ioutil"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -92,13 +93,19 @@ func getComponentVersion(comp, version string) repository.Version {
 
 func deploy(name, topoFile string, opt deployOptions) error {
 	// TODO: detect name conflicts
+	var topo meta.TopologySpecification
 	yamlFile, err := ioutil.ReadFile(topoFile)
 	if err != nil {
 		return errors.Trace(err)
 	}
-	var topo meta.TopologySpecification
 	if err = yaml.Unmarshal(yamlFile, &topo); err != nil {
 		return errors.Trace(err)
+	}
+	if err := os.MkdirAll(meta.ClusterPath(name), 0755); err != nil {
+		return err
+	}
+	if err := ioutil.WriteFile(meta.ClusterPath(name, "topology.yaml"), yamlFile, 0664); err != nil {
+		return err
 	}
 
 	var (
@@ -107,23 +114,17 @@ func deploy(name, topoFile string, opt deployOptions) error {
 		copyCompTasks     []task.Task // tasks which are used to copy components to remote host
 
 		uniqueHosts = set.NewStringSet()
-		uniqueComps = map[componentInfo]struct{}{}
 	)
 
 	for _, comp := range topo.ComponentsByStartOrder() {
-		for _, inst := range comp.Instances() {
+		for idx, inst := range comp.Instances() {
 			version := getComponentVersion(inst.ComponentName(), opt.version)
 			if version == "" {
 				return errors.Errorf("unsupported component: %v", inst.ComponentName())
 			}
-			compInfo := componentInfo{
-				component: inst.ComponentName(),
-				version:   version,
-			}
 
 			// Download component from repository
-			if _, found := uniqueComps[compInfo]; !found {
-				uniqueComps[compInfo] = struct{}{}
+			if idx == 0 {
 				t := task.NewBuilder().
 					Download(inst.ComponentName(), version).
 					Build()
@@ -153,8 +154,8 @@ func deploy(name, topoFile string, opt deployOptions) error {
 					filepath.Join(deployDir, "config"),
 					filepath.Join(deployDir, "scripts"),
 					filepath.Join(deployDir, "logs")).
-				CopyComponent(inst.ComponentName(), version, inst.GetHost(), deployDir).
-				CopyConfig(name, &topo, inst.ComponentName(), inst.GetHost(), inst.GetPort(), deployDir).
+				//CopyComponent(inst.ComponentName(), version, inst.GetHost(), deployDir).
+				InitConfig(name, &topo, inst).
 				Build()
 			copyCompTasks = append(copyCompTasks, t)
 		}
@@ -163,7 +164,7 @@ func deploy(name, topoFile string, opt deployOptions) error {
 	t := task.NewBuilder().
 		SSHKeyGen(meta.ClusterPath(name, "ssh", "id_rsa")).
 		Parallel(envInitTasks...).
-		Parallel(downloadCompTasks...).
+		//Parallel(downloadCompTasks...).
 		Parallel(copyCompTasks...).
 		Build()
 
