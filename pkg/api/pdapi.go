@@ -131,11 +131,7 @@ func (pc *PDClient) GetMembers() (*pdpb.GetMembersResponse, error) {
 }
 
 // EvictPDLeader evicts the PD leader
-func (pc *PDClient) EvictPDLeader(name string) error {
-	if name == "" {
-		return errors.New("PD name must be set")
-	}
-
+func (pc *PDClient) EvictPDLeader() error {
 	// get current members
 	members, err := pc.GetMembers()
 	if err != nil {
@@ -159,7 +155,7 @@ func (pc *PDClient) EvictPDLeader(name string) error {
 		}
 
 		// check if current leader is the leader to evict
-		if currLeader.Name != name {
+		if currLeader.Name != members.Leader.Name {
 			return nil
 		}
 

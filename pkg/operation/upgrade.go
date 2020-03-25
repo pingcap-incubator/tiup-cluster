@@ -60,7 +60,7 @@ func Upgrade(
 						return errors.Annotatef(err, "failed to get PD leader %s", instance.GetHost())
 					}
 					if leader.Name == instance.UUID() {
-						if err := pdClient.EvictPDLeader(instance.UUID()); err != nil {
+						if err := pdClient.EvictPDLeader(); err != nil {
 							return errors.Annotatef(err, "failed to evict PD leader %s", instance.GetHost())
 						}
 					}
