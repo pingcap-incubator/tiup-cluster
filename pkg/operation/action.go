@@ -96,7 +96,7 @@ func Stop(
 	component string,
 	node string,
 ) error {
-	coms := spec.ComponentsByStartOrder()
+	coms := spec.ComponentsByStopOrder()
 	coms = filterComponent(coms, component)
 
 	for _, com := range coms {
@@ -153,11 +153,11 @@ func StartComponent(getter ExecutorGetter, w io.Writer, instances []meta.Instanc
 	}
 
 	name := instances[0].ComponentName()
-	fmt.Fprintf(w, "Starting component %s", name)
+	fmt.Fprintf(w, "Starting component %s\n", name)
 
 	for _, ins := range instances {
 		e := getter.Get(ins.GetHost())
-		fmt.Fprintf(w, "Starting instance %s", ins.GetHost())
+		fmt.Fprintf(w, "Starting instance %s\n", ins.GetHost())
 
 		// Start by systemd.
 		c := module.SystemdModuleConfig{
@@ -183,7 +183,7 @@ func StartComponent(getter ExecutorGetter, w io.Writer, instances []meta.Instanc
 			return errors.Annotatef(err, str)
 		}
 
-		fmt.Fprintf(w, "Start %s success", ins.GetHost())
+		fmt.Fprintf(w, "Start %s success\n", ins.GetHost())
 	}
 
 	return nil
@@ -196,11 +196,11 @@ func StopComponent(getter ExecutorGetter, w io.Writer, instances []meta.Instance
 	}
 
 	name := instances[0].ComponentName()
-	fmt.Fprintf(w, "Stopping component %s", name)
+	fmt.Fprintf(w, "Stopping component %s\n", name)
 
 	for _, ins := range instances {
 		e := getter.Get(ins.GetHost())
-		fmt.Fprintf(w, "Stopping instance %s", ins.GetHost())
+		fmt.Fprintf(w, "Stopping instance %s\n", ins.GetHost())
 
 		// Stop by systemd.
 		c := module.SystemdModuleConfig{
@@ -225,7 +225,7 @@ func StopComponent(getter ExecutorGetter, w io.Writer, instances []meta.Instance
 			return errors.Annotatef(err, str)
 		}
 
-		fmt.Fprintf(w, "Stop %s success", ins.GetHost())
+		fmt.Fprintf(w, "Stop %s success\n", ins.GetHost())
 	}
 
 	return nil

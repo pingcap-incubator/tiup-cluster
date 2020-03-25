@@ -57,11 +57,6 @@ func NewUserModule(config UserModuleConfig) *UserModule {
 	switch config.Action {
 	case UserActionAdd:
 		cmd = useraddCmd
-		// set user's home
-		if config.Home != "" {
-			cmd = fmt.Sprintf("/usr/bin/mkdir -p %s && %s -d %s",
-				config.Home, cmd, config.Home)
-		}
 		// You have to use -m, otherwise no home directory will be created. If you want to specify the path of the home directory, use -d and specify the path
 		// useradd -m -d /PATH/TO/FOLDER
 		cmd += " -m"
@@ -79,7 +74,7 @@ func NewUserModule(config UserModuleConfig) *UserModule {
 		cmd = fmt.Sprintf("%s %s", cmd, config.Name)
 
 		// prevent errors when username already in use
-		cmd = fmt.Sprintf("id -u %s 2>&1 > /dev/null || %s", config.Name, cmd)
+		cmd = fmt.Sprintf("id -u %s > /dev/null 2>&1 || %s", config.Name, cmd)
 
 		// add user to sudoers list
 		if config.Sudoer {
