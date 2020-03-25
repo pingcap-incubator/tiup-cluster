@@ -75,7 +75,7 @@ func Retry(doFunc func() error, opts ...RetryOption) error {
 		}
 	}
 
-	timeoutChan := make(chan string)
+	timeoutChan := make(chan string, 1)
 
 	// call the function
 	var attemptCount int
