@@ -15,6 +15,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/pingcap-incubator/tiops/pkg/utils"
@@ -114,9 +115,67 @@ func (pc *PDClient) GetLeader() (*pdpb.Member, error) {
 	return &leader, nil
 }
 
+// GetMembers queries for member list from the PD server
+func (pc *PDClient) GetMembers() (*pdpb.GetMembersResponse, error) {
+	url := fmt.Sprintf("%s/%s", pc.GetURL(), pdMembersURI)
+	body, err := pc.httpClient.Get(url)
+	if err != nil {
+		return nil, err
+	}
+
+	members := pdpb.GetMembersResponse{}
+	if err := json.Unmarshal(body, &members); err != nil {
+		return nil, err
+	}
+	return &members, nil
+}
+
 // EvictPDLeader evicts the PD leader
-func (pc *PDClient) EvictPDLeader() error {
-	return errors.New("not implement")
+func (pc *PDClient) EvictPDLeader(name string) error {
+	if name == "" {
+		return errors.New("PD name must be set")
+	}
+
+	// get current members
+	members, err := pc.GetMembers()
+	if err != nil {
+		return err
+	}
+	if len(members.Members) == 1 {
+		// TODO: add a warning log here say:
+		// "Only 1 member in the PD cluster, skip leader evicting"
+		return nil
+	}
+
+	retryOpt := utils.RetryOption{
+		Attempts: 60,
+		Delay:    time.Second * 5,
+		Timeout:  time.Second * 300,
+	}
+	if err := utils.Retry(func() error {
+		currLeader, err := pc.GetLeader()
+		if err != nil {
+			return err
+		}
+
+		// check if current leader is the leader to evict
+		if currLeader.Name != name {
+			return nil
+		}
+
+		// try to evict the leader
+		url := fmt.Sprintf("%s/%s/resign", pc.GetURL(), pdLeaderURI)
+		_, err = pc.httpClient.Post(url, strings.NewReader(""))
+		if err != nil {
+			return err
+		}
+
+		// return error by default, to make the retry work
+		return errors.New("still waitting for the PD leader to transfer")
+	}, retryOpt); err != nil {
+		return fmt.Errorf("error evicting PD leader, %v", err)
+	}
+	return nil
 }
 
 // EvictStoreLeader evicts the store leaders
