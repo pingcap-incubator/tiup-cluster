@@ -17,6 +17,7 @@ import (
 	"os"
 
 	"github.com/pingcap-incubator/tiops/pkg/meta"
+	operator "github.com/pingcap-incubator/tiops/pkg/operation"
 	"github.com/pingcap-incubator/tiup/pkg/repository"
 )
 
@@ -110,15 +111,12 @@ func (b *Builder) BackupComponent(component, fromVer string, dstHost, dstDir str
 	return b
 }
 
-// CopyConfig appends a CopyComponent task to the current task collection
-func (b *Builder) CopyConfig(name string, topo *meta.TopologySpecification, component, dstHost string, srvPort int, dstDir string) *Builder {
-	b.tasks = append(b.tasks, &CopyConfig{
+// InitConfig appends a CopyComponent task to the current task collection
+func (b *Builder) InitConfig(name string, inst meta.Instance, deployDir string) *Builder {
+	b.tasks = append(b.tasks, &InitConfig{
 		name:      name,
-		topology:  topo,
-		component: component,
-		host:      dstHost,
-		port:      srvPort,
-		dstDir:    dstDir,
+		instance:  inst,
+		deployDir: deployDir,
 	})
 	return b
 }
@@ -153,16 +151,14 @@ func (b *Builder) EnvInit(host, deployUser string) *Builder {
 // All the UserSSH needed must be init first.
 func (b *Builder) ClusterOperate(
 	spec *meta.Specification,
-	op string,
-	role string,
-	nodeID string,
+	op operator.Operation,
+	options operator.Options,
 ) *Builder {
 	b.tasks = append(b.tasks, &ClusterOperate{
-		spec:   spec,
-		op:     op,
-		role:   role,
-		nodeID: nodeID,
-		w:      os.Stdout,
+		spec:    spec,
+		op:      op,
+		options: options,
+		w:       os.Stdout,
 	})
 
 	return b
