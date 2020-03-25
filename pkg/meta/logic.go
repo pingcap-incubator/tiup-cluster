@@ -64,6 +64,7 @@ type instanceBase struct {
 	port int
 	sshp int
 	spec interface{}
+	topo *Specification
 }
 
 // Ready implements Instance interface
@@ -76,11 +77,11 @@ func (i *instanceBase) WaitForDown(e executor.TiOpsExecutor) error {
 	return portStopped(e, i.port)
 }
 
-func (i *instanceBase) InitConfig(e executor.TiOpsExecutor, t *TopologySpecification, d string) error {
+func (i *instanceBase) InitConfig(e executor.TiOpsExecutor, cacheDir, deployDir string) error {
 	comp := i.ComponentName()
 	port := i.GetPort()
-	sysCfg := filepath.Join(d, fmt.Sprintf("%s-%d.service", comp, port))
-	if err := system.NewSystemConfig(comp, "tidb", i.DeployDir()).ConfigToFile(sysCfg); err != nil {
+	sysCfg := filepath.Join(cacheDir, fmt.Sprintf("%s-%d.service", comp, port))
+	if err := system.NewSystemConfig(comp, "tidb", deployDir).ConfigToFile(sysCfg); err != nil {
 		return err
 	}
 	fmt.Println("config path:", sysCfg)
@@ -139,23 +140,24 @@ func (i *instanceBase) GetPort() int {
 type Specification = TopologySpecification
 
 // TiDBComponent represents TiDB component.
-type TiDBComponent []TiDBSpec
+type TiDBComponent struct{ Specification }
 
 // Name implements Component interface.
-func (c TiDBComponent) Name() string {
+func (c *TiDBComponent) Name() string {
 	return ComponentTiDB
 }
 
 // Instances implements Component interface.
-func (c TiDBComponent) Instances() []Instance {
-	ins := make([]Instance, 0, len(c))
-	for _, s := range c {
+func (c *TiDBComponent) Instances() []Instance {
+	ins := make([]Instance, 0, len(c.TiDBServers))
+	for _, s := range c.TiDBServers {
 		ins = append(ins, &TiDBInstance{instanceBase{
 			name: c.Name(),
 			host: s.Host,
 			port: s.Port,
 			sshp: s.SSHPort,
 			spec: s,
+			topo: &c.Specification,
 		}})
 	}
 	return ins
@@ -167,45 +169,47 @@ type TiDBInstance struct {
 }
 
 // InitConfig implement Instance interface
-func (i *TiDBInstance) InitConfig(e executor.TiOpsExecutor, t *TopologySpecification, d string) error {
-	if err := i.instanceBase.InitConfig(e, t, d); err != nil {
+func (i *TiDBInstance) InitConfig(e executor.TiOpsExecutor, cacheDir, deployDir string) error {
+	if err := i.instanceBase.InitConfig(e, cacheDir, deployDir); err != nil {
 		return err
 	}
 	ends := []*scripts.PDScript{}
-	for _, spec := range t.PDServers {
+	for _, spec := range i.instanceBase.topo.PDServers {
 		ends = append(ends, scripts.NewPDScript(spec.Name, spec.Host, spec.DeployDir, spec.DataDir))
 	}
-	cfg := scripts.NewTiDBScript(i.GetHost(), i.DeployDir()).AppendEndpoints(ends...)
-	fp := filepath.Join(d, fmt.Sprintf("run_tidb_%s.sh", i.GetHost()))
+	cfg := scripts.NewTiDBScript(i.GetHost(), deployDir).AppendEndpoints(ends...)
+	fp := filepath.Join(cacheDir, fmt.Sprintf("run_tidb_%s.sh", i.GetHost()))
 	if err := cfg.ConfigToFile(fp); err != nil {
 		return err
 	}
-	dst := filepath.Join(i.DeployDir(), "scripts", "run_tidb.sh")
+	dst := filepath.Join(deployDir, "scripts", "run_tidb.sh")
 	if err := e.Transfer(fp, dst); err != nil {
-		fmt.Println("cccc", fp, dst)
 		return err
 	}
 	return nil
 }
 
 // TiKVComponent represents TiKV component.
-type TiKVComponent []TiKVSpec
+type TiKVComponent struct {
+	Specification
+}
 
 // Name implements Component interface.
-func (c TiKVComponent) Name() string {
+func (c *TiKVComponent) Name() string {
 	return ComponentTiKV
 }
 
 // Instances implements Component interface.
-func (c TiKVComponent) Instances() []Instance {
-	ins := make([]Instance, 0, len(c))
-	for _, s := range c {
+func (c *TiKVComponent) Instances() []Instance {
+	ins := make([]Instance, 0, len(c.TiKVServers))
+	for _, s := range c.TiKVServers {
 		ins = append(ins, &TiKVInstance{instanceBase{
 			name: c.Name(),
 			host: s.Host,
 			port: s.Port,
 			sshp: s.SSHPort,
 			spec: s,
+			topo: &c.Specification,
 		}})
 	}
 	return ins
@@ -217,32 +221,32 @@ type TiKVInstance struct {
 }
 
 // InitConfig implement Instance interface
-func (i *TiKVInstance) InitConfig(e executor.TiOpsExecutor, t *TopologySpecification, d string) error {
-	if err := i.instanceBase.InitConfig(e, t, d); err != nil {
+func (i *TiKVInstance) InitConfig(e executor.TiOpsExecutor, cacheDir, deployDir string) error {
+	if err := i.instanceBase.InitConfig(e, cacheDir, deployDir); err != nil {
 		return err
 	}
 
 	// transfer run script
 	ends := []*scripts.PDScript{}
-	for _, spec := range t.PDServers {
+	for _, spec := range i.instanceBase.topo.PDServers {
 		ends = append(ends, scripts.NewPDScript(spec.Name, spec.Host, spec.DeployDir, spec.DataDir))
 	}
-	cfg := scripts.NewTiKVScript(i.GetHost(), i.DeployDir(), filepath.Join(i.DeployDir(), "data")).AppendEndpoints(ends...)
-	fp := filepath.Join(d, fmt.Sprintf("run_tikv_%s_%d.sh", i.GetHost(), i.GetPort()))
+	cfg := scripts.NewTiKVScript(i.GetHost(), deployDir, filepath.Join(deployDir, "data")).AppendEndpoints(ends...)
+	fp := filepath.Join(cacheDir, fmt.Sprintf("run_tikv_%s_%d.sh", i.GetHost(), i.GetPort()))
 	if err := cfg.ConfigToFile(fp); err != nil {
 		return err
 	}
-	dst := filepath.Join(i.DeployDir(), "scripts", "run_tikv.sh")
+	dst := filepath.Join(deployDir, "scripts", "run_tikv.sh")
 	if err := e.Transfer(fp, dst); err != nil {
 		return err
 	}
 
 	// transfer config
-	fp = filepath.Join(d, fmt.Sprintf("tikv_%s.toml", i.GetHost()))
+	fp = filepath.Join(cacheDir, fmt.Sprintf("tikv_%s.toml", i.GetHost()))
 	if err := config.NewTiKVConfig().ConfigToFile(fp); err != nil {
 		return err
 	}
-	dst = filepath.Join(i.DeployDir(), "config", "tikv.toml")
+	dst = filepath.Join(deployDir, "config", "tikv.toml")
 	if err := e.Transfer(fp, dst); err != nil {
 		return err
 	}
@@ -251,23 +255,24 @@ func (i *TiKVInstance) InitConfig(e executor.TiOpsExecutor, t *TopologySpecifica
 }
 
 // PDComponent represents PD component.
-type PDComponent []PDSpec
+type PDComponent struct{ Specification }
 
 // Name implements Component interface.
-func (c PDComponent) Name() string {
+func (c *PDComponent) Name() string {
 	return ComponentPD
 }
 
 // Instances implements Component interface.
-func (c PDComponent) Instances() []Instance {
-	ins := make([]Instance, 0, len(c))
-	for _, s := range c {
+func (c *PDComponent) Instances() []Instance {
+	ins := make([]Instance, 0, len(c.PDServers))
+	for _, s := range c.PDServers {
 		ins = append(ins, &PDInstance{instanceBase{
 			name: c.Name(),
 			host: s.Host,
 			port: s.ClientPort,
 			sshp: s.SSHPort,
 			spec: s,
+			topo: &c.Specification,
 		}})
 	}
 	return ins
@@ -279,26 +284,26 @@ type PDInstance struct {
 }
 
 // InitConfig implement Instance interface
-func (i *PDInstance) InitConfig(e executor.TiOpsExecutor, t *TopologySpecification, d string) error {
-	if err := i.instanceBase.InitConfig(e, t, d); err != nil {
+func (i *PDInstance) InitConfig(e executor.TiOpsExecutor, cacheDir, deployDir string) error {
+	if err := i.instanceBase.InitConfig(e, cacheDir, deployDir); err != nil {
 		return err
 	}
 
 	ends := []*scripts.PDScript{}
 	name := ""
-	for _, spec := range t.PDServers {
+	for _, spec := range i.instanceBase.topo.PDServers {
 		if spec.Host == i.GetHost() {
 			name = spec.Name
 		}
 		ends = append(ends, scripts.NewPDScript(spec.Name, spec.Host, spec.DeployDir, spec.DataDir))
 	}
 
-	cfg := scripts.NewPDScript(name, i.GetHost(), i.DeployDir(), filepath.Join(i.DeployDir(), "data")).AppendEndpoints(ends...)
-	fp := filepath.Join(d, fmt.Sprintf("run_pd_%s.sh", i.GetHost()))
+	cfg := scripts.NewPDScript(name, i.GetHost(), deployDir, filepath.Join(deployDir, "data")).AppendEndpoints(ends...)
+	fp := filepath.Join(cacheDir, fmt.Sprintf("run_pd_%s.sh", i.GetHost()))
 	if err := cfg.ConfigToFile(fp); err != nil {
 		return err
 	}
-	dst := filepath.Join(i.DeployDir(), "scripts", "run_pd.sh")
+	dst := filepath.Join(deployDir, "scripts", "run_pd.sh")
 	if err := e.Transfer(fp, dst); err != nil {
 		return err
 	}
@@ -306,114 +311,119 @@ func (i *PDInstance) InitConfig(e executor.TiOpsExecutor, t *TopologySpecificati
 }
 
 // PumpComponent represents Pump component.
-type PumpComponent []PumpSpec
+type PumpComponent struct{ Specification }
 
 // Name implements Component interface.
-func (c PumpComponent) Name() string {
+func (c *PumpComponent) Name() string {
 	return ComponentPump
 }
 
 // Instances implements Component interface.
-func (c PumpComponent) Instances() []Instance {
-	ins := make([]Instance, 0, len(c))
-	for _, s := range c {
+func (c *PumpComponent) Instances() []Instance {
+	ins := make([]Instance, 0, len(c.PumpServers))
+	for _, s := range c.PumpServers {
 		ins = append(ins, &instanceBase{
 			name: c.Name(),
 			host: s.Host,
 			port: s.Port,
 			sshp: s.SSHPort,
 			spec: s,
+			topo: &c.Specification,
 		})
 	}
 	return ins
 }
 
 // DrainerComponent represents Drainer component.
-type DrainerComponent []DrainerSpec
+type DrainerComponent struct{ Specification }
 
 // Name implements Component interface.
-func (c DrainerComponent) Name() string {
+func (c *DrainerComponent) Name() string {
 	return ComponentDrainer
 }
 
 // Instances implements Component interface.
-func (c DrainerComponent) Instances() []Instance {
-	ins := make([]Instance, 0, len(c))
-	for _, s := range c {
+func (c *DrainerComponent) Instances() []Instance {
+	ins := make([]Instance, 0, len(c.Drainers))
+	for _, s := range c.Drainers {
 		ins = append(ins, &instanceBase{
 			name: c.Name(),
 			host: s.Host,
 			port: s.Port,
 			sshp: s.SSHPort,
 			spec: s,
+			topo: &c.Specification,
 		})
 	}
 	return ins
 }
 
 // MonitorComponent represents Monitor component.
-type MonitorComponent []PrometheusSpec
+type MonitorComponent struct{ Specification }
 
 // Name implements Component interface.
-func (c MonitorComponent) Name() string {
+func (c *MonitorComponent) Name() string {
 	return ComponentPrometheus
 }
 
 // Instances implements Component interface.
-func (c MonitorComponent) Instances() []Instance {
-	ins := make([]Instance, 0, len(c))
-	for _, s := range c {
+func (c *MonitorComponent) Instances() []Instance {
+	ins := make([]Instance, 0, len(c.MonitorSpec))
+	for _, s := range c.MonitorSpec {
 		ins = append(ins, &instanceBase{
 			name: c.Name(),
 			host: s.Host,
 			port: s.Port,
 			sshp: s.SSHPort,
 			spec: s,
+			topo: &c.Specification,
 		})
 	}
 	return ins
 }
 
 // GrafanaComponent represents Grafana component.
-type GrafanaComponent []GrafanaSpec
+type GrafanaComponent struct{ Specification }
 
 // Name implements Component interface.
-func (c GrafanaComponent) Name() string {
+func (c *GrafanaComponent) Name() string {
 	return ComponentGrafana
 }
 
 // Instances implements Component interface.
-func (c GrafanaComponent) Instances() []Instance {
-	ins := make([]Instance, 0, len(c))
-	for _, s := range c {
+func (c *GrafanaComponent) Instances() []Instance {
+	ins := make([]Instance, 0, len(c.Grafana))
+	for _, s := range c.Grafana {
 		ins = append(ins, &instanceBase{
 			name: c.Name(),
 			host: s.Host,
 			port: s.Port,
 			sshp: s.SSHPort,
 			spec: s,
+			topo: &c.Specification,
 		})
 	}
 	return ins
 }
 
 // AlertmanagerComponent represents Alertmanager component.
-type AlertmanagerComponent []AlertManagerSpec
+type AlertmanagerComponent struct{ Specification }
 
 // Name implements Component interface.
-func (c AlertmanagerComponent) Name() string {
+func (c *AlertmanagerComponent) Name() string {
 	return ComponentAlertManager
 }
 
 // Instances implements Component interface.
-func (c AlertmanagerComponent) Instances() []Instance {
-	ins := make([]Instance, 0, len(c))
-	for _, s := range c {
+func (c *AlertmanagerComponent) Instances() []Instance {
+	ins := make([]Instance, 0, len(c.Alertmanager))
+	for _, s := range c.Alertmanager {
 		ins = append(ins, &instanceBase{
 			name: c.Name(),
 			host: s.Host,
 			sshp: s.SSHPort,
 			spec: s,
+			topo: &c.Specification,
 		})
 	}
 	return ins
@@ -423,14 +433,14 @@ func (c AlertmanagerComponent) Instances() []Instance {
 func (s *Specification) ComponentsByStartOrder() (comps []Component) {
 	// "pd", "tikv", "pump", "tidb", "drainer", "prometheus", "grafana", "alertmanager"
 
-	comps = append(comps, PDComponent(s.PDServers))
-	comps = append(comps, TiKVComponent(s.TiKVServers))
-	comps = append(comps, PumpComponent(s.PumpServers))
-	comps = append(comps, TiDBComponent(s.TiDBServers))
-	comps = append(comps, DrainerComponent(s.Drainers))
-	comps = append(comps, MonitorComponent(s.MonitorSpec))
-	comps = append(comps, GrafanaComponent(s.Grafana))
-	comps = append(comps, AlertmanagerComponent(s.Alertmanager))
+	comps = append(comps, &PDComponent{*s})
+	comps = append(comps, &TiKVComponent{*s})
+	comps = append(comps, &PumpComponent{*s})
+	comps = append(comps, &TiDBComponent{*s})
+	comps = append(comps, &DrainerComponent{*s})
+	comps = append(comps, &MonitorComponent{*s})
+	comps = append(comps, &GrafanaComponent{*s})
+	comps = append(comps, &AlertmanagerComponent{*s})
 
 	return
 }
@@ -445,7 +455,7 @@ type Component interface {
 type Instance interface {
 	Ready(executor.TiOpsExecutor) error
 	WaitForDown(executor.TiOpsExecutor) error
-	InitConfig(executor.TiOpsExecutor, *TopologySpecification, string) error
+	InitConfig(executor.TiOpsExecutor, string, string) error
 	ComponentName() string
 	InstanceName() string
 	ServiceName() string

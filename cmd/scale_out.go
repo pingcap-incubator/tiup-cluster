@@ -28,6 +28,7 @@ import (
 type scaleOutOptions struct {
 	version    string // version of the cluster
 	user       string // username to login to the SSH server
+	deployUser string // username of deploy tidb
 	password   string // password of the user
 	keyFile    string // path to the private key file
 	passphrase string // passphrase of the private key file
@@ -51,6 +52,7 @@ func newScaleOutCmd() *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&opt.user, "user", "root", "Specify the system user name")
+	cmd.Flags().StringVarP(&opt.deployUser, "deploy-user", "d", "tidb", "Specify the user name of deploy cluster")
 	cmd.Flags().StringVar(&opt.password, "password", "", "Specify the password of system user")
 	cmd.Flags().StringVar(&opt.keyFile, "key", "", "Specify the key path of system user")
 	cmd.Flags().StringVar(&opt.passphrase, "passphrase", "", "Specify the passphrase of the key")
@@ -99,15 +101,15 @@ func scaleOut(name, topoFile string, opt scaleOutOptions) error {
 				uniqueHosts.Insert(inst.GetHost())
 				t := task.NewBuilder().
 					RootSSH(inst.GetHost(), inst.GetSSHPort(), opt.user, opt.password, opt.keyFile, opt.passphrase).
-					EnvInit(inst.GetHost()).
-					UserSSH(inst.GetHost()).
+					EnvInit(inst.GetHost(), opt.deployUser).
+					UserSSH(inst.GetHost(), opt.deployUser).
 					Build()
 				envInitTasks = append(envInitTasks, t)
 			}
 
 			deployDir := inst.DeployDir()
 			if !strings.HasPrefix(deployDir, "/") {
-				deployDir = filepath.Join("/home/tidb/deploy", deployDir)
+				deployDir = filepath.Join("/home/"+opt.deployUser+"/deploy", deployDir)
 			}
 			// Deploy component
 			t := task.NewBuilder().
@@ -118,7 +120,7 @@ func scaleOut(name, topoFile string, opt scaleOutOptions) error {
 					filepath.Join(deployDir, "scripts"),
 					filepath.Join(deployDir, "logs")).
 				CopyComponent(inst.ComponentName(), version, inst.GetHost(), deployDir).
-				//InitConfig(name, &newPart, inst.ComponentName(), inst.GetHost(), inst.GetPort(), deployDir).
+				// ScaleConfig(name, &oldPart, inst, deployDir)
 				Build()
 			copyCompTasks = append(copyCompTasks, t)
 		}

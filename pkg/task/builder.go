@@ -111,11 +111,11 @@ func (b *Builder) BackupComponent(component, fromVer string, dstHost, dstDir str
 }
 
 // InitConfig appends a CopyComponent task to the current task collection
-func (b *Builder) InitConfig(name string, topo *meta.TopologySpecification, inst meta.Instance) *Builder {
+func (b *Builder) InitConfig(name string, inst meta.Instance, deployDir string) *Builder {
 	b.tasks = append(b.tasks, &InitConfig{
-		name:     name,
-		topology: topo,
-		instance: inst,
+		name:      name,
+		instance:  inst,
+		deployDir: deployDir,
 	})
 	return b
 }

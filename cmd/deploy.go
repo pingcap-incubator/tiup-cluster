@@ -14,6 +14,7 @@
 package cmd
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -116,6 +117,7 @@ func deploy(name, topoFile string, opt deployOptions) error {
 		uniqueHosts = set.NewStringSet()
 	)
 
+	// topo.NormalizeDeployDir("/home/" + opt.deployUser + "/deploy")
 	for _, comp := range topo.ComponentsByStartOrder() {
 		for idx, inst := range comp.Instances() {
 			version := getComponentVersion(inst.ComponentName(), opt.version)
@@ -154,8 +156,8 @@ func deploy(name, topoFile string, opt deployOptions) error {
 					filepath.Join(deployDir, "config"),
 					filepath.Join(deployDir, "scripts"),
 					filepath.Join(deployDir, "logs")).
-				//CopyComponent(inst.ComponentName(), version, inst.GetHost(), deployDir).
-				InitConfig(name, &topo, inst).
+				CopyComponent(inst.ComponentName(), version, inst.GetHost(), deployDir).
+				InitConfig(name, inst, deployDir).
 				Build()
 			copyCompTasks = append(copyCompTasks, t)
 		}
@@ -164,11 +166,12 @@ func deploy(name, topoFile string, opt deployOptions) error {
 	t := task.NewBuilder().
 		SSHKeyGen(meta.ClusterPath(name, "ssh", "id_rsa")).
 		Parallel(envInitTasks...).
-		//Parallel(downloadCompTasks...).
+		Parallel(downloadCompTasks...).
 		Parallel(copyCompTasks...).
 		Build()
 
 	if err := t.Execute(task.NewContext()); err != nil {
+		fmt.Println(err)
 		return errors.Trace(err)
 	}
 
