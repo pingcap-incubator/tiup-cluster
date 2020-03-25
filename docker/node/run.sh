@@ -19,4 +19,5 @@ if [ "${AUTHORIZED_KEYS}" != "**None**" ]; then
     done
 fi
 
-exec /usr/sbin/sshd -D
+# exec /usr/sbin/sshd -D
+exec /bin/systemd

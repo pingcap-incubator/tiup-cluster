@@ -13,7 +13,7 @@ RUN sed -i 's/security.ubuntu.com/mirrors.aliyun.com/g' /etc/apt/sources.list
          dos2unix \
          git \
          wget \
-	     vim # not required by tiops itself, just for ease of use
+	     vim pssh # not required by tiops itself, just for ease of use
 
 RUN wget https://dl.google.com/go/go1.14.1.linux-amd64.tar.gz && \
 	tar -C /usr/local -xzf go1.14.1.linux-amd64.tar.gz
