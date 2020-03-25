@@ -27,7 +27,6 @@ import (
 )
 
 type upgradeOptions struct {
-	cluster string
 	version string
 	options operator.Options
 }
@@ -41,7 +40,7 @@ func newUpgradeCmd() *cobra.Command {
 			if len(args) != 1 {
 				return cmd.Help()
 			}
-			return upgrade(opt)
+			return upgrade(args[0], opt)
 		},
 	}
 
@@ -71,8 +70,8 @@ func versionCompare(curVersion, newVersion string) error {
 	}
 }
 
-func upgrade(opt upgradeOptions) error {
-	metadata, err := meta.ClusterMetadata(opt.cluster)
+func upgrade(name string, opt upgradeOptions) error {
+	metadata, err := meta.ClusterMetadata(name)
 	if err != nil {
 		return err
 	}
@@ -123,8 +122,8 @@ func upgrade(opt upgradeOptions) error {
 
 	t := task.NewBuilder().
 		SSHKeySet(
-			meta.ClusterPath(opt.cluster, "ssh", "id_rsa"),
-			meta.ClusterPath(opt.cluster, "ssh", "id_rsa.pub")).
+			meta.ClusterPath(name, "ssh", "id_rsa"),
+			meta.ClusterPath(name, "ssh", "id_rsa.pub")).
 		ClusterSSH(metadata.Topology, metadata.User).
 		Parallel(downloadCompTasks...).
 		Parallel(copyCompTasks...).

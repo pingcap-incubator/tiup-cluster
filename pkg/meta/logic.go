@@ -64,7 +64,6 @@ type instanceBase struct {
 	host string
 	port int
 	sshp int
-	uuid string
 	spec interface{}
 	topo *Specification
 }
@@ -123,10 +122,6 @@ func (i *instanceBase) ServiceName() string {
 // GetHost implements Instance interface
 func (i *instanceBase) GetHost() string {
 	return i.host
-}
-
-func (i *instanceBase) GetUuid() string {
-	return i.uuid
 }
 
 // GetSSHPort implements Instance interface
@@ -484,7 +479,6 @@ type Instance interface {
 	InstanceName() string
 	ServiceName() string
 	GetHost() string
-	GetUuid() string
 	GetPort() int
 	GetSSHPort() int
 	DeployDir() string
