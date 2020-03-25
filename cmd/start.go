@@ -15,6 +15,7 @@ package cmd
 
 import (
 	"github.com/pingcap-incubator/tiops/pkg/meta"
+	operator "github.com/pingcap-incubator/tiops/pkg/operation"
 	"github.com/pingcap-incubator/tiops/pkg/task"
 	"github.com/spf13/cobra"
 )
@@ -22,22 +23,24 @@ import (
 func newStartCmd() *cobra.Command {
 	var (
 		clusterName string
-		role        string
-		node        string
+		options     operator.Options
 	)
 
 	cmd := &cobra.Command{
 		Use:   "start",
 		Short: "Start a TiDB cluster",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			spec, err := meta.ClusterTopology(clusterName)
+			metadata, err := meta.ClusterMetadata(clusterName)
 			if err != nil {
 				return err
 			}
 
 			t := task.NewBuilder().
-				ClusterSSH(spec).
-				ClusterOperate(spec, "start", role, node).
+				SSHKeySet(
+					meta.ClusterPath(clusterName, "ssh", "id_rsa"),
+					meta.ClusterPath(clusterName, "ssh", "id_rsa.pub")).
+				ClusterSSH(metadata.Topology, metadata.User).
+				ClusterOperate(metadata.Topology, operator.StartOperation, options).
 				Build()
 
 			return t.Execute(task.NewContext())
@@ -46,7 +49,7 @@ func newStartCmd() *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&clusterName, "cluster", "", "cluster name")
-	cmd.Flags().StringVar(&role, "role", "", "role name")
-	cmd.Flags().StringVar(&node, "node-id", "", "node id")
+	cmd.Flags().StringVar(&options.Role, "role", "", "role name")
+	cmd.Flags().StringVar(&options.Node, "node-id", "", "node id")
 	return cmd
 }

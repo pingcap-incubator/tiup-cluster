@@ -18,54 +18,12 @@ import (
 	"fmt"
 	"io"
 	"strings"
-	"time"
 
 	"github.com/pingcap-incubator/tiops/pkg/executor"
 	"github.com/pingcap-incubator/tiops/pkg/meta"
 	"github.com/pingcap-incubator/tiops/pkg/module"
 	"github.com/pingcap/errors"
 )
-
-var defaultTimeoutForReady = time.Second * 60
-
-func filterComponent(comps []meta.Component, component string) (res []meta.Component) {
-	if component == "" {
-		res = comps
-		return
-	}
-
-	for _, c := range comps {
-		if c.Name() != component {
-			continue
-		}
-
-		res = append(res, c)
-	}
-
-	return
-}
-
-func filterInstance(instances []meta.Instance, node string) (res []meta.Instance) {
-	if node == "" {
-		res = instances
-		return
-	}
-
-	for _, c := range instances {
-		if c.GetHost() != node {
-			continue
-		}
-
-		res = append(res, c)
-	}
-
-	return
-}
-
-// ExecutorGetter get the executor by host.
-type ExecutorGetter interface {
-	Get(host string) (e executor.TiOpsExecutor)
-}
 
 // Start the cluster.
 func Start(
@@ -96,7 +54,7 @@ func Stop(
 	component string,
 	node string,
 ) error {
-	coms := spec.ComponentsByStartOrder()
+	coms := spec.ComponentsByStopOrder()
 	coms = filterComponent(coms, component)
 
 	for _, com := range coms {
@@ -153,11 +111,11 @@ func StartComponent(getter ExecutorGetter, w io.Writer, instances []meta.Instanc
 	}
 
 	name := instances[0].ComponentName()
-	fmt.Fprintf(w, "Starting component %s", name)
+	fmt.Fprintf(w, "Starting component %s\n", name)
 
 	for _, ins := range instances {
 		e := getter.Get(ins.GetHost())
-		fmt.Fprintf(w, "Starting instance %s", ins.GetHost())
+		fmt.Fprintf(w, "Starting instance %s\n", ins.GetHost())
 
 		// Start by systemd.
 		c := module.SystemdModuleConfig{
@@ -183,7 +141,7 @@ func StartComponent(getter ExecutorGetter, w io.Writer, instances []meta.Instanc
 			return errors.Annotatef(err, str)
 		}
 
-		fmt.Fprintf(w, "Start %s success", ins.GetHost())
+		fmt.Fprintf(w, "Start %s success\n", ins.GetHost())
 	}
 
 	return nil
@@ -196,11 +154,11 @@ func StopComponent(getter ExecutorGetter, w io.Writer, instances []meta.Instance
 	}
 
 	name := instances[0].ComponentName()
-	fmt.Fprintf(w, "Stopping component %s", name)
+	fmt.Fprintf(w, "Stopping component %s\n", name)
 
 	for _, ins := range instances {
 		e := getter.Get(ins.GetHost())
-		fmt.Fprintf(w, "Stopping instance %s", ins.GetHost())
+		fmt.Fprintf(w, "Stopping instance %s\n", ins.GetHost())
 
 		// Stop by systemd.
 		c := module.SystemdModuleConfig{
@@ -225,7 +183,7 @@ func StopComponent(getter ExecutorGetter, w io.Writer, instances []meta.Instance
 			return errors.Annotatef(err, str)
 		}
 
-		fmt.Fprintf(w, "Stop %s success", ins.GetHost())
+		fmt.Fprintf(w, "Stop %s success\n", ins.GetHost())
 	}
 
 	return nil

@@ -15,20 +15,21 @@ package cmd
 
 import (
 	"fmt"
-	
+	"path/filepath"
+	"strings"
+
 	"github.com/pingcap-incubator/tiops/pkg/meta"
+	operator "github.com/pingcap-incubator/tiops/pkg/operation"
 	"github.com/pingcap-incubator/tiops/pkg/task"
-	"github.com/pingcap-incubator/tiup/pkg/repository"
 	"github.com/pingcap/errors"
 	"github.com/spf13/cobra"
 	"golang.org/x/mod/semver"
 )
 
 type upgradeOptions struct {
+	cluster string
 	version string
-	force   bool
-	node    string
-	role    string
+	options operator.Options
 }
 
 func newUpgradeCmd() *cobra.Command {
@@ -40,23 +41,17 @@ func newUpgradeCmd() *cobra.Command {
 			if len(args) != 1 {
 				return cmd.Help()
 			}
-			metaInfo, err := meta.ClusterMetadata(args[0])
-			if err != nil {
-				return err
-			}
-			curVersion := metaInfo.Version
-			newVersion := opt.version
-			if err := versionCompare(curVersion, newVersion); err != nil {
-				return err
-			}
-			return upgrade(args[0], opt) // TODO
+			return upgrade(opt)
 		},
 	}
 
-	cmd.Flags().StringVar(&opt.version, "version", "", "version of cluster")
-	cmd.Flags().BoolVar(&opt.force, "force", false, "upgrade without transfer leader, fast but affects stability (default false)")
-	cmd.Flags().StringVar(&opt.node, "node-id", "", "node id")
-	cmd.Flags().StringVar(&opt.role, "role", "", "role name")
+	cmd.Flags().StringVarP(&opt.cluster, "cluster", "c", "", "Specify the cluster name")
+	cmd.Flags().StringVarP(&opt.version, "target-version", "t", "", "Specify the target version")
+	cmd.Flags().BoolVar(&opt.options.Force, "force", false, "Force upgrade won't transfer leader")
+
+	_ = cmd.MarkFlagRequired("cluster")
+	_ = cmd.MarkFlagRequired("target-version")
+
 	return cmd
 }
 
@@ -76,25 +71,24 @@ func versionCompare(curVersion, newVersion string) error {
 	}
 }
 
-// TODO
-func upgrade(name string, opt upgradeOptions) error {
-	topo, err := meta.ClusterTopology(name)
+func upgrade(opt upgradeOptions) error {
+	metadata, err := meta.ClusterMetadata(opt.cluster)
 	if err != nil {
 		return err
 	}
 
-	type componentInfo struct {
-		component string
-		version   repository.Version
+	var (
+		downloadCompTasks []task.Task // tasks which are used to download components
+		copyCompTasks     []task.Task // tasks which are used to copy components to remote host
+
+		uniqueComps = map[componentInfo]struct{}{}
+	)
+
+	if err := versionCompare(metadata.Version, opt.version); err != nil {
+		return err
 	}
 
-	var (
-		uniqueComps = map[componentInfo]struct{}{}
-		//upgradeTasks []task.Task
-	)
-	upgradeTasks := task.NewBuilder()
-
-	for _, comp := range topo.ComponentsByStartOrder() {
+	for _, comp := range metadata.Topology.ComponentsByStartOrder() {
 		for _, inst := range comp.Instances() {
 			version := getComponentVersion(inst.ComponentName(), opt.version)
 			if version == "" {
@@ -108,27 +102,34 @@ func upgrade(name string, opt upgradeOptions) error {
 			// Download component from repository
 			if _, found := uniqueComps[compInfo]; !found {
 				uniqueComps[compInfo] = struct{}{}
-				upgradeTasks.Download(inst.ComponentName(), version)
+				t := task.NewBuilder().
+					Download(inst.ComponentName(), version).
+					Build()
+				downloadCompTasks = append(downloadCompTasks, t)
 			}
 
 			deployDir := inst.DeployDir()
-
-			switch inst.ComponentName() {
-			case meta.ComponentPD:
-				return nil // TODO: 1. check pd cluster status; 2. split pd node to follower and leader; 3. upgrade follower node; 4. transfer leader first and upgrade leader node
-			case meta.ComponentTiKV:
-				return nil // TODO: 1. add evict scheduler in pd to evict all region leader until leader count is 0; 2. upgrade tikv; 3. remove evict scheduler from pd
-			case meta.ComponentPump:
-				return nil // TODO(need to discuss, maybe step is): 1. stop pump; 2. upgrade; 3. start
-			default:
-				upgradeTasks.ClusterOperate(topo, "stop", inst.ComponentName(), inst.GetUuid()).
-					CopyComponent(inst.ComponentName(), version, inst.GetHost(), deployDir).
-					CopyConfig(name, topo, inst.ComponentName(), inst.GetHost(), inst.GetPort(), deployDir).
-					ClusterOperate(topo, "start", inst.ComponentName(), inst.GetUuid())
-				//return nil // TODO: 1. stop; 2. upgrade; 3. start
-
+			if !strings.HasPrefix(deployDir, "/") {
+				deployDir = filepath.Join("/home/"+metadata.User+"/deploy", deployDir)
 			}
+			// Deploy component
+			t := task.NewBuilder().
+				BackupComponent(inst.ComponentName(), metadata.Version, inst.GetHost(), deployDir).
+				CopyComponent(inst.ComponentName(), version, inst.GetHost(), deployDir).
+				Build()
+			copyCompTasks = append(copyCompTasks, t)
 		}
 	}
-	return upgradeTasks.Build().Execute(task.NewContext())
+
+	t := task.NewBuilder().
+		SSHKeySet(
+			meta.ClusterPath(opt.cluster, "ssh", "id_rsa"),
+			meta.ClusterPath(opt.cluster, "ssh", "id_rsa.pub")).
+		ClusterSSH(metadata.Topology, metadata.User).
+		Parallel(downloadCompTasks...).
+		Parallel(copyCompTasks...).
+		ClusterOperate(metadata.Topology, operator.UpgradeOperation, opt.options).
+		Build()
+
+	return t.Execute(task.NewContext())
 }
