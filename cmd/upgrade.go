@@ -44,7 +44,6 @@ func newUpgradeCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVarP(&opt.cluster, "cluster", "c", "", "Specify the cluster name")
 	cmd.Flags().StringVarP(&opt.version, "target-version", "t", "", "Specify the target version")
 	cmd.Flags().BoolVar(&opt.options.Force, "force", false, "Force upgrade won't transfer leader")
 
