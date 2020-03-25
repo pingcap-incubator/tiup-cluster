@@ -26,6 +26,7 @@ import (
 	system "github.com/pingcap-incubator/tiops/pkg/template/systemd"
 )
 
+// Components names supported by TiOps
 const (
 	ComponentTiDB             = "tidb"
 	ComponentTiKV             = "tikv"
@@ -81,7 +82,7 @@ func (i *instanceBase) InitConfig(e executor.TiOpsExecutor, cacheDir, deployDir 
 	comp := i.ComponentName()
 	port := i.GetPort()
 	sysCfg := filepath.Join(cacheDir, fmt.Sprintf("%s-%d.service", comp, port))
-	if err := system.NewSystemConfig(comp, "tidb", deployDir).ConfigToFile(sysCfg); err != nil {
+	if err := system.NewConfig(comp, "tidb", deployDir).ConfigToFile(sysCfg); err != nil {
 		return err
 	}
 	fmt.Println("config path:", sysCfg)
@@ -134,6 +135,10 @@ func (i *instanceBase) DeployDir() string {
 
 func (i *instanceBase) GetPort() int {
 	return i.port
+}
+
+func (i *instanceBase) UUID() string {
+	return reflect.ValueOf(i.spec).FieldByName("UUID").Interface().(string)
 }
 
 // Specification of cluster
@@ -463,4 +468,5 @@ type Instance interface {
 	GetPort() int
 	GetSSHPort() int
 	DeployDir() string
+	UUID() string
 }
