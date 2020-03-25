@@ -70,6 +70,16 @@ func (b *Builder) ClusterSSH(spec *meta.Specification, deployUser string) *Build
 	return b
 }
 
+// UpdateMeta maintain the meta information
+func (b *Builder) UpdateMeta(cluster string, metadata *meta.ClusterMeta, deletedNodeIds []string) *Builder {
+	b.tasks = append(b.tasks, &UpdateMeta{
+		cluster:        cluster,
+		metadata:       metadata,
+		deletedNodesID: deletedNodeIds,
+	})
+	return b
+}
+
 // CopyFile appends a CopyFile task to the current task collection
 func (b *Builder) CopyFile(src, dstHost, dstPath string) *Builder {
 	b.tasks = append(b.tasks, &CopyFile{
