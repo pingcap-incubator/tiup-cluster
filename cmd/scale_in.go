@@ -14,9 +14,13 @@
 package cmd
 
 import (
+	"path/filepath"
+	"strings"
+
 	"github.com/pingcap-incubator/tiops/pkg/meta"
 	operator "github.com/pingcap-incubator/tiops/pkg/operation"
 	"github.com/pingcap-incubator/tiops/pkg/task"
+	"github.com/pingcap-incubator/tiup/pkg/set"
 	"github.com/pingcap/errors"
 	"github.com/spf13/cobra"
 )
@@ -53,9 +57,37 @@ func scaleIn(cluster string, nodeIds []string) error {
 		}
 	}
 
+	// Clean components
+	var cleanComponentTasks []task.Task
 	for _, nodeID := range nodeIds {
-		if _, found := instances[nodeID]; !found {
+		inst, found := instances[nodeID]
+		if !found {
 			return errors.Errorf("cannot find node id '%s' in topology", nodeID)
+		}
+
+		deployDir := inst.DeployDir()
+		if !strings.HasPrefix(deployDir, "/") {
+			deployDir = filepath.Join("/home/"+metadata.User+"/deploy", deployDir)
+		}
+		// Deploy component
+		t := task.NewBuilder().Rmdir(inst.GetHost(), deployDir).Build()
+		cleanComponentTasks = append(cleanComponentTasks, t)
+	}
+
+	// Regenerate configuration
+	deleted := set.NewStringSet(nodeIds...)
+	var regenConfigTasks []task.Task
+	for _, component := range metadata.Topology.ComponentsByStartOrder() {
+		for _, instance := range component.Instances() {
+			if deleted.Exist(instance.GetHost()) {
+				continue
+			}
+			deployDir := instance.DeployDir()
+			if !strings.HasPrefix(deployDir, "/") {
+				deployDir = filepath.Join("/home/"+metadata.User+"/deploy", deployDir)
+			}
+			t := task.NewBuilder().InitConfig(cluster, instance, deployDir).Build()
+			regenConfigTasks = append(regenConfigTasks, t)
 		}
 	}
 
@@ -68,6 +100,8 @@ func scaleIn(cluster string, nodeIds []string) error {
 			DeletedNodes: nodeIds,
 		}).
 		UpdateMeta(cluster, metadata, nodeIds).
+		Parallel(cleanComponentTasks...).
+		Parallel(regenConfigTasks...).
 		Build()
 
 	return t.Execute(task.NewContext())
