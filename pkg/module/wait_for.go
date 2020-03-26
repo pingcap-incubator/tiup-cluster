@@ -69,6 +69,7 @@ func (w *WaitFor) Execute(e executor.TiOpsExecutor) (err error) {
 					return nil
 				}
 			}
+			return errors.New("still waiting for port state to be satisfied")
 		}
 		return err
 	}, retryOpt); err != nil {
