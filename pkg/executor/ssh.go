@@ -86,6 +86,9 @@ func (sshExec *SSHExecutor) Execute(cmd string, sudo bool, timeout ...time.Durat
 		cmd = fmt.Sprintf("sudo -H -u root %s", cmd)
 	}
 
+	// set a basic PATH in case it's empty on login
+	cmd = fmt.Sprintf("PATH=$PATH:/usr/bin:/usr/sbin %s", cmd)
+
 	// run command on remote host
 	// default timeout is 60s in easyssh-proxy
 	stdout, stderr, done, err := sshExec.Config.Run(cmd, timeout...)
