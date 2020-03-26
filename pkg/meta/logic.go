@@ -133,6 +133,10 @@ func (i *instanceBase) DeployDir() string {
 	return reflect.ValueOf(i.spec).FieldByName("DeployDir").Interface().(string)
 }
 
+func (i *instanceBase) DataDir() string {
+	return reflect.ValueOf(i.spec).FieldByName("DataDir").Interface().(string)
+}
+
 func (i *instanceBase) GetPort() int {
 	return i.port
 }
@@ -482,5 +486,6 @@ type Instance interface {
 	GetPort() int
 	GetSSHPort() int
 	DeployDir() string
+	DataDir() string
 	UUID() string
 }
