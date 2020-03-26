@@ -3,10 +3,11 @@ package operator
 import (
 	"bytes"
 	"fmt"
+	"io"
+
 	"github.com/pingcap-incubator/tiops/pkg/meta"
 	"github.com/pingcap-incubator/tiops/pkg/module"
 	"github.com/pingcap/errors"
-	"io"
 )
 
 // Destroy the cluster.
