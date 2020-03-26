@@ -98,7 +98,7 @@ func (sshExec *SSHExecutor) Execute(cmd string, sudo bool, timeout ...time.Durat
 
 	if !done { // timeout case,
 		return []byte(stdout), []byte(stderr),
-			fmt.Errorf("timeout to run: %s on %s:%s",
+			fmt.Errorf("timed out running \"%s\" on %s:%s",
 				cmd,
 				sshExec.Config.Server,
 				sshExec.Config.Port)

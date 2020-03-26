@@ -104,9 +104,11 @@ func displayClusterTopology(opt *displayOption) error {
 	pdList := topo.GetPDList()
 	for _, comp := range topo.ComponentsByStartOrder() {
 		for _, ins := range comp.Instances() {
+			// apply role filter
 			if len(filterRoles) > 0 && !filterRoles.Exist(ins.Role()) {
 				continue
 			}
+			// apply node filter
 			if len(filterNodes) > 0 && !filterNodes.Exist(ins.ID()) {
 				continue
 			}

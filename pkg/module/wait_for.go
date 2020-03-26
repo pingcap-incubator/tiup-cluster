@@ -56,7 +56,8 @@ func (w *WaitFor) Execute(e executor.TiOpsExecutor) (err error) {
 		Timeout:  w.c.Timeout,
 	}
 	if err := utils.Retry(func() error {
-		stdout, _, err := e.Execute("ss -lnt", false)
+		// only listing TCP ports
+		stdout, _, err := e.Execute("ss -ltn", false)
 		if err == nil {
 			switch w.c.State {
 			case "started":
@@ -71,7 +72,7 @@ func (w *WaitFor) Execute(e executor.TiOpsExecutor) (err error) {
 		}
 		return err
 	}, retryOpt); err != nil {
-		return errors.Errorf("timeout to wait for port %d to be %s", w.c.Port, w.c.State)
+		return errors.Errorf("timed out waiting for port %d to be %s", w.c.Port, w.c.State)
 	}
 	return nil
 }
