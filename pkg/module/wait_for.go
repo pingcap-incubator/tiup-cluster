@@ -73,6 +73,7 @@ func (w *WaitFor) Execute(e executor.TiOpsExecutor) (err error) {
 		}
 		return err
 	}, retryOpt); err != nil {
+		// TODO: add a debug log about the real err returned by utils.Retry()
 		return errors.Errorf("timed out waiting for port %d to be %s", w.c.Port, w.c.State)
 	}
 	return nil
