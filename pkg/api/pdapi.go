@@ -145,7 +145,7 @@ func (pc *PDClient) EvictPDLeader() error {
 
 	// try to evict the leader
 	url := fmt.Sprintf("%s/%s/resign", pc.GetURL(), pdLeaderURI)
-	_, err = pc.httpClient.Post(url, bytes.NewBuffer([]byte("")))
+	_, err = pc.httpClient.Post(url, nil)
 	if err != nil {
 		return err
 	}
@@ -252,5 +252,60 @@ func (pc *PDClient) EvictStoreLeader(host string) error {
 	}, retryOpt); err != nil {
 		return fmt.Errorf("error evicting store leader from %s, %v", host, err)
 	}
+	return nil
+}
+
+// DelPD deletes a PD node from the cluster, name is the Name of the PD member
+func (pc *PDClient) DelPD(name string) error {
+	// get current members
+	members, err := pc.GetMembers()
+	if err != nil {
+		return err
+	}
+	if len(members.Members) == 1 {
+		return errors.New("at least 1 PD node must be online, can not delete")
+	}
+
+	// try to delete the node
+	url := fmt.Sprintf("%s/%s/name/%s", pc.GetURL(), pdMembersURI, name)
+	_, err = pc.httpClient.Delete(url, nil)
+	if err != nil {
+		return err
+	}
+
+	// wait for the deletion to complete
+	retryOpt := utils.RetryOption{
+		Attempts: 30,
+		Delay:    time.Second * 2,
+		Timeout:  time.Second * 60,
+	}
+	if err := utils.Retry(func() error {
+		currMembers, err := pc.GetMembers()
+		if err != nil {
+			return err
+		}
+
+		// check if the deleted member still present
+		for _, member := range currMembers.Members {
+			if member.Name == name {
+				return errors.New("still waitting for the member to be deleted")
+			}
+		}
+
+		return nil
+	}, retryOpt); err != nil {
+		return fmt.Errorf("error evicting PD leader, %v", err)
+	}
+	return nil
+}
+
+// DelStore deletes a store
+func (pc *PDClient) DelStore(id string) error {
+	url := fmt.Sprintf("%s/%s/%s", pc.GetURL(), pdStoreURI, id)
+	_, err := pc.httpClient.Delete(url, nil)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
