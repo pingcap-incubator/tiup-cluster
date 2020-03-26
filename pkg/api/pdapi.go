@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/pingcap-incubator/tiops/pkg/utils"
+	"github.com/pingcap/kvproto/pkg/metapb"
 	"github.com/pingcap/kvproto/pkg/pdpb"
 	pdserverapi "github.com/pingcap/pd/v4/server/api"
 )
@@ -299,7 +300,7 @@ func (pc *PDClient) DelPD(name string) error {
 	return nil
 }
 
-// DelStore deletes a store
+// DelStore deletes stores from a (TiKV) host
 // The host parameter should be in format of IP:Port, that matches store's address
 func (pc *PDClient) DelStore(host string) error {
 	// get info of current stores
@@ -343,6 +344,13 @@ func (pc *PDClient) DelStore(host string) error {
 		// check if the deleted member still present
 		for _, store := range currStores.Stores {
 			if store.Store.Id == storeID {
+				// deleting store may take long time to transfer data, so we
+				// return once it get to "Offline" status and not waiting the
+				// whole process to complete.
+				// When finished, the store's state will be "Tombstone".
+				if store.Store.StateName != metapb.StoreState_name[0] {
+					return nil
+				}
 				return errors.New("still waitting for the member to be deleted")
 			}
 		}
