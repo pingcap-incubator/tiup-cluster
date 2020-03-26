@@ -83,7 +83,7 @@ func displayClusterTopology(opt *displayOption) error {
 	if opt.showStatus {
 		clusterTable = append(clusterTable,
 			[]string{"ID",
-				"ComponentRole",
+				"Role",
 				"Host",
 				"Ports",
 				"Status",
@@ -92,7 +92,7 @@ func displayClusterTopology(opt *displayOption) error {
 	} else {
 		clusterTable = append(clusterTable,
 			[]string{"ID",
-				"ComponentRole",
+				"Role",
 				"Host",
 				"Ports",
 				"Data Dir",
