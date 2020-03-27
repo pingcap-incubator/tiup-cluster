@@ -15,15 +15,14 @@ package meta
 
 import (
 	"fmt"
-	"path/filepath"
-	"reflect"
-
 	"github.com/google/uuid"
 	"github.com/pingcap-incubator/tiops/pkg/executor"
 	"github.com/pingcap-incubator/tiops/pkg/module"
 	"github.com/pingcap-incubator/tiops/pkg/template/config"
 	"github.com/pingcap-incubator/tiops/pkg/template/scripts"
 	system "github.com/pingcap-incubator/tiops/pkg/template/systemd"
+	"path/filepath"
+	"reflect"
 )
 
 // Components names supported by TiOps
