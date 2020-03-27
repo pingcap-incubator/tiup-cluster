@@ -23,9 +23,10 @@ import (
 
 // Options represents the operation options
 type Options struct {
-	Role  string
-	Node  string
-	Force bool // Just effiect the upgrade
+	Role         string
+	Node         string
+	Force        bool // Option for upgrade subcommand
+	DeletedNodes []string
 }
 
 // Operation represents the type of cluster operation
@@ -85,10 +86,9 @@ func filterInstance(instances []meta.Instance, node string) (res []meta.Instance
 	}
 
 	for _, c := range instances {
-		if c.GetHost() != node {
+		if c.ID() != node {
 			continue
 		}
-
 		res = append(res, c)
 	}
 

@@ -14,9 +14,11 @@
 package utils
 
 import (
+	"fmt"
 	"reflect"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // JoinInt joins a slice of int to string
@@ -43,4 +45,58 @@ func InSlice(elem interface{}, slice interface{}) bool {
 		}
 	}
 	return false
+}
+
+// RetryOption is options for Retry()
+type RetryOption struct {
+	Attempts int
+	Delay    time.Duration
+	Timeout  time.Duration
+}
+
+// default values for RetryOption
+var (
+	defaultAttempts = 10
+	defaultDelay    = time.Millisecond * 500 // 500ms
+	defaultTimeout  = time.Second * 10       // 10s
+)
+
+// Retry retries the func until it returns no error or reaches attempts limit or
+// timed out, either one is earlier
+func Retry(doFunc func() error, opts ...RetryOption) error {
+	var cfg RetryOption
+	if len(opts) > 0 {
+		cfg = opts[0]
+	} else {
+		cfg = RetryOption{
+			Attempts: defaultAttempts,
+			Delay:    defaultDelay,
+			Timeout:  defaultTimeout,
+		}
+	}
+
+	// attempts must be greater than 0
+	if cfg.Attempts <= 0 {
+		cfg.Attempts = defaultAttempts
+	}
+
+	timeoutChan := time.After(cfg.Timeout)
+
+	// call the function
+	var attemptCount int
+	for attemptCount = 0; attemptCount < cfg.Attempts; attemptCount++ {
+		if err := doFunc(); err == nil {
+			return nil
+		}
+
+		// check for timeout
+		select {
+		case <-timeoutChan:
+			return fmt.Errorf("operation timed out after %s", cfg.Timeout)
+		default:
+			time.Sleep(cfg.Delay)
+		}
+	}
+
+	return fmt.Errorf("operation exceeds the max retry attempts of %d", cfg.Attempts)
 }

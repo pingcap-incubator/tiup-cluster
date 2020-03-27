@@ -54,7 +54,7 @@ func Stop(
 	component string,
 	node string,
 ) error {
-	coms := spec.ComponentsByStartOrder()
+	coms := spec.ComponentsByStopOrder()
 	coms = filterComponent(coms, component)
 
 	for _, com := range coms {
@@ -77,29 +77,15 @@ func Restart(
 	coms := spec.ComponentsByStartOrder()
 	coms = filterComponent(coms, component)
 
-	for _, com := range coms {
-		err := StopComponent(getter, w, filterInstance(com.Instances(), node))
-		if err != nil {
-			return errors.Annotatef(err, "failed to stop %s", com.Name())
-		}
-
-		err = StartComponent(getter, w, filterInstance(com.Instances(), node))
-		if err != nil {
-			return errors.Annotatef(err, "failed to start %s", com.Name())
-		}
+	err := Stop(getter, w, spec, component, node)
+	if err != nil {
+		return errors.Annotatef(err, "failed to stop")
 	}
 
-	return nil
-}
-
-// Destroy the cluster.
-func Destroy(
-	getter ExecutorGetter,
-	w io.Writer,
-	spec *meta.Specification,
-	component string,
-	node string,
-) error {
+	err = Start(getter, w, spec, component, node)
+	if err != nil {
+		return errors.Annotatef(err, "failed to start")
+	}
 
 	return nil
 }
@@ -111,11 +97,11 @@ func StartComponent(getter ExecutorGetter, w io.Writer, instances []meta.Instanc
 	}
 
 	name := instances[0].ComponentName()
-	fmt.Fprintf(w, "Starting component %s", name)
+	fmt.Fprintf(w, "Starting component %s\n", name)
 
 	for _, ins := range instances {
 		e := getter.Get(ins.GetHost())
-		fmt.Fprintf(w, "Starting instance %s", ins.GetHost())
+		fmt.Fprintf(w, "\tStarting instance %s\n", ins.GetHost())
 
 		// Start by systemd.
 		c := module.SystemdModuleConfig{
@@ -137,12 +123,12 @@ func StartComponent(getter ExecutorGetter, w io.Writer, instances []meta.Instanc
 		// Check ready.
 		err = ins.Ready(e)
 		if err != nil {
-			str := fmt.Sprintf("%s failed to start: %s", ins.GetHost(), err)
+			str := fmt.Sprintf("\t%s failed to start: %s", ins.GetHost(), err)
 			fmt.Fprintln(w, str)
 			return errors.Annotatef(err, str)
 		}
 
-		fmt.Fprintf(w, "Start %s success", ins.GetHost())
+		fmt.Fprintf(w, "\tStart %s success\n", ins.GetHost())
 	}
 
 	return nil
@@ -155,11 +141,11 @@ func StopComponent(getter ExecutorGetter, w io.Writer, instances []meta.Instance
 	}
 
 	name := instances[0].ComponentName()
-	fmt.Fprintf(w, "Stopping component %s", name)
+	fmt.Fprintf(w, "Stopping component %s\n", name)
 
 	for _, ins := range instances {
 		e := getter.Get(ins.GetHost())
-		fmt.Fprintf(w, "Stopping instance %s", ins.GetHost())
+		fmt.Fprintf(w, "\tStopping instance %s\n", ins.GetHost())
 
 		// Stop by systemd.
 		c := module.SystemdModuleConfig{
@@ -179,12 +165,12 @@ func StopComponent(getter ExecutorGetter, w io.Writer, instances []meta.Instance
 
 		err = ins.WaitForDown(e)
 		if err != nil {
-			str := fmt.Sprintf("%s failed to stop: %s", ins.GetHost(), err)
+			str := fmt.Sprintf("\t%s failed to stop: %s", ins.GetHost(), err)
 			fmt.Fprintln(w, str)
 			return errors.Annotatef(err, str)
 		}
 
-		fmt.Fprintf(w, "Stop %s success", ins.GetHost())
+		fmt.Fprintf(w, "\tStop %s success\n", ins.GetHost())
 	}
 
 	return nil
@@ -209,16 +195,17 @@ func getServiceStatus(e executor.TiOpsExecutor, name string) (active string, err
 	}
 	systemd := module.NewSystemdModule(c)
 	stdout, _, err := systemd.Execute(e)
+
+	lines := strings.Split(string(stdout), "\n")
+	if len(lines) >= 3 {
+		return lines[2], nil
+	}
+
 	if err != nil {
 		return
 	}
 
-	lines := strings.Split(string(stdout), "\n")
-	if len(lines) < 3 {
-		return "", errors.Errorf("unexpected output: %s", string(stdout))
-	}
-
-	return lines[2], nil
+	return "", errors.Errorf("unexpected output: %s", string(stdout))
 }
 
 // PrintClusterStatus print cluster status into the io.Writer.

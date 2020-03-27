@@ -15,6 +15,7 @@ package scripts
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -106,6 +107,16 @@ func (c *PDScript) ConfigWithTemplate(tpl string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	if c.Name == "" {
+		return nil, errors.New("empty name")
+	}
+	for _, s := range c.Endpoints {
+		if s.Name == "" {
+			return nil, errors.New("empty name")
+		}
+	}
+
 	content := bytes.NewBufferString("")
 	if err := tmpl.Execute(content, c); err != nil {
 		return nil, err

@@ -21,10 +21,11 @@ import (
 
 // ScaleConfig is used to copy all configurations to the target directory of path
 type ScaleConfig struct {
-	name      string
-	instance  meta.Instance
-	base      *meta.TopologySpecification
-	deployDir string
+	name       string
+	instance   meta.Instance
+	base       *meta.TopologySpecification
+	deployUser string
+	deployDir  string
 }
 
 // Execute implements the Task interface
@@ -40,7 +41,7 @@ func (c *ScaleConfig) Execute(ctx *Context) error {
 		return err
 	}
 
-	return c.instance.ScaleConfig(exec, c.base, cacheConfigDir, c.deployDir)
+	return c.instance.ScaleConfig(exec, c.base, c.deployDir, cacheConfigDir, c.deployDir)
 }
 
 // Rollback implements the Task interface

@@ -70,6 +70,16 @@ func (b *Builder) ClusterSSH(spec *meta.Specification, deployUser string) *Build
 	return b
 }
 
+// UpdateMeta maintain the meta information
+func (b *Builder) UpdateMeta(cluster string, metadata *meta.ClusterMeta, deletedNodeIds []string) *Builder {
+	b.tasks = append(b.tasks, &UpdateMeta{
+		cluster:        cluster,
+		metadata:       metadata,
+		deletedNodesID: deletedNodeIds,
+	})
+	return b
+}
+
 // CopyFile appends a CopyFile task to the current task collection
 func (b *Builder) CopyFile(src, dstHost, dstPath string) *Builder {
 	b.tasks = append(b.tasks, &CopyFile{
@@ -112,22 +122,24 @@ func (b *Builder) BackupComponent(component, fromVer string, dstHost, dstDir str
 }
 
 // InitConfig appends a CopyComponent task to the current task collection
-func (b *Builder) InitConfig(name string, inst meta.Instance, deployDir string) *Builder {
+func (b *Builder) InitConfig(name string, inst meta.Instance, deployUser, deployDir string) *Builder {
 	b.tasks = append(b.tasks, &InitConfig{
-		name:      name,
-		instance:  inst,
-		deployDir: deployDir,
+		name:       name,
+		instance:   inst,
+		deployUser: deployUser,
+		deployDir:  deployDir,
 	})
 	return b
 }
 
 // ScaleConfig generate temporary config on scaling
-func (b *Builder) ScaleConfig(name string, base *meta.TopologySpecification, inst meta.Instance, deployDir string) *Builder {
+func (b *Builder) ScaleConfig(name string, base *meta.TopologySpecification, inst meta.Instance, deployUser, deployDir string) *Builder {
 	b.tasks = append(b.tasks, &ScaleConfig{
-		name:      name,
-		base:      base,
-		instance:  inst,
-		deployDir: deployDir,
+		name:       name,
+		base:       base,
+		instance:   inst,
+		deployUser: deployUser,
+		deployDir:  deployDir,
 	})
 	return b
 }
@@ -177,6 +189,15 @@ func (b *Builder) ClusterOperate(
 
 // Mkdir appends a Mkdir task to the current task collection
 func (b *Builder) Mkdir(host string, dirs ...string) *Builder {
+	b.tasks = append(b.tasks, &Mkdir{
+		host: host,
+		dirs: dirs,
+	})
+	return b
+}
+
+// Rmdir appends a Rmdir task to the current task collection
+func (b *Builder) Rmdir(host string, dirs ...string) *Builder {
 	b.tasks = append(b.tasks, &Mkdir{
 		host: host,
 		dirs: dirs,

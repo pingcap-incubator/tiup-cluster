@@ -138,7 +138,7 @@ func bootstrapNewPart(name string, opt scaleOutOptions, newPart *meta.TopologySp
 					filepath.Join(deployDir, "scripts"),
 					filepath.Join(deployDir, "logs")).
 				CopyComponent(inst.ComponentName(), version, inst.GetHost(), deployDir).
-				ScaleConfig(name, oldPart, inst, deployDir).
+				ScaleConfig(name, oldPart, inst, opt.user, deployDir).
 				Build()
 			copyCompTasks = append(copyCompTasks, t)
 		}
@@ -170,7 +170,7 @@ func refreshConfig(name string, opt scaleOutOptions, newPart *meta.Specification
 			}
 			t := task.NewBuilder().
 				UserSSH(inst.GetHost(), metadata.User).
-				InitConfig(name, inst, deployDir).
+				InitConfig(name, inst, metadata.User, deployDir).
 				Build()
 			tasks = append(tasks, t)
 		}

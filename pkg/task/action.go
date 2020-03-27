@@ -57,7 +57,16 @@ func (c *ClusterOperate) Execute(ctx *Context) error {
 		}
 		operator.PrintClusterStatus(ctx, c.w, c.spec)
 	case operator.DestroyOperation:
-		fallthrough
+		err := operator.Destroy(ctx, c.w, c.spec)
+		if err != nil {
+			return errors.Annotate(err, "failed to destroy")
+		}
+	// print nothing
+	case operator.ScaleInOperation:
+		err := operator.ScaleIn(ctx, c.w, c.spec, c.options)
+		if err != nil {
+			return errors.Annotate(err, "failed to scale in")
+		}
 	default:
 		return errors.Errorf("nonsupport %s", c.op)
 	}

@@ -14,6 +14,8 @@
 package cmd
 
 import (
+	"fmt"
+
 	"github.com/pingcap-incubator/tiops/pkg/meta"
 	operator "github.com/pingcap-incubator/tiops/pkg/operation"
 	"github.com/pingcap-incubator/tiops/pkg/task"
@@ -21,21 +23,26 @@ import (
 )
 
 func newRestartCmd() *cobra.Command {
-	var (
-		clusterName string
-		options     operator.Options
-	)
+	var options operator.Options
 
 	cmd := &cobra.Command{
-		Use:   "restart",
+		Use:   "restart <cluster-name>",
 		Short: "Restart TiDB cluster",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) < 1 {
+				cmd.Help()
+				return fmt.Errorf("cluster name not specified")
+			}
+			clusterName := args[0]
 			metadata, err := meta.ClusterMetadata(clusterName)
 			if err != nil {
 				return err
 			}
 
 			t := task.NewBuilder().
+				SSHKeySet(
+					meta.ClusterPath(clusterName, "ssh", "id_rsa"),
+					meta.ClusterPath(clusterName, "ssh", "id_rsa.pub")).
 				ClusterSSH(metadata.Topology, metadata.User).
 				ClusterOperate(metadata.Topology, operator.RestartOperation, options).
 				Build()
@@ -45,7 +52,6 @@ func newRestartCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&clusterName, "cluster_name", "", "cluster name")
 	cmd.Flags().StringVar(&options.Role, "role", "", "role name")
 	cmd.Flags().StringVar(&options.Node, "node-id", "", "node id")
 	return cmd

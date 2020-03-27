@@ -15,12 +15,12 @@ package cmd
 
 import (
 	"fmt"
-	"reflect"
 	"strings"
 
 	"github.com/fatih/color"
 	"github.com/pingcap-incubator/tiops/pkg/meta"
 	"github.com/pingcap-incubator/tiops/pkg/utils"
+	"github.com/pingcap-incubator/tiup/pkg/set"
 	"github.com/spf13/cobra"
 )
 
@@ -74,7 +74,7 @@ func displayClusterMeta(opt *displayOption) error {
 }
 
 func displayClusterTopology(opt *displayOption) error {
-	clsTopo, err := meta.ClusterTopology(opt.clusterName)
+	topo, err := meta.ClusterTopology(opt.clusterName)
 	if err != nil {
 		return err
 	}
@@ -99,81 +99,53 @@ func displayClusterTopology(opt *displayOption) error {
 				"Deploy Dir"})
 	}
 
-	v := reflect.ValueOf(*clsTopo)
-	pdList := clsTopo.GetPDList()
-	for i := 0; i < v.NumField(); i++ {
-		subTable, err := buildTable(v.Field(i), opt, pdList)
-		if err != nil {
-			continue
+	filterRoles := set.NewStringSet(opt.filterRole...)
+	filterNodes := set.NewStringSet(opt.filterNode...)
+	pdList := topo.GetPDList()
+	for _, comp := range topo.ComponentsByStartOrder() {
+		for _, ins := range comp.Instances() {
+			// apply role filter
+			if len(filterRoles) > 0 && !filterRoles.Exist(ins.Role()) {
+				continue
+			}
+			// apply node filter
+			if len(filterNodes) > 0 && !filterNodes.Exist(ins.ID()) {
+				continue
+			}
+
+			dataDir := "-"
+			insDirs := ins.UsedDirs()
+			deployDir := insDirs[0]
+			if len(insDirs) > 1 {
+				dataDir = insDirs[1]
+			}
+
+			if opt.showStatus {
+				clusterTable = append(clusterTable, []string{
+					color.CyanString(ins.ID()),
+					ins.Role(),
+					ins.GetHost(),
+					utils.JoinInt(ins.UsedPorts(), "/"),
+					formatInstanceStatus(ins.Status(pdList...)),
+					dataDir,
+					deployDir,
+				})
+			} else {
+				clusterTable = append(clusterTable, []string{
+					color.CyanString(ins.ID()),
+					ins.Role(),
+					ins.GetHost(),
+					utils.JoinInt(ins.UsedPorts(), "/"),
+					dataDir,
+					deployDir,
+				})
+			}
 		}
-		clusterTable = append(clusterTable, subTable...)
 	}
 
 	utils.PrintTable(clusterTable, true)
 
 	return nil
-}
-
-func buildTable(field reflect.Value, opt *displayOption, pdList []string) ([][]string, error) {
-	var resTable [][]string
-
-	switch field.Kind() {
-	case reflect.Slice:
-		for i := 0; i < field.Len(); i++ {
-			subTable, err := buildTable(field.Index(i), opt, pdList)
-			if err != nil {
-				return nil, err
-			}
-			resTable = append(resTable, subTable...)
-		}
-	case reflect.Ptr:
-		subTable, err := buildTable(field.Elem(), opt, pdList)
-		if err != nil {
-			return nil, err
-		}
-		resTable = append(resTable, subTable...)
-	case reflect.Struct:
-		ins := field.Interface().(meta.InstanceSpec)
-
-		// filter by role
-		if opt.filterRole != nil && !utils.InSlice(ins.Role(), opt.filterRole) {
-			return nil, nil
-		}
-		// filter by node
-		if opt.filterNode != nil && !utils.InSlice(ins.GetID(), opt.filterNode) {
-			return nil, nil
-		}
-
-		dataDir := "-"
-		insDirs := ins.GetDir()
-		deployDir := insDirs[0]
-		if len(insDirs) > 1 {
-			dataDir = insDirs[1]
-		}
-
-		if opt.showStatus {
-			resTable = append(resTable, []string{
-				color.CyanString(ins.GetID()),
-				ins.Role(),
-				ins.GetHost(),
-				utils.JoinInt(ins.GetPort(), "/"),
-				formatInstanceStatus(ins.GetStatus(pdList...)),
-				dataDir,
-				deployDir,
-			})
-		} else {
-			resTable = append(resTable, []string{
-				color.CyanString(ins.GetID()),
-				ins.Role(),
-				ins.GetHost(),
-				utils.JoinInt(ins.GetPort(), "/"),
-				dataDir,
-				deployDir,
-			})
-		}
-	}
-
-	return resTable, nil
 }
 
 func formatInstanceStatus(status string) string {
@@ -182,7 +154,9 @@ func formatInstanceStatus(status string) string {
 		return color.GreenString(status)
 	case "healthy|l": // PD leader
 		return color.HiGreenString(status)
-	case "down", "unhealthy", "offline", "tombstone", "err":
+	case "offline", "tombstone":
+		return color.YellowString(status)
+	case "down", "unhealthy", "err":
 		return color.RedString(status)
 	default:
 		return status

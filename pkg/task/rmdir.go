@@ -14,36 +14,39 @@
 package task
 
 import (
-	"os"
+	"fmt"
+	"strings"
 
-	"github.com/pingcap-incubator/tiops/pkg/meta"
+	"github.com/pingcap/errors"
 )
 
-// InitConfig is used to copy all configurations to the target directory of path
-type InitConfig struct {
-	name       string
-	instance   meta.Instance
-	deployUser string
-	deployDir  string
+// Rmdir is used to create directory on the target host
+type Rmdir struct {
+	host string
+	dirs []string
 }
 
 // Execute implements the Task interface
-func (c *InitConfig) Execute(ctx *Context) error {
-	// Copy to remote server
-	exec, found := ctx.GetExecutor(c.instance.GetHost())
+func (m *Rmdir) Execute(ctx *Context) error {
+	exec, found := ctx.GetExecutor(m.host)
 	if !found {
 		return ErrNoExecutor
 	}
 
-	cacheConfigDir := meta.ClusterPath(c.name, "config")
-	if err := os.MkdirAll(cacheConfigDir, 0755); err != nil {
-		return err
+	cmd := fmt.Sprintf(`rm -rf {%s}`, strings.Join(m.dirs, ","))
+	fmt.Println("Remove directories cmd: ", cmd)
+
+	stdout, stderr, err := exec.Execute(cmd, false)
+	if err != nil {
+		return errors.Trace(err)
 	}
 
-	return c.instance.InitConfig(exec, c.deployUser, cacheConfigDir, c.deployDir)
+	fmt.Println("Remove directories stdout: ", string(stdout))
+	fmt.Println("Remove directories stderr: ", string(stderr))
+	return nil
 }
 
 // Rollback implements the Task interface
-func (c *InitConfig) Rollback(ctx *Context) error {
+func (m *Rmdir) Rollback(ctx *Context) error {
 	return ErrUnsupportRollback
 }
