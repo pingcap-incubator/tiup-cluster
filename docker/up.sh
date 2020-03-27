@@ -148,6 +148,9 @@ INFO "Running \`docker-compose build\`"
 # shellcheck disable=SC2086
 docker-compose -f docker-compose.yml ${COMPOSE} ${DEV} build
 
+docker network rm tiops
+docker network create --gateway 172.19.0.1 --subnet 172.19.0.0/16 tiops
+
 INFO "Running \`docker-compose up\`"
 if [ "${RUN_AS_DAEMON}" -eq 1 ]; then
     # shellcheck disable=SC2086
