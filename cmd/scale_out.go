@@ -29,7 +29,6 @@ import (
 type scaleOutOptions struct {
 	version    string // version of the cluster
 	user       string // username to login to the SSH server
-	deployUser string // username of deploy tidb
 	password   string // password of the user
 	keyFile    string // path to the private key file
 	passphrase string // passphrase of the private key file
@@ -53,7 +52,6 @@ func newScaleOutCmd() *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&opt.user, "user", "root", "Specify the system user name")
-	cmd.Flags().StringVarP(&opt.deployUser, "deploy-user", "d", "tidb", "Specify the user name of deploy cluster")
 	cmd.Flags().StringVar(&opt.password, "password", "", "Specify the password of system user")
 	cmd.Flags().StringVar(&opt.keyFile, "key", "", "Specify the key path of system user")
 	cmd.Flags().StringVar(&opt.passphrase, "passphrase", "", "Specify the passphrase of the key")
@@ -92,11 +90,8 @@ func scaleOut(name, topoFile string, opt scaleOutOptions) error {
 		return err
 	}
 
-	return meta.SaveClusterMeta(name, &meta.ClusterMeta{
-		User:     opt.deployUser,
-		Version:  opt.version,
-		Topology: topo,
-	})
+	metadata.Topology = topo
+	return meta.SaveClusterMeta(name, metadata)
 }
 
 func bootstrapNewPart(name string, opt scaleOutOptions, newPart *meta.TopologySpecification) (task.Task, error) {
@@ -151,7 +146,7 @@ func bootstrapNewPart(name string, opt scaleOutOptions, newPart *meta.TopologySp
 					filepath.Join(deployDir, "scripts"),
 					filepath.Join(deployDir, "logs")).
 				CopyComponent(inst.ComponentName(), version, inst.GetHost(), deployDir).
-				ScaleConfig(name, oldPart, inst, opt.deployUser, deployDir).
+				ScaleConfig(name, oldPart, inst, metadata.User, deployDir).
 				Build()
 			copyCompTasks = append(copyCompTasks, t)
 		}
