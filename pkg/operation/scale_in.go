@@ -65,7 +65,7 @@ func ScaleIn(
 
 	// At least a PD server exists
 	var pdClient *api.PDClient
-	for _, instance := range (meta.PDComponent{Specification: spec}).Instances() {
+	for _, instance := range (&meta.PDComponent{Specification: spec}).Instances() {
 		if !deletedNodes.Exist(instance.ID()) {
 			pdClient = api.NewPDClient(instance.GetHost(), 10*time.Second, nil)
 		}
