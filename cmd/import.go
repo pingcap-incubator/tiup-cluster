@@ -25,6 +25,7 @@ func newImportCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "import",
 		Short: "Import a TiDB cluster from tidb-ansible",
+		Hidden: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return cmd.Help()
 		},
