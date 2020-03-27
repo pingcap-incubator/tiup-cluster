@@ -60,11 +60,9 @@ func (s *RootSSH) Rollback(ctx *Context) error {
 // String implements the fmt.Stringer interface
 func (s RootSSH) String() string {
 	if len(s.keyFile) > 0 {
-		return fmt.Sprintf("RootSSH: user=%s, host=%s, port=%d, key=%s(passphrase:'%s')",
-			s.user, s.host, s.port, s.keyFile, s.passphrase)
+		return fmt.Sprintf("RootSSH: user=%s, host=%s, port=%d, key=%s", s.user, s.host, s.port, s.keyFile)
 	}
-	return fmt.Sprintf("RootSSH: user=%s, host=%s, port=%d",
-		s.user, s.host, s.port)
+	return fmt.Sprintf("RootSSH: user=%s, host=%s, port=%d", s.user, s.host, s.port)
 }
 
 // UserSSH is used to establish a SSH connection to the target host with generated key
