@@ -45,7 +45,7 @@ func parseDirs(host *aini.Host, ins meta.InstanceSpec) (meta.InstanceSpec, error
 	}
 
 	switch ins.Role() {
-	case meta.RoleTiDB:
+	case meta.ComponentTiDB:
 		serviceFile := fmt.Sprintf("%s/%s-%d.service",
 			systemdUnitPath,
 			meta.ComponentTiDB,
@@ -72,7 +72,7 @@ func parseDirs(host *aini.Host, ins meta.InstanceSpec) (meta.InstanceSpec, error
 			}
 		}
 		return newIns, nil
-	case meta.RoleTiKV:
+	case meta.ComponentTiKV:
 		serviceFile := fmt.Sprintf("%s/%s-%d.service",
 			systemdUnitPath,
 			meta.ComponentTiKV,
@@ -104,7 +104,7 @@ func parseDirs(host *aini.Host, ins meta.InstanceSpec) (meta.InstanceSpec, error
 			}
 		}
 		return newIns, nil
-	case meta.RolePD:
+	case meta.ComponentPD:
 		serviceFile := fmt.Sprintf("%s/%s-%d.service",
 			systemdUnitPath,
 			meta.ComponentPD,
@@ -144,10 +144,152 @@ func parseDirs(host *aini.Host, ins meta.InstanceSpec) (meta.InstanceSpec, error
 			}
 		}
 		return newIns, nil
-	case meta.RolePump:
-	case meta.RoleDrainer:
-	case meta.RoleMonitor:
-	case meta.RoleGrafana:
+	case meta.ComponentPump:
+		serviceFile := fmt.Sprintf("%s/%s-%d.service",
+			systemdUnitPath,
+			meta.ComponentPump,
+			ins.GetMainPort())
+		cmd := fmt.Sprintf("cat `grep 'ExecStart' %s | sed 's/ExecStart=//'`", serviceFile)
+		stdout, _, err := e.Execute(cmd, false)
+		if err != nil {
+			return ins, nil
+		}
+
+		// parse dirs
+		newIns := ins.(meta.PumpSpec)
+		for _, line := range strings.Split(string(stdout), "\n") {
+			if strings.HasPrefix(line, "DEPLOY_DIR=") {
+				newIns.DeployDir = strings.TrimPrefix(line, "DEPLOY_DIR=")
+				continue
+			}
+			if strings.Contains(line, "--data-dir") {
+				dataArg := strings.Split(line, " ")[4] // 4 whitespaces ahead
+				dataDir := strings.TrimPrefix(dataArg, "--data-dir=")
+				newIns.DataDir = strings.Trim(dataDir, "\"")
+				continue
+			}
+			if strings.Contains(line, "--log-file=") {
+				fullLog := strings.Split(line, " ")[4] // 4 whitespaces ahead
+				logDir := strings.TrimSuffix(strings.TrimPrefix(fullLog,
+					"--log-file=\""), "/pump.log\"")
+				newIns.LogDir = logDir
+				continue
+			}
+		}
+		return newIns, nil
+	case meta.ComponentDrainer:
+		serviceFile := fmt.Sprintf("%s/%s-%d.service",
+			systemdUnitPath,
+			meta.ComponentDrainer,
+			ins.GetMainPort())
+		cmd := fmt.Sprintf("cat `grep 'ExecStart' %s | sed 's/ExecStart=//'`", serviceFile)
+		stdout, _, err := e.Execute(cmd, false)
+		if err != nil {
+			return ins, nil
+		}
+
+		// parse dirs
+		newIns := ins.(meta.DrainerSpec)
+		for _, line := range strings.Split(string(stdout), "\n") {
+			if strings.HasPrefix(line, "DEPLOY_DIR=") {
+				newIns.DeployDir = strings.TrimPrefix(line, "DEPLOY_DIR=")
+				continue
+			}
+			if strings.Contains(line, "--log-file=") {
+				fullLog := strings.Split(line, " ")[4] // 4 whitespaces ahead
+				logDir := strings.TrimSuffix(strings.TrimPrefix(fullLog,
+					"--log-file=\""), "/drainer.log\"")
+				newIns.LogDir = logDir
+				continue
+			}
+		}
+		return newIns, nil
+	case meta.ComponentPrometheus:
+		serviceFile := fmt.Sprintf("%s/%s-%d.service",
+			systemdUnitPath,
+			meta.ComponentPrometheus,
+			ins.GetMainPort())
+		cmd := fmt.Sprintf("cat `grep 'ExecStart' %s | sed 's/ExecStart=//'`", serviceFile)
+		stdout, _, err := e.Execute(cmd, false)
+		if err != nil {
+			return ins, nil
+		}
+
+		// parse dirs
+		newIns := ins.(meta.PrometheusSpec)
+		for _, line := range strings.Split(string(stdout), "\n") {
+			if strings.HasPrefix(line, "DEPLOY_DIR=") {
+				newIns.DeployDir = strings.TrimPrefix(line, "DEPLOY_DIR=")
+				continue
+			}
+			if strings.Contains(line, "exec > >(tee -i -a") {
+				fullLog := strings.Split(line, " ")[5]
+				logDir := strings.TrimSuffix(strings.TrimPrefix(fullLog, "\""),
+					"/prometheus.log\")")
+				newIns.LogDir = logDir
+				continue
+			}
+			if strings.Contains(line, "--storage.tsdb.path=") {
+				dataArg := strings.Split(line, " ")[4] // 4 whitespaces ahead
+				dataDir := strings.TrimPrefix(dataArg, "--storage.tsdb.path=")
+				newIns.DataDir = strings.Trim(dataDir, "\"")
+				continue
+			}
+		}
+		return newIns, nil
+	case meta.ComponentAlertManager:
+		serviceFile := fmt.Sprintf("%s/%s-%d.service",
+			systemdUnitPath,
+			meta.ComponentAlertManager,
+			ins.GetMainPort())
+		cmd := fmt.Sprintf("cat `grep 'ExecStart' %s | sed 's/ExecStart=//'`", serviceFile)
+		stdout, _, err := e.Execute(cmd, false)
+		if err != nil {
+			return ins, nil
+		}
+
+		// parse dirs
+		newIns := ins.(meta.AlertManagerSpec)
+		for _, line := range strings.Split(string(stdout), "\n") {
+			if strings.HasPrefix(line, "DEPLOY_DIR=") {
+				newIns.DeployDir = strings.TrimPrefix(line, "DEPLOY_DIR=")
+				continue
+			}
+			if strings.Contains(line, "exec > >(tee -i -a") {
+				fullLog := strings.Split(line, " ")[5]
+				logDir := strings.TrimSuffix(strings.TrimPrefix(fullLog, "\""),
+					"/alertmanager.log\")")
+				newIns.LogDir = logDir
+				continue
+			}
+			if strings.Contains(line, "--storage.path=") {
+				dataArg := strings.Split(line, " ")[4] // 4 whitespaces ahead
+				dataDir := strings.TrimPrefix(dataArg, "--storage.path=")
+				newIns.DataDir = strings.Trim(dataDir, "\"")
+				continue
+			}
+		}
+		return newIns, nil
+	case meta.ComponentGrafana:
+		serviceFile := fmt.Sprintf("%s/%s-%d.service",
+			systemdUnitPath,
+			meta.ComponentGrafana,
+			ins.GetMainPort())
+		cmd := fmt.Sprintf("cat `grep 'ExecStart' %s | sed 's/ExecStart=//'`", serviceFile)
+		stdout, _, err := e.Execute(cmd, false)
+		if err != nil {
+			return ins, nil
+		}
+
+		// parse dirs
+		newIns := ins.(meta.GrafanaSpec)
+		for _, line := range strings.Split(string(stdout), "\n") {
+			if strings.HasPrefix(line, "DEPLOY_DIR=") {
+				newIns.DeployDir = strings.TrimPrefix(line, "DEPLOY_DIR=")
+				continue
+			}
+		}
+		return newIns, nil
 	}
 	return ins, nil
 }

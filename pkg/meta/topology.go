@@ -32,14 +32,8 @@ const (
 	statusQueryTimeout = 2 * time.Second
 )
 
-// Roles of components
-const (
-	RoleTiDB    = "tidb"
-	RoleTiKV    = "tikv"
-	RolePD      = "pd"
-	RoleGrafana = "grafana"
-	RoleDrainer = "drainer"
-	RolePump    = "pump"
+// general role names
+var (
 	RoleMonitor = "monitor"
 )
 
@@ -115,7 +109,7 @@ func (s TiDBSpec) Status(pdList ...string) string {
 
 // Role returns the component role of the instance
 func (s TiDBSpec) Role() string {
-	return RoleTiDB
+	return ComponentTiDB
 }
 
 // SSH returns the host and SSH port of the instance
@@ -165,7 +159,7 @@ func (s TiKVSpec) Status(pdList ...string) string {
 
 // Role returns the component role of the instance
 func (s TiKVSpec) Role() string {
-	return RoleTiKV
+	return ComponentTiKV
 }
 
 // SSH returns the host and SSH port of the instance
@@ -226,7 +220,7 @@ func (s PDSpec) Status(pdList ...string) string {
 
 // Role returns the component role of the instance
 func (s PDSpec) Role() string {
-	return RolePD
+	return ComponentPD
 }
 
 // SSH returns the host and SSH port of the instance
@@ -254,7 +248,7 @@ type PumpSpec struct {
 
 // Role returns the component role of the instance
 func (s PumpSpec) Role() string {
-	return RolePump
+	return ComponentPump
 }
 
 // SSH returns the host and SSH port of the instance
@@ -275,6 +269,7 @@ type DrainerSpec struct {
 	Port       int    `yaml:"port" default:"8249"`
 	DeployDir  string `yaml:"deploy_dir,omitempty"`
 	DataDir    string `yaml:"data_dir,omitempty"`
+	LogDir     string `yaml:"log_dir,omitempty"`
 	CommitTS   string `yaml:"commit_ts,omitempty"`
 	Offline    bool   `yaml:"offline,omitempty"`
 	NumaNode   bool   `yaml:"numa_node,omitempty"`
@@ -282,7 +277,7 @@ type DrainerSpec struct {
 
 // Role returns the component role of the instance
 func (s DrainerSpec) Role() string {
-	return RoleDrainer
+	return ComponentDrainer
 }
 
 // SSH returns the host and SSH port of the instance
@@ -303,12 +298,13 @@ type PrometheusSpec struct {
 	Port       int    `yaml:"port" default:"9090"`
 	DeployDir  string `yaml:"deploy_dir,omitempty"`
 	DataDir    string `yaml:"data_dir,omitempty"`
+	LogDir     string `yaml:"log_dir,omitempty"`
 	Retention  string `yaml:"storage_retention,omitempty"`
 }
 
 // Role returns the component role of the instance
 func (s PrometheusSpec) Role() string {
-	return RoleMonitor
+	return ComponentPrometheus
 }
 
 // SSH returns the host and SSH port of the instance
@@ -332,7 +328,7 @@ type GrafanaSpec struct {
 
 // Role returns the component role of the instance
 func (s GrafanaSpec) Role() string {
-	return RoleMonitor
+	return ComponentGrafana
 }
 
 // SSH returns the host and SSH port of the instance
@@ -354,11 +350,12 @@ type AlertManagerSpec struct {
 	ClusterPort int    `yaml:"cluster_port" default:"9094"`
 	DeployDir   string `yaml:"deploy_dir,omitempty"`
 	DataDir     string `yaml:"data_dir,omitempty"`
+	LogDir      string `yaml:"log_dir,omitempty"`
 }
 
 // Role returns the component role of the instance
 func (s AlertManagerSpec) Role() string {
-	return RoleMonitor
+	return ComponentAlertManager
 }
 
 // SSH returns the host and SSH port of the instance
