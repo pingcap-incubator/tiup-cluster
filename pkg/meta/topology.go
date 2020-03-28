@@ -33,6 +33,7 @@ const (
 	RoleTiDB    = "tidb"
 	RoleTiKV    = "tikv"
 	RolePD      = "pd"
+	RoleTiFlash = "tiflash"
 	RoleGrafana = "grafana"
 	RoleDrainer = "drainer"
 	RolePump    = "pump"
@@ -160,6 +161,25 @@ func (s PDSpec) Status(pdList ...string) string {
 // Role returns the component role of the instance
 func (s PDSpec) Role() string {
 	return RolePD
+}
+
+// TiFlashSpec represents the TiFlash topology specification in topology.yaml
+type TiFlashSpec struct {
+	Host    string `yaml:"host"`
+	TCPPort int    `yaml:"tcp_port" default:"9000"`
+	HTTPPort         int `yaml:"http_port" default:"8123"`
+	FlashServicePort int `yaml:"flash_service_port" default:"3930"`
+	FlashProxyPort   int `yaml:"flash_proxy_port" default:"20170"`
+	FlashProxyStatusPort int `yaml:"flash_proxy_status_port" default:"20292"`
+	MetricsPort          int `yaml:"metrics_port" default:"8234"`
+	SSHPort    int    `yaml:"ssh_port,omitempty" default:"22"`
+	DeployDir  string `yaml:"deploy_dir,omitempty"`
+	DataDir    string `yaml:"data_dir,omitempty"`
+}
+
+// Role returns the component role of the instance
+func (s TiFlashSpec) Role() string {
+	return RoleTiFlash
 }
 
 // PumpSpec represents the Pump topology specification in topology.yaml

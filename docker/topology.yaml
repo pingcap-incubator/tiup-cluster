@@ -1,0 +1,8 @@
+tidb_servers:
+  - host: 172.19.0.101
+
+pd_servers:
+  - host: 172.19.0.101
+
+tikv_servers:
+  - host: 172.19.0.101
