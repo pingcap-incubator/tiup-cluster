@@ -87,7 +87,7 @@ func getComponentVersion(comp, version string) repository.Version {
 }
 
 func deploy(name, version, topoFile string, opt deployOptions) error {
-	if utils.IsExist(meta.ClusterPath(name)) {
+	if utils.IsExist(meta.ClusterPath(name, meta.MetaFileName)) {
 		return errors.Errorf("cluster name '%s' exists, please choose another cluster name", name)
 	}
 
@@ -100,9 +100,6 @@ func deploy(name, version, topoFile string, opt deployOptions) error {
 		return errors.Trace(err)
 	}
 	if err := os.MkdirAll(meta.ClusterPath(name), 0755); err != nil {
-		return err
-	}
-	if err := ioutil.WriteFile(meta.ClusterPath(name, "topology.yaml"), yamlFile, 0664); err != nil {
 		return err
 	}
 
