@@ -14,7 +14,14 @@
 package cmd
 
 import (
+	"fmt"
+	"io/ioutil"
+
+	"github.com/pingcap-incubator/tiops/pkg/meta"
+	"github.com/pingcap-incubator/tiops/pkg/task"
+	"github.com/pingcap/errors"
 	"github.com/spf13/cobra"
+	"gopkg.in/yaml.v2"
 )
 
 func newImportCmd() *cobra.Command {
@@ -33,4 +40,54 @@ func newImportCmd() *cobra.Command {
 
 	cmd.Flags().StringVarP(&ansible, "ansible-path", "A", "", "the path for tidb-ansible")
 	return cmd
+}
+
+// copy config file from cluster which deployed through tidb-ansible
+func importConfig(name, topoFile string) error {
+	var topo meta.TopologySpecification
+	yamlFile, err := ioutil.ReadFile(topoFile)
+	if err != nil {
+		return errors.Trace(err)
+	}
+	if err = yaml.Unmarshal(yamlFile, &topo); err != nil {
+		return errors.Trace(err)
+	}
+	// there may be already cluster dir, skip create
+	//if err := os.MkdirAll(meta.ClusterPath(name), 0755); err != nil {
+	//	return err
+	//}
+	//if err := ioutil.WriteFile(meta.ClusterPath(name, "topology.yaml"), yamlFile, 0664); err != nil {
+	//	return err
+	//}
+	copyFileTasks := task.NewBuilder()
+	for _, comp := range topo.ComponentsByStartOrder() {
+		for idx, inst := range comp.Instances() {
+			switch inst.ComponentName() {
+			case "pd", "tikv", "pump", "tidb":
+				if idx != 0 {
+					break
+				}
+				copyFileTasks.
+					UserSSH(inst.GetHost(), topo.GlobalOptions.User).
+					CopyFile(inst.DeployDir()+"/conf/"+inst.ComponentName(),
+						inst.GetHost(),
+						meta.ClusterPath(name, "config", inst.ComponentName()+".toml"))
+			case "dariner":
+				copyFileTasks.
+					UserSSH(inst.GetHost(), topo.GlobalOptions.User).
+					CopyFile(inst.DeployDir()+"/conf/"+inst.ComponentName(),
+						inst.GetHost(),
+						meta.ClusterPath(name,
+							"config",
+							fmt.Sprintf("%s_%s_%s.toml", inst.ComponentName(), inst.GetHost(), inst.GetPort())))
+			default:
+				break
+			}
+		}
+	}
+	if err := copyFileTasks.Build().Execute(task.NewContext()); err != nil {
+		return errors.Trace(err)
+	} else {
+		return nil
+	}
 }
