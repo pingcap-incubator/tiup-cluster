@@ -142,9 +142,9 @@ func bootstrapNewPart(name string, opt scaleOutOptions, newPart *meta.TopologySp
 				Mkdir(inst.GetHost(),
 					filepath.Join(deployDir, "bin"),
 					filepath.Join(deployDir, "data"),
-					filepath.Join(deployDir, "config"),
+					filepath.Join(deployDir, "conf"),
 					filepath.Join(deployDir, "scripts"),
-					filepath.Join(deployDir, "logs")).
+					filepath.Join(deployDir, "log")).
 				CopyComponent(inst.ComponentName(), version, inst.GetHost(), deployDir).
 				ScaleConfig(name, oldPart, inst, metadata.User, deployDir).
 				Build()

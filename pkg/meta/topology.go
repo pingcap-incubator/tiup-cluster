@@ -243,6 +243,7 @@ type TopologyGlobalOptions struct {
 	SSHPort int `yaml:"ssh_port,omitempty" default:"22"`
 }
 
+// MonitoredOptions represents the options of monitored server.
 type MonitoredOptions struct {
 	DeployDir            string `yaml:"deploy_dir,omitempty" default:"monitored"`
 	DataDir              string `yaml:"data_dir,omitempty"  default:"monitored/data"`

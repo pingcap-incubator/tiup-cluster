@@ -160,9 +160,9 @@ func deploy(name, topoFile string, opt deployOptions) error {
 				Mkdir(inst.GetHost(),
 					filepath.Join(deployDir, "bin"),
 					filepath.Join(deployDir, "data"),
-					filepath.Join(deployDir, "config"),
+					filepath.Join(deployDir, "conf"),
 					filepath.Join(deployDir, "scripts"),
-					filepath.Join(deployDir, "logs")).
+					filepath.Join(deployDir, "log")).
 				CopyComponent(inst.ComponentName(), version, inst.GetHost(), deployDir).
 				InitConfig(name, inst, opt.deployUser, deployDir).
 				Build()
@@ -193,9 +193,9 @@ func deploy(name, topoFile string, opt deployOptions) error {
 				Mkdir(host,
 					filepath.Join(deployDir, "bin"),
 					filepath.Join(deployDir, "data"),
-					filepath.Join(deployDir, "config"),
+					filepath.Join(deployDir, "conf"),
 					filepath.Join(deployDir, "scripts"),
-					filepath.Join(deployDir, "logs")).
+					filepath.Join(deployDir, "log")).
 				CopyComponent(comp, version, host, deployDir).
 				MonitoredConfig(name, topo.MonitoredOptions, opt.deployUser, deployDir).
 				Build()

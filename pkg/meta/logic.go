@@ -349,7 +349,7 @@ func (i *TiKVInstance) InitConfig(e executor.TiOpsExecutor, user, cacheDir, depl
 	if err := config.NewTiKVConfig().ConfigToFile(fp); err != nil {
 		return err
 	}
-	dst = filepath.Join(deployDir, "config", "tikv.toml")
+	dst = filepath.Join(deployDir, "conf", "tikv.toml")
 	if err := e.Transfer(fp, dst); err != nil {
 		return err
 	}
@@ -468,76 +468,6 @@ func (i *PDInstance) ScaleConfig(e executor.TiOpsExecutor, b *Specification, use
 		return err
 	}
 	return nil
-}
-
-// PumpComponent represents Pump component.
-type PumpComponent struct{ *Specification }
-
-// Name implements Component interface.
-func (c *PumpComponent) Name() string {
-	return ComponentPump
-}
-
-// Instances implements Component interface.
-func (c *PumpComponent) Instances() []Instance {
-	ins := make([]Instance, 0, len(c.PumpServers))
-	for _, s := range c.PumpServers {
-		ins = append(ins, &instance{
-			InstanceSpec: s,
-			name:         c.Name(),
-			host:         s.Host,
-			port:         s.Port,
-			sshp:         s.SSHPort,
-			topo:         c.Specification,
-
-			usedPorts: []int{
-				s.Port,
-			},
-			usedDirs: []string{
-				s.DeployDir,
-				s.DataDir,
-			},
-			statusFn: func(_ ...string) string {
-				return "N/A"
-			},
-		})
-	}
-	return ins
-}
-
-// DrainerComponent represents Drainer component.
-type DrainerComponent struct{ *Specification }
-
-// Name implements Component interface.
-func (c *DrainerComponent) Name() string {
-	return ComponentDrainer
-}
-
-// Instances implements Component interface.
-func (c *DrainerComponent) Instances() []Instance {
-	ins := make([]Instance, 0, len(c.Drainers))
-	for _, s := range c.Drainers {
-		ins = append(ins, &instance{
-			InstanceSpec: s,
-			name:         c.Name(),
-			host:         s.Host,
-			port:         s.Port,
-			sshp:         s.SSHPort,
-			topo:         c.Specification,
-
-			usedPorts: []int{
-				s.Port,
-			},
-			usedDirs: []string{
-				s.DeployDir,
-				s.DataDir,
-			},
-			statusFn: func(_ ...string) string {
-				return "N/A"
-			},
-		})
-	}
-	return ins
 }
 
 // MonitorComponent represents Monitor component.
