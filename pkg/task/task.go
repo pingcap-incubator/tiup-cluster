@@ -126,18 +126,22 @@ func (ctx *Context) SetManifest(comp string, m *repository.VersionManifest) {
 	return
 }
 
+// Debugf output the debug message to console
 func (ctx *Context) Debugf(format string, args ...interface{}) {
 	fmt.Println(color.CyanString(format, args...))
 }
 
+// Infof output the log message to console
 func (ctx *Context) Infof(format string, args ...interface{}) {
 	fmt.Println(color.GreenString(format, args...))
 }
 
+// Warnf output the warning message to console
 func (ctx *Context) Warnf(format string, args ...interface{}) {
 	fmt.Println(color.YellowString(format, args...))
 }
 
+// Errorf output the error message to console
 func (ctx *Context) Errorf(format string, args ...interface{}) {
 	fmt.Println(color.RedString(format, args...))
 }
