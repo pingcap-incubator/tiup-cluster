@@ -16,13 +16,13 @@ package operator
 import (
 	"bytes"
 	"fmt"
-	"github.com/pingcap-incubator/tiup/pkg/set"
 	"io"
 	"strings"
 
 	"github.com/pingcap-incubator/tiops/pkg/executor"
 	"github.com/pingcap-incubator/tiops/pkg/meta"
 	"github.com/pingcap-incubator/tiops/pkg/module"
+	"github.com/pingcap-incubator/tiup/pkg/set"
 	"github.com/pingcap/errors"
 )
 

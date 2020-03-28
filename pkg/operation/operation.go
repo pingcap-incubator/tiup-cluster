@@ -15,11 +15,11 @@ package operator
 
 import (
 	"fmt"
-	"github.com/pingcap-incubator/tiup/pkg/set"
 	"time"
 
 	"github.com/pingcap-incubator/tiops/pkg/executor"
 	"github.com/pingcap-incubator/tiops/pkg/meta"
+	"github.com/pingcap-incubator/tiup/pkg/set"
 )
 
 // Options represents the operation options
