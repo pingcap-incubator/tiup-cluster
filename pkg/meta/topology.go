@@ -99,7 +99,7 @@ func (s TiDBSpec) Status(pdList ...string) string {
 	// body doesn't have any status section needed
 	body, err := client.Get(url)
 	if err != nil {
-		return "ERR"
+		return "N/A"
 	}
 	if body == nil {
 		return "Down"
@@ -133,7 +133,7 @@ func (s TiKVSpec) Status(pdList ...string) string {
 	pdapi := api.NewPDClient(pdList[0], statusQueryTimeout, nil)
 	stores, err := pdapi.GetStores()
 	if err != nil {
-		return "ERR"
+		return "N/A"
 	}
 
 	name := fmt.Sprintf("%s:%d", s.Host, s.Port)
@@ -169,13 +169,13 @@ func (s PDSpec) Status(pdList ...string) string {
 		statusQueryTimeout, nil)
 	healths, err := pdapi.GetHealth()
 	if err != nil {
-		return "ERR"
+		return "N/A"
 	}
 
 	// find leader node
 	leader, err := pdapi.GetLeader()
 	if err != nil {
-		return "ERR"
+		return "N/A"
 	}
 
 	for _, member := range healths.Healths {
