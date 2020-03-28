@@ -19,6 +19,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/pingcap-incubator/tiops/pkg/flags"
+
 	"github.com/fatih/color"
 	"github.com/pingcap-incubator/tiops/pkg/executor"
 	"github.com/pingcap-incubator/tiup/pkg/repository"
@@ -193,7 +195,11 @@ type errs []error
 func (es errs) Error() string {
 	ss := make([]string, 0, len(es))
 	for _, e := range es {
-		ss = append(ss, fmt.Sprintf("%+v", e))
+		if flags.ShowBacktrace {
+			ss = append(ss, fmt.Sprintf("%+v", e))
+		} else {
+			ss = append(ss, fmt.Sprintf("%v", e))
+		}
 	}
 	return strings.Join(ss, "\n")
 }

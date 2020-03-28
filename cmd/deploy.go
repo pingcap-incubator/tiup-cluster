@@ -52,7 +52,7 @@ func newDeploy() *cobra.Command {
 				return cmd.Help()
 			}
 			if len(opt.keyFile) == 0 && len(opt.password) == 0 {
-				return errors.New("password and key need to specify at least one")
+				return errors.New("--password and --key need to specify at least one")
 			}
 			return deploy(args[0], args[1], args[2], opt)
 		},
