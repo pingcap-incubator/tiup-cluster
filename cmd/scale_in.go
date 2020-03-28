@@ -31,7 +31,7 @@ func newScaleInCmd() *cobra.Command {
 		Use:   "scale-in <cluster-name>",
 		Short: "Scale in a TiDB cluster",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if len(args) != 1 {
+			if len(args) < 1 {
 				cmd.Help()
 				return fmt.Errorf("cluster name not specified")
 			}
@@ -57,7 +57,7 @@ func scaleIn(cluster string, nodeIds []string) error {
 	deletedNodes := set.NewStringSet(nodeIds...)
 	for _, component := range metadata.Topology.ComponentsByStartOrder() {
 		for _, instance := range component.Instances() {
-			if deletedNodes.Exist(instance.GetHost()) {
+			if deletedNodes.Exist(instance.ID()) {
 				continue
 			}
 			deployDir := instance.DeployDir()

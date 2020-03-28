@@ -126,8 +126,20 @@ func (ctx *Context) SetManifest(comp string, m *repository.VersionManifest) {
 	return
 }
 
-func (ctx *Context) Info(format string, args ...interface{}) {
+func (ctx *Context) Debugf(format string, args ...interface{}) {
+	fmt.Println(color.CyanString(format, args...))
+}
+
+func (ctx *Context) Infof(format string, args ...interface{}) {
 	fmt.Println(color.GreenString(format, args...))
+}
+
+func (ctx *Context) Warnf(format string, args ...interface{}) {
+	fmt.Println(color.YellowString(format, args...))
+}
+
+func (ctx *Context) Errorf(format string, args ...interface{}) {
+	fmt.Println(color.RedString(format, args...))
 }
 
 func isSingleTask(t Task) bool {
@@ -140,7 +152,7 @@ func isSingleTask(t Task) bool {
 func (s Serial) Execute(ctx *Context) error {
 	for _, t := range s {
 		if isSingleTask(t) {
-			ctx.Info("+ %s", t.String())
+			ctx.Infof("+ [ Serial ] - %s", t.String())
 		}
 		err := t.Execute(ctx)
 		if err != nil {
@@ -191,6 +203,9 @@ func (pt Parallel) Execute(ctx *Context) error {
 		wg.Add(1)
 		go func(t Task) {
 			defer wg.Done()
+			if isSingleTask(t) {
+				ctx.Debugf("+ [Parallel] - %s", t.String())
+			}
 			err := t.Execute(ctx)
 			if err != nil {
 				mu.Lock()
