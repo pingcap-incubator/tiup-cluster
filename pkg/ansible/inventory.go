@@ -124,7 +124,7 @@ func parseInventory(dir string, inv *aini.InventoryData) (string, *meta.ClusterM
 				tmpIns.LogDir = logDir
 			}
 
-			ins, err := parseDirs(tmpIns)
+			ins, err := parseDirs(srv, tmpIns)
 			if err != nil {
 				return "", nil, err
 			}
@@ -171,7 +171,7 @@ func parseInventory(dir string, inv *aini.InventoryData) (string, *meta.ClusterM
 				tmpIns.LogDir = logDir
 			}
 
-			ins, err := parseDirs(tmpIns)
+			ins, err := parseDirs(srv, tmpIns)
 			if err != nil {
 				return "", nil, err
 			}
@@ -218,7 +218,7 @@ func parseInventory(dir string, inv *aini.InventoryData) (string, *meta.ClusterM
 				tmpIns.LogDir = logDir
 			}
 
-			ins, err := parseDirs(tmpIns)
+			ins, err := parseDirs(srv, tmpIns)
 			if err != nil {
 				return "", nil, err
 			}
@@ -258,7 +258,7 @@ func parseInventory(dir string, inv *aini.InventoryData) (string, *meta.ClusterM
 				tmpIns.Retention = _retention
 			}
 
-			ins, err := parseDirs(tmpIns)
+			ins, err := parseDirs(srv, tmpIns)
 			if err != nil {
 				return "", nil, err
 			}
@@ -294,7 +294,7 @@ func parseInventory(dir string, inv *aini.InventoryData) (string, *meta.ClusterM
 				tmpIns.ClusterPort, _ = strconv.Atoi(clusterPort)
 			}
 
-			ins, err := parseDirs(tmpIns)
+			ins, err := parseDirs(srv, tmpIns)
 			if err != nil {
 				return "", nil, err
 			}
@@ -339,7 +339,7 @@ func parseInventory(dir string, inv *aini.InventoryData) (string, *meta.ClusterM
 				tmpIns.LogDir = logDir
 			}
 
-			ins, err := parseDirs(tmpIns)
+			ins, err := parseDirs(srv, tmpIns)
 			if err != nil {
 				return "", nil, err
 			}
@@ -372,7 +372,7 @@ func parseInventory(dir string, inv *aini.InventoryData) (string, *meta.ClusterM
 				tmpIns.Port, _ = strconv.Atoi(port)
 			}
 
-			ins, err := parseDirs(tmpIns)
+			ins, err := parseDirs(srv, tmpIns)
 			if err != nil {
 				return "", nil, err
 			}

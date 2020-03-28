@@ -47,6 +47,8 @@ type (
 	// InstanceSpec represent a instance specification
 	InstanceSpec interface {
 		Role() string
+		SSH() (string, int)
+		GetMainPort() int
 	}
 
 	// GlobalOptions represents the global options for all groups in topology
@@ -116,6 +118,16 @@ func (s TiDBSpec) Role() string {
 	return RoleTiDB
 }
 
+// SSH returns the host and SSH port of the instance
+func (s TiDBSpec) SSH() (string, int) {
+	return s.Host, s.SSHPort
+}
+
+// GetMainPort returns the main port of the instance
+func (s TiDBSpec) GetMainPort() int {
+	return s.Port
+}
+
 // TiKVSpec represents the TiKV topology specification in topology.yaml
 type TiKVSpec struct {
 	Host       string   `yaml:"host"`
@@ -154,6 +166,16 @@ func (s TiKVSpec) Status(pdList ...string) string {
 // Role returns the component role of the instance
 func (s TiKVSpec) Role() string {
 	return RoleTiKV
+}
+
+// SSH returns the host and SSH port of the instance
+func (s TiKVSpec) SSH() (string, int) {
+	return s.Host, s.SSHPort
+}
+
+// GetMainPort returns the main port of the instance
+func (s TiKVSpec) GetMainPort() int {
+	return s.Port
 }
 
 // PDSpec represents the PD topology specification in topology.yaml
@@ -207,6 +229,16 @@ func (s PDSpec) Role() string {
 	return RolePD
 }
 
+// SSH returns the host and SSH port of the instance
+func (s PDSpec) SSH() (string, int) {
+	return s.Host, s.SSHPort
+}
+
+// GetMainPort returns the main port of the instance
+func (s PDSpec) GetMainPort() int {
+	return s.ClientPort
+}
+
 // PumpSpec represents the Pump topology specification in topology.yaml
 type PumpSpec struct {
 	Host       string `yaml:"host"`
@@ -223,6 +255,16 @@ type PumpSpec struct {
 // Role returns the component role of the instance
 func (s PumpSpec) Role() string {
 	return RolePump
+}
+
+// SSH returns the host and SSH port of the instance
+func (s PumpSpec) SSH() (string, int) {
+	return s.Host, s.SSHPort
+}
+
+// GetMainPort returns the main port of the instance
+func (s PumpSpec) GetMainPort() int {
+	return s.Port
 }
 
 // DrainerSpec represents the Drainer topology specification in topology.yaml
@@ -243,6 +285,16 @@ func (s DrainerSpec) Role() string {
 	return RoleDrainer
 }
 
+// SSH returns the host and SSH port of the instance
+func (s DrainerSpec) SSH() (string, int) {
+	return s.Host, s.SSHPort
+}
+
+// GetMainPort returns the main port of the instance
+func (s DrainerSpec) GetMainPort() int {
+	return s.Port
+}
+
 // PrometheusSpec represents the Prometheus Server topology specification in topology.yaml
 type PrometheusSpec struct {
 	Host       string `yaml:"host"`
@@ -259,6 +311,16 @@ func (s PrometheusSpec) Role() string {
 	return RoleMonitor
 }
 
+// SSH returns the host and SSH port of the instance
+func (s PrometheusSpec) SSH() (string, int) {
+	return s.Host, s.SSHPort
+}
+
+// GetMainPort returns the main port of the instance
+func (s PrometheusSpec) GetMainPort() int {
+	return s.Port
+}
+
 // GrafanaSpec represents the Grafana topology specification in topology.yaml
 type GrafanaSpec struct {
 	Host       string `yaml:"host"`
@@ -271,6 +333,16 @@ type GrafanaSpec struct {
 // Role returns the component role of the instance
 func (s GrafanaSpec) Role() string {
 	return RoleMonitor
+}
+
+// SSH returns the host and SSH port of the instance
+func (s GrafanaSpec) SSH() (string, int) {
+	return s.Host, s.SSHPort
+}
+
+// GetMainPort returns the main port of the instance
+func (s GrafanaSpec) GetMainPort() int {
+	return s.Port
 }
 
 // AlertManagerSpec represents the AlertManager topology specification in topology.yaml
@@ -287,6 +359,16 @@ type AlertManagerSpec struct {
 // Role returns the component role of the instance
 func (s AlertManagerSpec) Role() string {
 	return RoleMonitor
+}
+
+// SSH returns the host and SSH port of the instance
+func (s AlertManagerSpec) SSH() (string, int) {
+	return s.Host, s.SSHPort
+}
+
+// GetMainPort returns the main port of the instance
+func (s AlertManagerSpec) GetMainPort() int {
+	return s.WebPort
 }
 
 // UnmarshalYAML sets default values when unmarshaling the topology file

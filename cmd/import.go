@@ -89,7 +89,6 @@ func importConfig(name, topoFile string) error {
 	}
 	if err := copyFileTasks.Build().Execute(task.NewContext()); err != nil {
 		return errors.Trace(err)
-	} else {
-		return nil
 	}
+	return nil
 }
