@@ -15,7 +15,6 @@ package meta
 
 import (
 	"fmt"
-	"github.com/pingcap-incubator/tiup/pkg/set"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -24,6 +23,7 @@ import (
 	"github.com/creasty/defaults"
 	"github.com/pingcap-incubator/tiops/pkg/api"
 	"github.com/pingcap-incubator/tiops/pkg/utils"
+	"github.com/pingcap-incubator/tiup/pkg/set"
 	"github.com/pingcap/errors"
 )
 
