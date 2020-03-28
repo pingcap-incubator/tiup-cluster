@@ -56,6 +56,7 @@ type (
 		SSHPort   int    `yaml:"ssh_port,omitempty" default:"22"`
 		DeployDir string `yaml:"deploy_dir,omitempty" default:"deploy"`
 		DataDir   string `yaml:"data_dir,omitempty"  default:"data"`
+		LogDir    string `yaml:"log_dir,omitempty"`
 	}
 
 	// MonitoredOptions represents the monitored node configuration
@@ -64,6 +65,7 @@ type (
 		BlackboxExporterPort int    `yaml:"blackbox_exporter_port,omitempty" default:"9115"`
 		DeployDir            string `yaml:"deploy_dir,omitempty"`
 		DataDir              string `yaml:"data_dir,omitempty"`
+		LogDir               string `yaml:"log_dir,omitempty"`
 	}
 
 	// TopologySpecification represents the specification of topology.yaml
@@ -84,10 +86,12 @@ type (
 // TiDBSpec represents the TiDB topology specification in topology.yaml
 type TiDBSpec struct {
 	Host       string `yaml:"host"`
+	SSHPort    int    `yaml:"ssh_port,omitempty"`
+	IsImported bool   `yaml:"imported,omitempty"`
 	Port       int    `yaml:"port" default:"4000"`
 	StatusPort int    `yaml:"status_port" default:"10080"`
-	SSHPort    int    `yaml:"ssh_port,omitempty"`
 	DeployDir  string `yaml:"deploy_dir,omitempty"`
+	LogDir     string `yaml:"log_dir,omitempty"`
 	NumaNode   bool   `yaml:"numa_node,omitempty"`
 }
 
@@ -115,11 +119,13 @@ func (s TiDBSpec) Role() string {
 // TiKVSpec represents the TiKV topology specification in topology.yaml
 type TiKVSpec struct {
 	Host       string   `yaml:"host"`
+	SSHPort    int      `yaml:"ssh_port,omitempty"`
+	IsImported bool     `yaml:"imported,omitempty"`
 	Port       int      `yaml:"port" default:"20160"`
 	StatusPort int      `yaml:"status_port" default:"20180"`
-	SSHPort    int      `yaml:"ssh_port,omitempty"`
 	DeployDir  string   `yaml:"deploy_dir,omitempty"`
 	DataDir    string   `yaml:"data_dir,omitempty"`
+	LogDir     string   `yaml:"log_dir,omitempty"`
 	Offline    bool     `yaml:"offline,omitempty"`
 	Labels     []string `yaml:"labels,omitempty"`
 	NumaNode   bool     `yaml:"numa_node,omitempty"`
@@ -152,14 +158,16 @@ func (s TiKVSpec) Role() string {
 
 // PDSpec represents the PD topology specification in topology.yaml
 type PDSpec struct {
+	Host       string `yaml:"host"`
+	SSHPort    int    `yaml:"ssh_port,omitempty"`
+	IsImported bool   `yaml:"imported,omitempty"`
 	// Use Name to get the name with a default value if it's empty.
 	Name       string `yaml:"name"`
-	Host       string `yaml:"host"`
 	ClientPort int    `yaml:"client_port" default:"2379"`
 	PeerPort   int    `yaml:"peer_port" default:"2380"`
-	SSHPort    int    `yaml:"ssh_port,omitempty"`
 	DeployDir  string `yaml:"deploy_dir,omitempty"`
 	DataDir    string `yaml:"data_dir,omitempty"`
+	LogDir     string `yaml:"log_dir,omitempty"`
 	NumaNode   bool   `yaml:"numa_node,omitempty"`
 }
 
@@ -201,13 +209,15 @@ func (s PDSpec) Role() string {
 
 // PumpSpec represents the Pump topology specification in topology.yaml
 type PumpSpec struct {
-	Host      string `yaml:"host"`
-	Port      int    `yaml:"port" default:"8250"`
-	SSHPort   int    `yaml:"ssh_port,omitempty"`
-	DeployDir string `yaml:"deploy_dir,omitempty"`
-	DataDir   string `yaml:"data_dir,omitempty"`
-	Offline   bool   `yaml:"offline,omitempty"`
-	NumaNode  bool   `yaml:"numa_node,omitempty"`
+	Host       string `yaml:"host"`
+	SSHPort    int    `yaml:"ssh_port,omitempty"`
+	IsImported bool   `yaml:"imported,omitempty"`
+	Port       int    `yaml:"port" default:"8250"`
+	DeployDir  string `yaml:"deploy_dir,omitempty"`
+	DataDir    string `yaml:"data_dir,omitempty"`
+	LogDir     string `yaml:"log_dir,omitempty"`
+	Offline    bool   `yaml:"offline,omitempty"`
+	NumaNode   bool   `yaml:"numa_node,omitempty"`
 }
 
 // Role returns the component role of the instance
@@ -217,14 +227,15 @@ func (s PumpSpec) Role() string {
 
 // DrainerSpec represents the Drainer topology specification in topology.yaml
 type DrainerSpec struct {
-	Host      string `yaml:"host"`
-	Port      int    `yaml:"port" default:"8249"`
-	SSHPort   int    `yaml:"ssh_port,omitempty"`
-	DeployDir string `yaml:"deploy_dir,omitempty"`
-	DataDir   string `yaml:"data_dir,omitempty"`
-	CommitTS  string `yaml:"commit_ts,omitempty"`
-	Offline   bool   `yaml:"offline,omitempty"`
-	NumaNode  bool   `yaml:"numa_node,omitempty"`
+	Host       string `yaml:"host"`
+	SSHPort    int    `yaml:"ssh_port,omitempty"`
+	IsImported bool   `yaml:"imported,omitempty"`
+	Port       int    `yaml:"port" default:"8249"`
+	DeployDir  string `yaml:"deploy_dir,omitempty"`
+	DataDir    string `yaml:"data_dir,omitempty"`
+	CommitTS   string `yaml:"commit_ts,omitempty"`
+	Offline    bool   `yaml:"offline,omitempty"`
+	NumaNode   bool   `yaml:"numa_node,omitempty"`
 }
 
 // Role returns the component role of the instance
@@ -234,11 +245,13 @@ func (s DrainerSpec) Role() string {
 
 // PrometheusSpec represents the Prometheus Server topology specification in topology.yaml
 type PrometheusSpec struct {
-	Host      string `yaml:"host"`
-	Port      int    `yaml:"port" default:"9090"`
-	SSHPort   int    `yaml:"ssh_port,omitempty"`
-	DeployDir string `yaml:"deploy_dir,omitempty"`
-	DataDir   string `yaml:"data_dir,omitempty"`
+	Host       string `yaml:"host"`
+	SSHPort    int    `yaml:"ssh_port,omitempty"`
+	IsImported bool   `yaml:"imported,omitempty"`
+	Port       int    `yaml:"port" default:"9090"`
+	DeployDir  string `yaml:"deploy_dir,omitempty"`
+	DataDir    string `yaml:"data_dir,omitempty"`
+	Retention  string `yaml:"storage_retention,omitempty"`
 }
 
 // Role returns the component role of the instance
@@ -248,10 +261,11 @@ func (s PrometheusSpec) Role() string {
 
 // GrafanaSpec represents the Grafana topology specification in topology.yaml
 type GrafanaSpec struct {
-	Host      string `yaml:"host"`
-	Port      int    `yaml:"port" default:"3000"`
-	SSHPort   int    `yaml:"ssh_port,omitempty"`
-	DeployDir string `yaml:"deploy_dir,omitempty"`
+	Host       string `yaml:"host"`
+	SSHPort    int    `yaml:"ssh_port,omitempty"`
+	IsImported bool   `yaml:"imported,omitempty"`
+	Port       int    `yaml:"port" default:"3000"`
+	DeployDir  string `yaml:"deploy_dir,omitempty"`
 }
 
 // Role returns the component role of the instance
@@ -262,9 +276,10 @@ func (s GrafanaSpec) Role() string {
 // AlertManagerSpec represents the AlertManager topology specification in topology.yaml
 type AlertManagerSpec struct {
 	Host        string `yaml:"host"`
+	SSHPort     int    `yaml:"ssh_port,omitempty"`
+	IsImported  bool   `yaml:"imported,omitempty"`
 	WebPort     int    `yaml:"web_port" default:"9093"`
 	ClusterPort int    `yaml:"cluster_port" default:"9094"`
-	SSHPort     int    `yaml:"ssh_port,omitempty"`
 	DeployDir   string `yaml:"deploy_dir,omitempty"`
 	DataDir     string `yaml:"data_dir,omitempty"`
 }
@@ -292,6 +307,10 @@ func (topo *TopologySpecification) UnmarshalYAML(unmarshal func(interface{}) err
 	}
 	if topo.MonitoredOptions.DataDir == "" {
 		topo.MonitoredOptions.DataDir = filepath.Join(topo.GlobalOptions.DataDir,
+			fmt.Sprintf("%s-%d", RoleMonitor, topo.MonitoredOptions.NodeExporterPort))
+	}
+	if topo.MonitoredOptions.LogDir == "" {
+		topo.MonitoredOptions.LogDir = filepath.Join(topo.GlobalOptions.LogDir,
 			fmt.Sprintf("%s-%d", RoleMonitor, topo.MonitoredOptions.NodeExporterPort))
 	}
 
@@ -553,6 +572,8 @@ func setCustomDefaults(globalOptions *GlobalOptions, field reflect.Value) error 
 			setDefaultDir(globalOptions.DataDir, field.Interface().(InstanceSpec).Role(), getPort(field), field.Field(j))
 		case "DeployDir":
 			setDefaultDir(globalOptions.DeployDir, field.Interface().(InstanceSpec).Role(), getPort(field), field.Field(j))
+		case "LogDir":
+			setDefaultDir(globalOptions.LogDir, field.Interface().(InstanceSpec).Role(), getPort(field), field.Field(j))
 		}
 	}
 
