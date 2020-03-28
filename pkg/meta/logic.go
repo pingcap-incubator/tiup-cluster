@@ -330,7 +330,8 @@ func (i *TiKVInstance) InitConfig(e executor.TiOpsExecutor, user, cacheDir, depl
 	for _, spec := range i.instance.topo.PDServers {
 		ends = append(ends, scripts.NewPDScript(spec.Name, spec.Host, spec.DeployDir, spec.DataDir))
 	}
-	cfg := scripts.NewTiKVScript(i.GetHost(), deployDir, filepath.Join(deployDir, "data")).AppendEndpoints(ends...)
+	dataDir := i.instance.InstanceSpec.(*TiKVSpec).DataDir
+	cfg := scripts.NewTiKVScript(i.GetHost(), deployDir, dataDir).AppendEndpoints(ends...)
 	fp := filepath.Join(cacheDir, fmt.Sprintf("run_tikv_%s_%d.sh", i.GetHost(), i.GetPort()))
 	if err := cfg.ConfigToFile(fp); err != nil {
 		return err
@@ -349,7 +350,7 @@ func (i *TiKVInstance) InitConfig(e executor.TiOpsExecutor, user, cacheDir, depl
 	if err := config.NewTiKVConfig().ConfigToFile(fp); err != nil {
 		return err
 	}
-	dst = filepath.Join(deployDir, "config", "tikv.toml")
+	dst = filepath.Join(deployDir, "conf", "tikv.toml")
 	if err := e.Transfer(fp, dst); err != nil {
 		return err
 	}
@@ -424,8 +425,8 @@ func (i *PDInstance) InitConfig(e executor.TiOpsExecutor, user, cacheDir, deploy
 		}
 		ends = append(ends, scripts.NewPDScript(spec.Name, spec.Host, spec.DeployDir, spec.DataDir))
 	}
-
-	cfg := scripts.NewPDScript(name, i.GetHost(), deployDir, filepath.Join(deployDir, "data")).AppendEndpoints(ends...)
+	dataDir := i.instance.InstanceSpec.(*PDSpec).DataDir
+	cfg := scripts.NewPDScript(name, i.GetHost(), deployDir, dataDir).AppendEndpoints(ends...)
 	fp := filepath.Join(cacheDir, fmt.Sprintf("run_pd_%s.sh", i.GetHost()))
 	if err := cfg.ConfigToFile(fp); err != nil {
 		return err
@@ -454,7 +455,8 @@ func (i *PDInstance) ScaleConfig(e executor.TiOpsExecutor, b *Specification, use
 		ends = append(ends, scripts.NewPDScript(spec.Name, spec.Host, spec.DeployDir, spec.DataDir))
 	}
 
-	cfg := scripts.NewPDScaleScript(name, i.GetHost(), deployDir, filepath.Join(deployDir, "data")).AppendEndpoints(ends...)
+	dataDir := i.instance.InstanceSpec.(*PDSpec).DataDir
+	cfg := scripts.NewPDScaleScript(name, i.GetHost(), deployDir, dataDir).AppendEndpoints(ends...)
 	fp := filepath.Join(cacheDir, fmt.Sprintf("run_pd_%s_%d.sh", i.GetHost(), i.GetPort()))
 	fmt.Println("script path:", fp)
 	if err := cfg.ConfigToFile(fp); err != nil {
