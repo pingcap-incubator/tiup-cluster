@@ -23,21 +23,21 @@ import (
 )
 
 // ImportAnsible imports a TiDB cluster deployed by TiDB-Ansible
-func ImportAnsible(dir string) error {
+func ImportAnsible(dir string) (string, *meta.ClusterMeta, error) {
 	inventoryFile, err := os.Open(filepath.Join(dir, ansibleInventoryFile))
 	if err != nil {
-		return err
+		return "", nil, err
 	}
 	defer inventoryFile.Close()
 
 	inventory, err := aini.Parse(inventoryFile)
 	if err != nil {
-		return err
+		return "", nil, err
 	}
 
 	clsName, clsMeta, err := parseInventory(dir, inventory)
 	if err != nil {
-		return err
+		return "", nil, err
 	}
 
 	// TODO: add output of imported cluster name and version
@@ -45,6 +45,8 @@ func ImportAnsible(dir string) error {
 	// TODO: prompt user for a chance to set a new cluster name
 
 	// TODO: get values from templates of roles to overwrite defaults
-	defaults.Set(clsMeta)
-	return meta.SaveClusterMeta(clsName, clsMeta)
+	if err := defaults.Set(clsMeta); err != nil {
+		return clsName, nil, err
+	}
+	return clsName, clsMeta, err
 }
