@@ -66,6 +66,7 @@ func parseInventory(dir string, inv *aini.InventoryData) (string, *meta.ClusterM
 				return "", nil, errors.New("only support cluster deployed with systemd")
 			}
 			clsMeta.User = host.Vars["ansible_user"]
+			topo.GlobalOptions.User = clsMeta.User
 			clsMeta.Version = host.Vars["tidb_version"]
 			clsName = host.Vars["cluster_name"]
 
