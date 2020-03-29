@@ -15,7 +15,6 @@ package executor
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -128,7 +127,7 @@ func (sshExec *SSHExecutor) Transfer(src string, dst string, download bool) erro
 	}
 	defer session.Close()
 
-	targetPath := filepath.Base(dst)
+	targetPath := filepath.Dir(dst)
 	if err = utils.CreateDir(targetPath); err != nil {
 		return err
 	}
@@ -137,18 +136,7 @@ func (sshExec *SSHExecutor) Transfer(src string, dst string, download bool) erro
 		return err
 	}
 
-	go func() {
-		r, err := session.StdoutPipe()
-		if err != nil {
-			return
-		}
+	session.Stdout = targetFile
 
-		data, err := ioutil.ReadAll(r)
-		if err != nil {
-			return
-		}
-		fmt.Fprint(targetFile, data)
-	}()
-
-	return session.Run(fmt.Sprintf("scp -f %s", src))
+	return session.Run(fmt.Sprintf("cat %s", src))
 }
