@@ -27,6 +27,7 @@ import (
 	system "github.com/pingcap-incubator/tiops/pkg/template/systemd"
 )
 
+// MonitoredConfig is used to generate the monitor node configuration
 type MonitoredConfig struct {
 	name       string
 	component  string
@@ -36,6 +37,7 @@ type MonitoredConfig struct {
 	deployDir  string
 }
 
+// Execute implements the Task interface
 func (m *MonitoredConfig) Execute(ctx *Context) error {
 	// Copy to remote server
 	exec, found := ctx.GetExecutor(m.host)
@@ -114,6 +116,13 @@ func (m *MonitoredConfig) syncBlackboxConfig(exec executor.TiOpsExecutor, cacheD
 	return nil
 }
 
+// Rollback implements the Task interface
 func (m *MonitoredConfig) Rollback(ctx *Context) error {
-	return ErrUnsupportRollback
+	return ErrUnsupportedRollback
+}
+
+// String implements the fmt.Stringer interface
+func (m *MonitoredConfig) String() string {
+	return fmt.Sprintf("MonitoredConfig: cluster=%s, user=%s, dir=%s, node_exporter_port=%d, blackbox_exporter_port=%d",
+		m.name, m.deployUser, m.deployDir, m.options.NodeExporterPort, m.options.BlackboxExporterPort)
 }

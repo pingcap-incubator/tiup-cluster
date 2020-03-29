@@ -14,8 +14,6 @@
 package cmd
 
 import (
-	"fmt"
-
 	"github.com/pingcap-incubator/tiops/pkg/meta"
 	operator "github.com/pingcap-incubator/tiops/pkg/operation"
 	"github.com/pingcap-incubator/tiops/pkg/task"
@@ -29,11 +27,11 @@ func newStartCmd() *cobra.Command {
 		Use:   "start <cluster-name>",
 		Short: "Start a TiDB cluster",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if len(args) < 1 {
-				cmd.Help()
-				return fmt.Errorf("cluster name not specified")
+			if len(args) != 1 {
+				return cmd.Help()
 			}
 
+			auditConfig.enable = true
 			clusterName := args[0]
 			metadata, err := meta.ClusterMetadata(clusterName)
 			if err != nil {
@@ -53,7 +51,7 @@ func newStartCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&options.Role, "role", "", "role name")
-	cmd.Flags().StringVar(&options.Node, "node-id", "", "node id")
+	cmd.Flags().StringSliceVarP(&options.Roles, "role", "R", nil, "Only start specified roles")
+	cmd.Flags().StringSliceVarP(&options.Nodes, "node", "N", nil, "Only start specified nodes")
 	return cmd
 }

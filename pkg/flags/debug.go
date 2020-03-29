@@ -11,17 +11,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package cmd
+package flags
 
-import "github.com/spf13/cobra"
-
-func newReloadCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "reload",
-		Short: "Reload a TiDB cluster",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return cmd.Help()
-		},
-	}
-	return cmd
-}
+// Global flags
+var (
+	ShowBacktrace = false
+)

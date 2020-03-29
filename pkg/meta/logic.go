@@ -20,11 +20,13 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/pingcap-incubator/tiops/pkg/executor"
+	"github.com/pingcap-incubator/tiops/pkg/log"
 	"github.com/pingcap-incubator/tiops/pkg/module"
 	"github.com/pingcap-incubator/tiops/pkg/template/config"
 	"github.com/pingcap-incubator/tiops/pkg/template/scripts"
 	system "github.com/pingcap-incubator/tiops/pkg/template/systemd"
 	"github.com/pingcap-incubator/tiup/pkg/set"
+	"github.com/pingcap/errors"
 )
 
 // Components names supported by TiOps
@@ -127,14 +129,13 @@ func (i *instance) InitConfig(e executor.TiOpsExecutor, user, cacheDir, deployDi
 	if err := systemCfg.ConfigToFile(sysCfg); err != nil {
 		return err
 	}
-	fmt.Println("config path:", sysCfg)
 	tgt := filepath.Join("/tmp", comp+"_"+uuid.New().String()+".service")
 	if err := e.Transfer(sysCfg, tgt); err != nil {
 		return err
 	}
-	if outp, errp, err := e.Execute(fmt.Sprintf("mv %s /etc/systemd/system/%s-%d.service", tgt, comp, port), true); err != nil {
-		fmt.Println(string(outp), string(errp))
-		return err
+	cmd := fmt.Sprintf("mv %s /etc/systemd/system/%s-%d.service", tgt, comp, port)
+	if _, _, err := e.Execute(cmd, true); err != nil {
+		return errors.Annotatef(err, "execute: %s", cmd)
 	}
 
 	return nil
@@ -333,7 +334,7 @@ func (i *TiKVInstance) InitConfig(e executor.TiOpsExecutor, user, cacheDir, depl
 	for _, spec := range i.instance.topo.PDServers {
 		ends = append(ends, scripts.NewPDScript(spec.Name, spec.Host, spec.DeployDir, spec.DataDir))
 	}
-	cfg := scripts.NewTiKVScript(i.GetHost(), deployDir, filepath.Join(deployDir, "data")).AppendEndpoints(ends...)
+	cfg := scripts.NewTiKVScript(i.GetHost(), deployDir, i.instance.DataDir()).AppendEndpoints(ends...)
 	fp := filepath.Join(cacheDir, fmt.Sprintf("run_tikv_%s_%d.sh", i.GetHost(), i.GetPort()))
 	if err := cfg.ConfigToFile(fp); err != nil {
 		return err
@@ -352,7 +353,7 @@ func (i *TiKVInstance) InitConfig(e executor.TiOpsExecutor, user, cacheDir, depl
 	if err := config.NewTiKVConfig().ConfigToFile(fp); err != nil {
 		return err
 	}
-	dst = filepath.Join(deployDir, "config", "tikv.toml")
+	dst = filepath.Join(deployDir, "conf", "tikv.toml")
 	if err := e.Transfer(fp, dst); err != nil {
 		return err
 	}
@@ -427,8 +428,7 @@ func (i *PDInstance) InitConfig(e executor.TiOpsExecutor, user, cacheDir, deploy
 		}
 		ends = append(ends, scripts.NewPDScript(spec.Name, spec.Host, spec.DeployDir, spec.DataDir))
 	}
-
-	cfg := scripts.NewPDScript(name, i.GetHost(), deployDir, filepath.Join(deployDir, "data")).AppendEndpoints(ends...)
+	cfg := scripts.NewPDScript(name, i.GetHost(), deployDir, i.instance.DataDir()).AppendEndpoints(ends...)
 	fp := filepath.Join(cacheDir, fmt.Sprintf("run_pd_%s.sh", i.GetHost()))
 	if err := cfg.ConfigToFile(fp); err != nil {
 		return err
@@ -449,7 +449,7 @@ func (i *PDInstance) ScaleConfig(e executor.TiOpsExecutor, b *Specification, use
 		return err
 	}
 	ends := []*scripts.PDScript{}
-	name := ""
+	name := i.Name
 	for _, spec := range b.PDServers {
 		if spec.Host == i.GetHost() {
 			name = spec.Name
@@ -457,9 +457,9 @@ func (i *PDInstance) ScaleConfig(e executor.TiOpsExecutor, b *Specification, use
 		ends = append(ends, scripts.NewPDScript(spec.Name, spec.Host, spec.DeployDir, spec.DataDir))
 	}
 
-	cfg := scripts.NewPDScaleScript(name, i.GetHost(), deployDir, filepath.Join(deployDir, "data")).AppendEndpoints(ends...)
+	cfg := scripts.NewPDScaleScript(name, i.GetHost(), deployDir, i.instance.DataDir()).AppendEndpoints(ends...)
 	fp := filepath.Join(cacheDir, fmt.Sprintf("run_pd_%s_%d.sh", i.GetHost(), i.GetPort()))
-	fmt.Println("script path:", fp)
+	log.Infof("script path: %s", fp)
 	if err := cfg.ConfigToFile(fp); err != nil {
 		return err
 	}
@@ -467,77 +467,10 @@ func (i *PDInstance) ScaleConfig(e executor.TiOpsExecutor, b *Specification, use
 	if err := e.Transfer(fp, dst); err != nil {
 		return err
 	}
+	if _, _, err := e.Execute("chmod +x "+dst, false); err != nil {
+		return err
+	}
 	return nil
-}
-
-// PumpComponent represents Pump component.
-type PumpComponent struct{ *Specification }
-
-// Name implements Component interface.
-func (c *PumpComponent) Name() string {
-	return ComponentPump
-}
-
-// Instances implements Component interface.
-func (c *PumpComponent) Instances() []Instance {
-	ins := make([]Instance, 0, len(c.PumpServers))
-	for _, s := range c.PumpServers {
-		ins = append(ins, &instance{
-			InstanceSpec: s,
-			name:         c.Name(),
-			host:         s.Host,
-			port:         s.Port,
-			sshp:         s.SSHPort,
-			topo:         c.Specification,
-
-			usedPorts: []int{
-				s.Port,
-			},
-			usedDirs: []string{
-				s.DeployDir,
-				s.DataDir,
-			},
-			statusFn: func(_ ...string) string {
-				return "N/A"
-			},
-		})
-	}
-	return ins
-}
-
-// DrainerComponent represents Drainer component.
-type DrainerComponent struct{ *Specification }
-
-// Name implements Component interface.
-func (c *DrainerComponent) Name() string {
-	return ComponentDrainer
-}
-
-// Instances implements Component interface.
-func (c *DrainerComponent) Instances() []Instance {
-	ins := make([]Instance, 0, len(c.Drainers))
-	for _, s := range c.Drainers {
-		ins = append(ins, &instance{
-			InstanceSpec: s,
-			name:         c.Name(),
-			host:         s.Host,
-			port:         s.Port,
-			sshp:         s.SSHPort,
-			topo:         c.Specification,
-
-			usedPorts: []int{
-				s.Port,
-			},
-			usedDirs: []string{
-				s.DeployDir,
-				s.DataDir,
-			},
-			statusFn: func(_ ...string) string {
-				return "N/A"
-			},
-		})
-	}
-	return ins
 }
 
 // MonitorComponent represents Monitor component.
@@ -806,4 +739,20 @@ func (topo *Specification) ComponentsByStartOrder() (comps []Component) {
 	comps = append(comps, &GrafanaComponent{topo})
 	comps = append(comps, &AlertmanagerComponent{topo})
 	return
+}
+
+// IterComponent iterates all components in component starting order
+func (topo *Specification) IterComponent(fn func(comp Component)) {
+	for _, comp := range topo.ComponentsByStartOrder() {
+		fn(comp)
+	}
+}
+
+// IterInstance iterates all instances in component starting order
+func (topo *Specification) IterInstance(fn func(instance Instance)) {
+	for _, comp := range topo.ComponentsByStartOrder() {
+		for _, inst := range comp.Instances() {
+			fn(inst)
+		}
+	}
 }

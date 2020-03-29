@@ -14,7 +14,9 @@
 package task
 
 import (
+	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/pingcap-incubator/tiops/pkg/meta"
 )
@@ -45,5 +47,12 @@ func (c *InitConfig) Execute(ctx *Context) error {
 
 // Rollback implements the Task interface
 func (c *InitConfig) Rollback(ctx *Context) error {
-	return ErrUnsupportRollback
+	return ErrUnsupportedRollback
+}
+
+// String implements the fmt.Stringer interface
+func (c *InitConfig) String() string {
+	return fmt.Sprintf("InitConfig: cluster=%s, user=%s, host=%s, path=%s, targetDir=%s",
+		c.name, c.deployUser, c.instance.GetHost(),
+		filepath.Join(meta.ClusterPath(c.name, "config", c.instance.ServiceName())), c.deployDir)
 }

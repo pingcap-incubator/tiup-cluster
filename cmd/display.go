@@ -18,15 +18,17 @@ import (
 	"strings"
 
 	"github.com/fatih/color"
+	"github.com/pingcap-incubator/tiops/pkg/log"
 	"github.com/pingcap-incubator/tiops/pkg/meta"
 	"github.com/pingcap-incubator/tiops/pkg/utils"
 	"github.com/pingcap-incubator/tiup/pkg/set"
+	tiuputils "github.com/pingcap-incubator/tiup/pkg/utils"
+	"github.com/pingcap/errors"
 	"github.com/spf13/cobra"
 )
 
 type displayOption struct {
 	clusterName string
-	showStatus  bool
 	filterRole  []string
 	filterNode  []string
 }
@@ -35,12 +37,11 @@ func newDisplayCmd() *cobra.Command {
 	opt := displayOption{}
 
 	cmd := &cobra.Command{
-		Use:   "display <cluster> [OPTIONS]",
+		Use:   "display <cluster-name>",
 		Short: "Display information of a TiDB cluster",
 		Args: func(cmd *cobra.Command, args []string) error {
-			if len(args) < 1 {
-				cmd.Help()
-				return fmt.Errorf("cluster name not specified")
+			if len(args) != 1 {
+				return cmd.Help()
 			}
 			opt.clusterName = args[0]
 			return nil
@@ -53,13 +54,17 @@ func newDisplayCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().BoolVarP(&opt.showStatus, "status", "s", false, "test and show current node status")
-	cmd.Flags().StringSliceVar(&opt.filterRole, "role", nil, "only display nodes of specific roles")
-	cmd.Flags().StringSliceVar(&opt.filterNode, "node", nil, "only display nodes of specific IDs")
+	cmd.Flags().StringSliceVarP(&opt.filterRole, "role", "R", nil, "Only display specified roles")
+	cmd.Flags().StringSliceVarP(&opt.filterNode, "node", "N", nil, "Only display specified nodes")
 
 	return cmd
 }
+
 func displayClusterMeta(opt *displayOption) error {
+	if tiuputils.IsNotExist(meta.ClusterPath(opt.clusterName, meta.MetaFileName)) {
+		return errors.Errorf("cluster '%s' not exists", opt.clusterName)
+	}
+
 	clsMeta, err := meta.ClusterMetadata(opt.clusterName)
 	if err != nil {
 		return err
@@ -67,8 +72,8 @@ func displayClusterMeta(opt *displayOption) error {
 
 	cyan := color.New(color.FgCyan, color.Bold)
 
-	fmt.Printf("TiDB Cluster: %s\n", cyan.Sprint(opt.clusterName))
-	fmt.Printf("TiDB Version: %s\n", cyan.Sprint(clsMeta.Version))
+	log.Output(fmt.Sprintf("TiDB Cluster: %s", cyan.Sprint(opt.clusterName)))
+	log.Output(fmt.Sprintf("TiDB Version: %s", cyan.Sprint(clsMeta.Version)))
 
 	return nil
 }
@@ -79,24 +84,9 @@ func displayClusterTopology(opt *displayOption) error {
 		return err
 	}
 
-	var clusterTable [][]string
-	if opt.showStatus {
-		clusterTable = append(clusterTable,
-			[]string{"ID",
-				"Role",
-				"Host",
-				"Ports",
-				"Status",
-				"Data Dir",
-				"Deploy Dir"})
-	} else {
-		clusterTable = append(clusterTable,
-			[]string{"ID",
-				"Role",
-				"Host",
-				"Ports",
-				"Data Dir",
-				"Deploy Dir"})
+	clusterTable := [][]string{
+		// Header
+		{"ID", "Role", "Host", "Ports", "Status", "Data Dir", "Deploy Dir"},
 	}
 
 	filterRoles := set.NewStringSet(opt.filterRole...)
@@ -120,26 +110,16 @@ func displayClusterTopology(opt *displayOption) error {
 				dataDir = insDirs[1]
 			}
 
-			if opt.showStatus {
-				clusterTable = append(clusterTable, []string{
-					color.CyanString(ins.ID()),
-					ins.Role(),
-					ins.GetHost(),
-					utils.JoinInt(ins.UsedPorts(), "/"),
-					formatInstanceStatus(ins.Status(pdList...)),
-					dataDir,
-					deployDir,
-				})
-			} else {
-				clusterTable = append(clusterTable, []string{
-					color.CyanString(ins.ID()),
-					ins.Role(),
-					ins.GetHost(),
-					utils.JoinInt(ins.UsedPorts(), "/"),
-					dataDir,
-					deployDir,
-				})
-			}
+			clusterTable = append(clusterTable, []string{
+				color.CyanString(ins.ID()),
+				ins.Role(),
+				ins.GetHost(),
+				utils.JoinInt(ins.UsedPorts(), "/"),
+				formatInstanceStatus(ins.Status(pdList...)),
+				dataDir,
+				deployDir,
+			})
+
 		}
 	}
 

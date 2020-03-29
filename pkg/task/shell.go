@@ -16,6 +16,7 @@ package task
 import (
 	"fmt"
 
+	"github.com/pingcap-incubator/tiops/pkg/log"
 	"github.com/pingcap/errors"
 )
 
@@ -41,19 +42,22 @@ func (m *Shell) Execute(ctx *Context) error {
 		cmd = fmt.Sprintf(`%s`, m.command)
 	}
 
-	fmt.Println("Run command: ", cmd)
+	log.Infof("Run command: %s", cmd)
 
-	stdout, stderr, err := exec.Execute(cmd, false)
+	_, _, err := exec.Execute(cmd, false)
 	if err != nil {
 		return errors.Trace(err)
 	}
 
-	fmt.Println("Run command stdout: ", string(stdout))
-	fmt.Println("Run command stderr: ", string(stderr))
 	return nil
 }
 
 // Rollback implements the Task interface
 func (m *Shell) Rollback(ctx *Context) error {
-	return ErrUnsupportRollback
+	return ErrUnsupportedRollback
+}
+
+// String implements the fmt.Stringer interface
+func (m *Shell) String() string {
+	return fmt.Sprintf("Shell: host=%s, sudo=%v, command=`%s`", m.host, m.sudo, m.command)
 }

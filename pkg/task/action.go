@@ -14,7 +14,7 @@
 package task
 
 import (
-	"io"
+	"fmt"
 
 	"github.com/pingcap-incubator/tiops/pkg/meta"
 	operator "github.com/pingcap-incubator/tiops/pkg/operation"
@@ -26,44 +26,43 @@ type ClusterOperate struct {
 	spec    *meta.Specification
 	op      operator.Operation
 	options operator.Options
-	w       io.Writer
 }
 
 // Execute implements the Task interface
 func (c *ClusterOperate) Execute(ctx *Context) error {
 	switch c.op {
 	case operator.StartOperation:
-		err := operator.Start(ctx, c.w, c.spec, c.options.Role, c.options.Node)
+		err := operator.Start(ctx, c.spec, c.options)
 		if err != nil {
 			return errors.Annotate(err, "failed to start")
 		}
-		operator.PrintClusterStatus(ctx, c.w, c.spec)
+		operator.PrintClusterStatus(ctx, c.spec)
 	case operator.StopOperation:
-		err := operator.Stop(ctx, c.w, c.spec, c.options.Role, c.options.Node)
+		err := operator.Stop(ctx, c.spec, c.options)
 		if err != nil {
 			return errors.Annotate(err, "failed to stop")
 		}
-		operator.PrintClusterStatus(ctx, c.w, c.spec)
+		operator.PrintClusterStatus(ctx, c.spec)
 	case operator.RestartOperation:
-		err := operator.Restart(ctx, c.w, c.spec, c.options.Role, c.options.Node)
+		err := operator.Restart(ctx, c.spec, c.options)
 		if err != nil {
 			return errors.Annotate(err, "failed to restart")
 		}
-		operator.PrintClusterStatus(ctx, c.w, c.spec)
+		operator.PrintClusterStatus(ctx, c.spec)
 	case operator.UpgradeOperation:
-		err := operator.Upgrade(ctx, c.w, c.spec, c.options)
+		err := operator.Upgrade(ctx, c.spec, c.options)
 		if err != nil {
 			return errors.Annotate(err, "failed to upgrade")
 		}
-		operator.PrintClusterStatus(ctx, c.w, c.spec)
+		operator.PrintClusterStatus(ctx, c.spec)
 	case operator.DestroyOperation:
-		err := operator.Destroy(ctx, c.w, c.spec)
+		err := operator.Destroy(ctx, c.spec)
 		if err != nil {
 			return errors.Annotate(err, "failed to destroy")
 		}
 	// print nothing
 	case operator.ScaleInOperation:
-		err := operator.ScaleIn(ctx, c.w, c.spec, c.options)
+		err := operator.ScaleIn(ctx, c.spec, c.options)
 		if err != nil {
 			return errors.Annotate(err, "failed to scale in")
 		}
@@ -76,5 +75,10 @@ func (c *ClusterOperate) Execute(ctx *Context) error {
 
 // Rollback implements the Task interface
 func (c *ClusterOperate) Rollback(ctx *Context) error {
-	return ErrUnsupportRollback
+	return ErrUnsupportedRollback
+}
+
+// String implements the fmt.Stringer interface
+func (c *ClusterOperate) String() string {
+	return fmt.Sprintf("ClusterOperate: operation=%s, options=%+v", c.op, c.options)
 }
