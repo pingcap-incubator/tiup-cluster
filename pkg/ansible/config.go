@@ -50,6 +50,9 @@ func ImportConfig(name string, clsMeta *meta.ClusterMeta) error {
 				copyFileTasks = append(copyFileTasks, t)
 			case meta.ComponentDrainer:
 				t := task.NewBuilder().
+					SSHKeySet(
+						meta.ClusterPath(name, "ssh", "id_rsa"),
+						meta.ClusterPath(name, "ssh", "id_rsa.pub")).
 					UserSSH(inst.GetHost(), clsMeta.Topology.GlobalOptions.User).
 					CopyFile(inst.DeployDir()+"/conf/"+inst.ComponentName(),
 						inst.GetHost(),
