@@ -14,19 +14,18 @@
 package cmd
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/pingcap-incubator/tiops/pkg/meta"
 	"github.com/pingcap-incubator/tiops/pkg/task"
+	tiopsutils "github.com/pingcap-incubator/tiops/pkg/utils"
 	"github.com/pingcap-incubator/tiup/pkg/repository"
 	"github.com/pingcap-incubator/tiup/pkg/set"
 	"github.com/pingcap-incubator/tiup/pkg/utils"
 	"github.com/pingcap/errors"
 	"github.com/spf13/cobra"
-	"gopkg.in/yaml.v2"
 )
 
 type componentInfo struct {
@@ -92,12 +91,8 @@ func deploy(clusterName, version, topoFile string, opt deployOptions) error {
 	}
 
 	var topo meta.TopologySpecification
-	yamlFile, err := ioutil.ReadFile(topoFile)
-	if err != nil {
-		return errors.Trace(err)
-	}
-	if err = yaml.Unmarshal(yamlFile, &topo); err != nil {
-		return errors.Trace(err)
+	if err := tiopsutils.ParseYaml(topoFile, &topo); err != nil {
+		return err
 	}
 	if err := os.MkdirAll(meta.ClusterPath(clusterName), 0755); err != nil {
 		return err
