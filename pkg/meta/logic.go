@@ -130,7 +130,7 @@ func (i *instance) InitConfig(e executor.TiOpsExecutor, user, cacheDir, deployDi
 		return err
 	}
 	tgt := filepath.Join("/tmp", comp+"_"+uuid.New().String()+".service")
-	if err := e.Transfer(sysCfg, tgt); err != nil {
+	if err := e.Transfer(sysCfg, tgt, false); err != nil {
 		return err
 	}
 	cmd := fmt.Sprintf("mv %s /etc/systemd/system/%s-%d.service", tgt, comp, port)
@@ -262,7 +262,7 @@ func (i *TiDBInstance) InitConfig(e executor.TiOpsExecutor, user, cacheDir, depl
 		return err
 	}
 	dst := filepath.Join(deployDir, "scripts", "run_tidb.sh")
-	if err := e.Transfer(fp, dst); err != nil {
+	if err := e.Transfer(fp, dst, false); err != nil {
 		return err
 	}
 	if _, _, err := e.Execute("chmod +x "+dst, false); err != nil {
@@ -340,7 +340,7 @@ func (i *TiKVInstance) InitConfig(e executor.TiOpsExecutor, user, cacheDir, depl
 		return err
 	}
 	dst := filepath.Join(deployDir, "scripts", "run_tikv.sh")
-	if err := e.Transfer(fp, dst); err != nil {
+	if err := e.Transfer(fp, dst, false); err != nil {
 		return err
 	}
 
@@ -354,7 +354,7 @@ func (i *TiKVInstance) InitConfig(e executor.TiOpsExecutor, user, cacheDir, depl
 		return err
 	}
 	dst = filepath.Join(deployDir, "conf", "tikv.toml")
-	if err := e.Transfer(fp, dst); err != nil {
+	if err := e.Transfer(fp, dst, false); err != nil {
 		return err
 	}
 
@@ -434,7 +434,7 @@ func (i *PDInstance) InitConfig(e executor.TiOpsExecutor, user, cacheDir, deploy
 		return err
 	}
 	dst := filepath.Join(deployDir, "scripts", "run_pd.sh")
-	if err := e.Transfer(fp, dst); err != nil {
+	if err := e.Transfer(fp, dst, false); err != nil {
 		return err
 	}
 	if _, _, err := e.Execute("chmod +x "+dst, false); err != nil {
@@ -464,7 +464,7 @@ func (i *PDInstance) ScaleConfig(e executor.TiOpsExecutor, b *Specification, use
 		return err
 	}
 	dst := filepath.Join(deployDir, "scripts", "run_pd.sh")
-	if err := e.Transfer(fp, dst); err != nil {
+	if err := e.Transfer(fp, dst, false); err != nil {
 		return err
 	}
 	if _, _, err := e.Execute("chmod +x "+dst, false); err != nil {
