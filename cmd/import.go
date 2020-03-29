@@ -14,7 +14,9 @@
 package cmd
 
 import (
+	"github.com/fatih/color"
 	"github.com/pingcap-incubator/tiops/pkg/ansible"
+	"github.com/pingcap-incubator/tiops/pkg/log"
 	"github.com/pingcap-incubator/tiops/pkg/meta"
 	"github.com/pingcap-incubator/tiops/pkg/utils"
 	"github.com/spf13/cobra"
@@ -36,6 +38,9 @@ func newImportCmd() *cobra.Command {
 				return err
 			}
 
+			// TODO: check cluster name with other clusters managed by us for conflicts
+			// TODO: prompt user for a chance to set a new cluster name
+
 			// copy SSH key to TiOps profile directory
 			if err = utils.CreateDir(meta.ClusterPath(clsName, "ssh")); err != nil {
 				return err
@@ -52,11 +57,18 @@ func newImportCmd() *cobra.Command {
 			}
 
 			// copy config files form deployment servers
-			if err := ansible.ImportConfig(clsName, clsMeta); err != nil {
+			if err = ansible.ImportConfig(clsName, clsMeta); err != nil {
 				return err
 			}
 
-			return meta.SaveClusterMeta(clsName, clsMeta)
+			if err = meta.SaveClusterMeta(clsName, clsMeta); err != nil {
+				return err
+			}
+
+			log.Infof("Cluster %s imported.", clsName)
+			log.Infof("Try `%s` to see the cluster.",
+				color.HiYellowString("tiops display %s", clsName))
+			return nil
 		},
 	}
 
