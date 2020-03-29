@@ -14,6 +14,7 @@
 package ansible
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -49,4 +50,15 @@ func ImportAnsible(dir string) (string, *meta.ClusterMeta, error) {
 		return clsName, nil, err
 	}
 	return clsName, clsMeta, err
+}
+
+// SSHKeyPath gets the path to default SSH private key, this is the key Ansible
+// uses to connect deployment servers
+func SSHKeyPath() string {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+
+	return fmt.Sprintf("%s/.ssh/id_rsa", homeDir)
 }
