@@ -26,7 +26,7 @@ func newStopCmd() *cobra.Command {
 		Use:   "stop <cluster-name>",
 		Short: "Stop a TiDB cluster",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if len(args) < 1 {
+			if len(args) != 1 {
 				return cmd.Help()
 			}
 
