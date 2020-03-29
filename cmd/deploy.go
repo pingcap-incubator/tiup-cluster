@@ -79,7 +79,7 @@ func getComponentVersion(comp, version string) repository.Version {
 	case meta.ComponentPrometheus:
 		return "v2.16.0"
 	case meta.ComponentGrafana:
-		return "v6.7.1"
+		return "v6.1.6"
 	case meta.ComponentAlertManager:
 		return "v0.20.0"
 	case meta.ComponentBlackboxExporter:
@@ -196,8 +196,8 @@ func deploy(name, topoFile string, opt deployOptions) error {
 					filepath.Join(deployDir, "config"),
 					filepath.Join(deployDir, "scripts"),
 					filepath.Join(deployDir, "logs")).
-				CopyComponent(comp, version, host, deployDir).
-				MonitoredConfig(name, topo.MonitoredOptions, opt.deployUser, deployDir).
+				//CopyComponent(comp, version, host, deployDir).
+				MonitoredConfig(name, comp, host, topo.MonitoredOptions, opt.deployUser, deployDir).
 				Build()
 			monitoredCompTasks = append(monitoredCompTasks, t)
 		}

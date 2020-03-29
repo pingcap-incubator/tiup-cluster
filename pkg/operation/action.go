@@ -22,6 +22,7 @@ import (
 	"github.com/pingcap-incubator/tiops/pkg/executor"
 	"github.com/pingcap-incubator/tiops/pkg/meta"
 	"github.com/pingcap-incubator/tiops/pkg/module"
+	"github.com/pingcap-incubator/tiup/pkg/set"
 	"github.com/pingcap/errors"
 )
 
@@ -35,11 +36,20 @@ func Start(
 ) error {
 	coms := spec.ComponentsByStartOrder()
 	coms = filterComponent(coms, component)
+	uniqueHosts := set.NewStringSet()
 
 	for _, com := range coms {
-		err := StartComponent(getter, w, filterInstance(com.Instances(), node))
-		if err != nil {
+		insts := filterInstance(com.Instances(), node)
+		if err := StartComponent(getter, w, insts); err != nil {
 			return errors.Annotatef(err, "failed to start %s", com.Name())
+		}
+		for _, inst := range insts {
+			if !uniqueHosts.Exist(inst.GetHost()) {
+				uniqueHosts.Insert(inst.GetHost())
+				if err := StartMonitored(getter, w, inst, spec.MonitoredOptions); err != nil {
+					return err
+				}
+			}
 		}
 	}
 
@@ -56,11 +66,21 @@ func Stop(
 ) error {
 	coms := spec.ComponentsByStopOrder()
 	coms = filterComponent(coms, component)
+	uniqueHosts := set.NewStringSet()
 
 	for _, com := range coms {
-		err := StopComponent(getter, w, filterInstance(com.Instances(), node))
+		insts := filterInstance(com.Instances(), node)
+		err := StopComponent(getter, w, insts)
 		if err != nil {
 			return errors.Annotatef(err, "failed to stop %s", com.Name())
+		}
+		for _, inst := range insts {
+			if !uniqueHosts.Exist(inst.GetHost()) {
+				uniqueHosts.Insert(inst.GetHost())
+				if err := StopMonitored(getter, w, inst, spec.MonitoredOptions); err != nil {
+					return err
+				}
+			}
 		}
 	}
 	return nil
@@ -85,6 +105,45 @@ func Restart(
 	err = Start(getter, w, spec, component, node)
 	if err != nil {
 		return errors.Annotatef(err, "failed to start")
+	}
+
+	return nil
+}
+
+// StartMonitored start BlackboxExporter and NodeExporter
+func StartMonitored(getter ExecutorGetter, w io.Writer, instance meta.Instance, options meta.MonitoredOptions) error {
+	ports := map[string]int{
+		meta.ComponentNodeExporter:     options.NodeExporterPort,
+		meta.ComponentBlackboxExporter: options.BlackboxExporterPort,
+	}
+	e := getter.Get(instance.GetHost())
+	for _, comp := range []string{meta.ComponentNodeExporter, meta.ComponentBlackboxExporter} {
+		fmt.Fprintf(w, "Starting component %s\n", comp)
+		fmt.Fprintf(w, "\tStarting instance %s\n", instance.GetHost())
+		c := module.SystemdModuleConfig{
+			Unit:         fmt.Sprintf("%s-%d.service", comp, ports[comp]),
+			ReloadDaemon: true,
+			Action:       "start",
+		}
+		systemd := module.NewSystemdModule(c)
+		stdout, stderr, err := systemd.Execute(e)
+
+		io.Copy(w, bytes.NewReader(stdout))
+		io.Copy(w, bytes.NewReader(stderr))
+
+		if err != nil {
+			return errors.Annotatef(err, "failed to start: %s", instance.GetHost())
+		}
+
+		// Check ready.
+
+		if err := meta.PortStarted(e, ports[comp]); err != nil {
+			str := fmt.Sprintf("\t%s failed to start: %s", instance.GetHost(), err)
+			fmt.Fprintln(w, str)
+			return errors.Annotatef(err, str)
+		}
+
+		fmt.Fprintf(w, "\tStart %s success\n", instance.GetHost())
 	}
 
 	return nil
@@ -129,6 +188,40 @@ func StartComponent(getter ExecutorGetter, w io.Writer, instances []meta.Instanc
 		}
 
 		fmt.Fprintf(w, "\tStart %s success\n", ins.GetHost())
+	}
+
+	return nil
+}
+
+// StopMonitored stop BlackboxExporter and NodeExporter
+func StopMonitored(getter ExecutorGetter, w io.Writer, instance meta.Instance, options meta.MonitoredOptions) error {
+	ports := map[string]int{
+		meta.ComponentNodeExporter:     options.NodeExporterPort,
+		meta.ComponentBlackboxExporter: options.BlackboxExporterPort,
+	}
+	e := getter.Get(instance.GetHost())
+	for _, comp := range []string{meta.ComponentNodeExporter, meta.ComponentBlackboxExporter} {
+		fmt.Fprintf(w, "Stopping component %s\n", comp)
+
+		c := module.SystemdModuleConfig{
+			Unit:   fmt.Sprintf("%s-%d.service", comp, ports[comp]),
+			Action: "stop",
+		}
+		systemd := module.NewSystemdModule(c)
+		stdout, stderr, err := systemd.Execute(e)
+
+		io.Copy(w, bytes.NewReader(stdout))
+		io.Copy(w, bytes.NewReader(stderr))
+
+		if err != nil {
+			return errors.Annotatef(err, "failed to stop: %s", instance.GetHost())
+		}
+
+		if err := meta.PortStopped(e, ports[comp]); err != nil {
+			str := fmt.Sprintf("\t%s failed to stop: %s", instance.GetHost(), err)
+			fmt.Fprintln(w, str)
+			return errors.Annotatef(err, str)
+		}
 	}
 
 	return nil
