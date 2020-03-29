@@ -16,9 +16,12 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"path"
 
 	"github.com/fatih/color"
+	"github.com/pingcap-incubator/tiops/pkg/executor"
 	"github.com/pingcap-incubator/tiops/pkg/flags"
+	"gopkg.in/natefinch/lumberjack.v2"
 
 	"github.com/pingcap-incubator/tiops/pkg/meta"
 	"github.com/pingcap-incubator/tiops/pkg/version"
@@ -42,6 +45,8 @@ func init() {
 			if err := meta.Initialize(); err != nil {
 				return err
 			}
+			// Must after meta.Initialize for setting profile directory.
+			initExecuteLog()
 			return tiupmeta.InitRepository(repository.Options{
 				GOOS:   "linux",
 				GOARCH: "amd64",
@@ -83,4 +88,17 @@ func Execute() {
 		}
 		os.Exit(1)
 	}
+}
+
+func initExecuteLog() {
+	fname := path.Join(meta.ProfilePath(meta.TiOpsLogDir), "execute.log")
+	fmt.Println(fname)
+	var w = &lumberjack.Logger{
+		Filename:   fname,
+		MaxSize:    10, // megabytes
+		MaxBackups: 3,
+		MaxAge:     28, //days
+	}
+
+	executor.SetLogger(w)
 }

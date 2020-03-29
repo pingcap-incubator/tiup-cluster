@@ -79,6 +79,8 @@ func (sshExec *SSHExecutor) Initialize(config SSHConfig) error {
 	return nil
 }
 
+var pathENV = "PATH=$PATH:/usr/bin:/usr/sbin"
+
 // Execute run the command via SSH, it's not invoking any specific shell by default.
 func (sshExec *SSHExecutor) Execute(cmd string, sudo bool, timeout ...time.Duration) ([]byte, []byte, error) {
 	// try to acquire root permission
@@ -87,11 +89,13 @@ func (sshExec *SSHExecutor) Execute(cmd string, sudo bool, timeout ...time.Durat
 	}
 
 	// set a basic PATH in case it's empty on login
-	cmd = fmt.Sprintf("PATH=$PATH:/usr/bin:/usr/sbin %s", cmd)
+	cmd = pathENV + " " + cmd
 
 	// run command on remote host
 	// default timeout is 60s in easyssh-proxy
 	stdout, stderr, done, err := sshExec.Config.Run(cmd, timeout...)
+	logExe(sshExec.Config.Server+":"+sshExec.Config.Port, cmd, []byte(stdout), []byte(stderr), done, err)
+
 	if err != nil {
 		return []byte(stdout), []byte(stderr),
 			errors.Annotatef(err, "cmd: '%s' on %s:%s", cmd, sshExec.Config.Server, sshExec.Config.Port)

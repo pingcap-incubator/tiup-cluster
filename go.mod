@@ -9,7 +9,6 @@ require (
 	github.com/fatih/color v1.9.0
 	github.com/google/uuid v1.1.1
 	github.com/juju/ansiterm v0.0.0-20180109212912-720a0952cc2a // indirect
-	github.com/juju/errors v0.0.0-20190930114154-d42613fe1ab9
 	github.com/lunixbochs/vtclean v1.0.0 // indirect
 	github.com/mattn/go-colorable v0.1.6 // indirect
 	github.com/pingcap-incubator/tiup v0.0.2-0.20200325070431-4ee17df76496
@@ -21,5 +20,6 @@ require (
 	golang.org/x/crypto v0.0.0-20200109152110-61a87790db17
 	golang.org/x/mod v0.2.0
 	golang.org/x/sys v0.0.0-20200323222414-85ca7c5b95cd // indirect
+	gopkg.in/natefinch/lumberjack.v2 v2.0.0
 	gopkg.in/yaml.v2 v2.2.8
 )
