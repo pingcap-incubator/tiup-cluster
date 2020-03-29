@@ -53,6 +53,8 @@ func newDeploy() *cobra.Command {
 			if len(opt.keyFile) == 0 && len(opt.password) == 0 {
 				return errPasswordKeyAtLeastOne
 			}
+
+			auditConfig.enable = true
 			return deploy(args[0], args[1], args[2], opt)
 		},
 	}

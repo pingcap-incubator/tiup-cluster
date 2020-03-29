@@ -38,9 +38,8 @@ func newDisplayCmd() *cobra.Command {
 		Use:   "display <cluster> [OPTIONS]",
 		Short: "Display information of a TiDB cluster",
 		Args: func(cmd *cobra.Command, args []string) error {
-			if len(args) < 1 {
-				cmd.Help()
-				return fmt.Errorf("cluster name not specified")
+			if len(args) != 1 {
+				return cmd.Help()
 			}
 			opt.clusterName = args[0]
 			return nil

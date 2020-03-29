@@ -14,8 +14,6 @@
 package cmd
 
 import (
-	"fmt"
-
 	"github.com/pingcap-incubator/tiops/pkg/meta"
 	operator "github.com/pingcap-incubator/tiops/pkg/operation"
 	"github.com/pingcap-incubator/tiops/pkg/task"
@@ -29,10 +27,10 @@ func newStopCmd() *cobra.Command {
 		Short: "Stop a TiDB cluster",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) < 1 {
-				cmd.Help()
-				return fmt.Errorf("cluster name not specified")
+				return cmd.Help()
 			}
 
+			auditConfig.enable = true
 			clusterName := args[0]
 			metadata, err := meta.ClusterMetadata(clusterName)
 			if err != nil {
