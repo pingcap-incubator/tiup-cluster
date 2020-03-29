@@ -17,9 +17,8 @@ import (
 	"io"
 	"time"
 
-	"github.com/pingcap-incubator/tiops/pkg/log"
-
 	"github.com/pingcap-incubator/tiops/pkg/api"
+	"github.com/pingcap-incubator/tiops/pkg/log"
 	"github.com/pingcap-incubator/tiops/pkg/meta"
 	"github.com/pingcap-incubator/tiup/pkg/set"
 	"github.com/pingcap/errors"

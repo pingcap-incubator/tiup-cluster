@@ -17,7 +17,6 @@ import (
 	"os"
 
 	"github.com/pingcap-incubator/tiops/pkg/log"
-
 	"github.com/pingcap-incubator/tiops/pkg/meta"
 	operator "github.com/pingcap-incubator/tiops/pkg/operation"
 	"github.com/pingcap-incubator/tiops/pkg/task"

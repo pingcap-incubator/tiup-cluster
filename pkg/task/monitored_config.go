@@ -17,7 +17,6 @@ import (
 	"fmt"
 
 	"github.com/pingcap-incubator/tiops/pkg/log"
-
 	"github.com/pingcap-incubator/tiops/pkg/meta"
 )
 
