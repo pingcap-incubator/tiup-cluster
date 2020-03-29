@@ -52,7 +52,7 @@ func newDeploy() *cobra.Command {
 				return cmd.Help()
 			}
 			if len(opt.keyFile) == 0 && len(opt.password) == 0 {
-				return errors.New("--password and --key need to specify at least one")
+				return errPasswordKeyAtLeastOne
 			}
 			return deploy(args[0], args[1], args[2], opt)
 		},
@@ -86,9 +86,9 @@ func getComponentVersion(comp, version string) repository.Version {
 	}
 }
 
-func deploy(name, version, topoFile string, opt deployOptions) error {
-	if utils.IsExist(meta.ClusterPath(name, meta.MetaFileName)) {
-		return errors.Errorf("cluster name '%s' exists, please choose another cluster name", name)
+func deploy(clusterName, version, topoFile string, opt deployOptions) error {
+	if utils.IsExist(meta.ClusterPath(clusterName, meta.MetaFileName)) {
+		return errors.Errorf("cluster name '%s' exists, please choose another cluster name", clusterName)
 	}
 
 	var topo meta.TopologySpecification
@@ -99,7 +99,7 @@ func deploy(name, version, topoFile string, opt deployOptions) error {
 	if err = yaml.Unmarshal(yamlFile, &topo); err != nil {
 		return errors.Trace(err)
 	}
-	if err := os.MkdirAll(meta.ClusterPath(name), 0755); err != nil {
+	if err := os.MkdirAll(meta.ClusterPath(clusterName), 0755); err != nil {
 		return err
 	}
 
@@ -150,7 +150,7 @@ func deploy(name, version, topoFile string, opt deployOptions) error {
 					filepath.Join(deployDir, "scripts"),
 					filepath.Join(deployDir, "log")).
 				CopyComponent(inst.ComponentName(), version, inst.GetHost(), deployDir).
-				InitConfig(name, inst, topo.GlobalOptions.User, deployDir).
+				InitConfig(clusterName, inst, topo.GlobalOptions.User, deployDir).
 				Build()
 			copyCompTasks = append(copyCompTasks, t)
 		}
@@ -182,14 +182,14 @@ func deploy(name, version, topoFile string, opt deployOptions) error {
 					filepath.Join(deployDir, "scripts"),
 					filepath.Join(deployDir, "log")).
 				CopyComponent(comp, version, host, deployDir).
-				MonitoredConfig(name, topo.MonitoredOptions, topo.GlobalOptions.User, deployDir).
+				MonitoredConfig(clusterName, topo.MonitoredOptions, topo.GlobalOptions.User, deployDir).
 				Build()
 			monitoredCompTasks = append(monitoredCompTasks, t)
 		}
 	}
 
 	t := task.NewBuilder().
-		SSHKeyGen(meta.ClusterPath(name, "ssh", "id_rsa")).
+		SSHKeyGen(meta.ClusterPath(clusterName, "ssh", "id_rsa")).
 		Parallel(envInitTasks...).
 		Parallel(downloadCompTasks...).
 		Parallel(copyCompTasks...).
@@ -200,7 +200,7 @@ func deploy(name, version, topoFile string, opt deployOptions) error {
 		return errors.Trace(err)
 	}
 
-	return meta.SaveClusterMeta(name, &meta.ClusterMeta{
+	return meta.SaveClusterMeta(clusterName, &meta.ClusterMeta{
 		User:     topo.GlobalOptions.User,
 		Version:  version,
 		Topology: &topo,

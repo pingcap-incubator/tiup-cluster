@@ -19,9 +19,10 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/pingcap-incubator/tiops/pkg/log"
+
 	"github.com/pingcap-incubator/tiops/pkg/flags"
 
-	"github.com/fatih/color"
 	"github.com/pingcap-incubator/tiops/pkg/executor"
 	"github.com/pingcap-incubator/tiup/pkg/repository"
 )
@@ -128,26 +129,6 @@ func (ctx *Context) SetManifest(comp string, m *repository.VersionManifest) {
 	return
 }
 
-// Debugf output the debug message to console
-func (ctx *Context) Debugf(format string, args ...interface{}) {
-	fmt.Println(color.CyanString(format, args...))
-}
-
-// Infof output the log message to console
-func (ctx *Context) Infof(format string, args ...interface{}) {
-	fmt.Println(color.GreenString(format, args...))
-}
-
-// Warnf output the warning message to console
-func (ctx *Context) Warnf(format string, args ...interface{}) {
-	fmt.Println(color.YellowString(format, args...))
-}
-
-// Errorf output the error message to console
-func (ctx *Context) Errorf(format string, args ...interface{}) {
-	fmt.Println(color.RedString(format, args...))
-}
-
 func isSingleTask(t Task) bool {
 	_, isS := t.(Serial)
 	_, isP := t.(Parallel)
@@ -158,7 +139,7 @@ func isSingleTask(t Task) bool {
 func (s Serial) Execute(ctx *Context) error {
 	for _, t := range s {
 		if isSingleTask(t) {
-			ctx.Infof("+ [ Serial ] - %s", t.String())
+			log.Infof("+ [ Serial ] - %s", t.String())
 		}
 		err := t.Execute(ctx)
 		if err != nil {
@@ -214,7 +195,7 @@ func (pt Parallel) Execute(ctx *Context) error {
 		go func(t Task) {
 			defer wg.Done()
 			if isSingleTask(t) {
-				ctx.Debugf("+ [Parallel] - %s", t.String())
+				log.Debugf("+ [Parallel] - %s", t.String())
 			}
 			err := t.Execute(ctx)
 			if err != nil {

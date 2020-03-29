@@ -299,12 +299,12 @@ func (topo *TopologySpecification) UnmarshalYAML(unmarshal func(interface{}) err
 		return err
 	}
 
-	return topo.validate()
+	return topo.Validate()
 }
 
-// validate validates the topology specification and produce error if
-// the specification invalid
-func (topo *TopologySpecification) validate() error {
+// Validate validates the topology specification and produce error if the
+// specification invalid (e.g: port conflicts or directory conflicts)
+func (topo *TopologySpecification) Validate() error {
 	findField := func(v reflect.Value, fieldName string) (int, bool) {
 		for i := 0; i < v.NumField(); i++ {
 			if v.Type().Field(i).Name == fieldName {
@@ -459,14 +459,16 @@ func (topo *TopologySpecification) GetPDList() []string {
 // Merge returns a new TopologySpecification which sum old ones
 func (topo *TopologySpecification) Merge(that *TopologySpecification) *TopologySpecification {
 	return &TopologySpecification{
-		TiDBServers:  append(topo.TiDBServers, that.TiDBServers...),
-		TiKVServers:  append(topo.TiKVServers, that.TiKVServers...),
-		PDServers:    append(topo.PDServers, that.PDServers...),
-		PumpServers:  append(topo.PumpServers, that.PumpServers...),
-		Drainers:     append(topo.Drainers, that.Drainers...),
-		Monitors:     append(topo.Monitors, that.Monitors...),
-		Grafana:      append(topo.Grafana, that.Grafana...),
-		Alertmanager: append(topo.Alertmanager, that.Alertmanager...),
+		GlobalOptions:    topo.GlobalOptions,
+		MonitoredOptions: topo.MonitoredOptions,
+		TiDBServers:      append(topo.TiDBServers, that.TiDBServers...),
+		TiKVServers:      append(topo.TiKVServers, that.TiKVServers...),
+		PDServers:        append(topo.PDServers, that.PDServers...),
+		PumpServers:      append(topo.PumpServers, that.PumpServers...),
+		Drainers:         append(topo.Drainers, that.Drainers...),
+		Monitors:         append(topo.Monitors, that.Monitors...),
+		Grafana:          append(topo.Grafana, that.Grafana...),
+		Alertmanager:     append(topo.Alertmanager, that.Alertmanager...),
 	}
 }
 
