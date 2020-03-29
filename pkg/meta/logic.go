@@ -554,6 +554,7 @@ func (c *AlertmanagerComponent) Instances() []Instance {
 			InstanceSpec: s,
 			name:         c.Name(),
 			host:         s.Host,
+			port:         s.WebPort,
 			sshp:         s.SSHPort,
 			topo:         c.Specification,
 
