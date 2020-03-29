@@ -15,10 +15,13 @@ package cmd
 
 import (
 	"bufio"
+	"fmt"
 	"io/ioutil"
 	"os"
+	"strings"
 	"time"
 
+	"github.com/fatih/color"
 	"github.com/pingcap-incubator/tiops/pkg/base52"
 	"github.com/pingcap-incubator/tiops/pkg/meta"
 	"github.com/pingcap-incubator/tiops/pkg/utils"
@@ -97,10 +100,20 @@ func showAuditLog(auditID string) error {
 		return errors.Errorf("cannot find the audit log '%s'", auditID)
 	}
 
+	ts, err := base52.Decode(auditID)
+	if err != nil {
+		return errors.Annotatef(err, "unrecognized audit id '%s'", auditID)
+	}
+
 	content, err := ioutil.ReadFile(path)
 	if err != nil {
 		return errors.Trace(err)
 	}
+
+	t := time.Unix(ts, 0)
+	hint := fmt.Sprintf("- OPERATION TIME: %s -", t.Format("2006-01-02T15:04:05"))
+	line := strings.Repeat("-", len(hint))
+	_, _ = os.Stdout.WriteString(color.MagentaString("%s\n%s\n%s\n", line, hint, line))
 	_, _ = os.Stdout.Write(content)
 	return nil
 }
