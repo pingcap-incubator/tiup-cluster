@@ -43,8 +43,8 @@ func ImportConfig(name string, clsMeta *meta.ClusterMeta) error {
 					SSHKeySet(
 						meta.ClusterPath(name, "ssh", "id_rsa"),
 						meta.ClusterPath(name, "ssh", "id_rsa.pub")).
-					UserSSH(inst.GetHost(), clsMeta.Topology.GlobalOptions.User).
-					CopyFile(filepath.Join(inst.DeployDir(), "conf", inst.ComponentName()),
+					UserSSH(inst.GetHost(), clsMeta.User).
+					CopyFile(filepath.Join(inst.DeployDir(), "conf", inst.ComponentName()+".toml"),
 						meta.ClusterPath(name, "config", inst.ComponentName()+".toml"),
 						inst.GetHost(),
 						true).
@@ -55,8 +55,8 @@ func ImportConfig(name string, clsMeta *meta.ClusterMeta) error {
 					SSHKeySet(
 						meta.ClusterPath(name, "ssh", "id_rsa"),
 						meta.ClusterPath(name, "ssh", "id_rsa.pub")).
-					UserSSH(inst.GetHost(), clsMeta.Topology.GlobalOptions.User).
-					CopyFile(filepath.Join(inst.DeployDir(), "conf", inst.ComponentName()),
+					UserSSH(inst.GetHost(), clsMeta.User).
+					CopyFile(filepath.Join(inst.DeployDir(), "conf", inst.ComponentName()+".toml"),
 						meta.ClusterPath(name,
 							"config",
 							fmt.Sprintf("%s_%s_%d.toml",
