@@ -34,7 +34,7 @@ func ImportConfig(name string, clsMeta *meta.ClusterMeta) error {
 	for _, comp := range clsMeta.Topology.ComponentsByStartOrder() {
 		for idx, inst := range comp.Instances() {
 			switch inst.ComponentName() {
-			case "pd", "tikv", "pump", "tidb":
+			case meta.ComponentPD, meta.ComponentTiKV, meta.ComponentPump, meta.ComponentTiDB:
 				if idx != 0 {
 					break
 				}
@@ -48,7 +48,7 @@ func ImportConfig(name string, clsMeta *meta.ClusterMeta) error {
 						meta.ClusterPath(name, "config", inst.ComponentName()+".toml")).
 					Build()
 				copyFileTasks = append(copyFileTasks, t)
-			case "dariner":
+			case meta.ComponentDrainer:
 				t := task.NewBuilder().
 					UserSSH(inst.GetHost(), clsMeta.Topology.GlobalOptions.User).
 					CopyFile(inst.DeployDir()+"/conf/"+inst.ComponentName(),
