@@ -15,6 +15,7 @@ package ansible
 
 import (
 	"fmt"
+	"path/filepath"
 
 	"github.com/pingcap-incubator/tiops/pkg/meta"
 	"github.com/pingcap-incubator/tiops/pkg/task"
@@ -30,7 +31,7 @@ func ImportConfig(name string, clsMeta *meta.ClusterMeta) error {
 	//if err := ioutil.WriteFile(meta.ClusterPath(name, "topology.yaml"), yamlFile, 0664); err != nil {
 	//	return err
 	//}
-	var copyFileTasks     []task.Task
+	var copyFileTasks []task.Task
 	for _, comp := range clsMeta.Topology.ComponentsByStartOrder() {
 		for idx, inst := range comp.Instances() {
 			switch inst.ComponentName() {
@@ -43,9 +44,10 @@ func ImportConfig(name string, clsMeta *meta.ClusterMeta) error {
 						meta.ClusterPath(name, "ssh", "id_rsa"),
 						meta.ClusterPath(name, "ssh", "id_rsa.pub")).
 					UserSSH(inst.GetHost(), clsMeta.Topology.GlobalOptions.User).
-					CopyFile(inst.DeployDir()+"/conf/"+inst.ComponentName(),
+					CopyFile(filepath.Join(inst.DeployDir(), "conf", inst.ComponentName()),
+						meta.ClusterPath(name, "config", inst.ComponentName()+".toml"),
 						inst.GetHost(),
-						meta.ClusterPath(name, "config", inst.ComponentName()+".toml")).
+						true).
 					Build()
 				copyFileTasks = append(copyFileTasks, t)
 			case meta.ComponentDrainer:
@@ -54,11 +56,17 @@ func ImportConfig(name string, clsMeta *meta.ClusterMeta) error {
 						meta.ClusterPath(name, "ssh", "id_rsa"),
 						meta.ClusterPath(name, "ssh", "id_rsa.pub")).
 					UserSSH(inst.GetHost(), clsMeta.Topology.GlobalOptions.User).
-					CopyFile(inst.DeployDir()+"/conf/"+inst.ComponentName(),
-						inst.GetHost(),
+					CopyFile(filepath.Join(inst.DeployDir(), "conf", inst.ComponentName()),
 						meta.ClusterPath(name,
 							"config",
-							fmt.Sprintf("%s_%s_%d.toml", inst.ComponentName(), inst.GetHost(), inst.GetPort()))).
+							fmt.Sprintf("%s_%s_%d.toml",
+								inst.ComponentName(),
+								inst.GetHost(),
+								inst.GetPort(),
+							),
+						),
+						inst.GetHost(),
+						true).
 					Build()
 				copyFileTasks = append(copyFileTasks, t)
 			default:
@@ -72,7 +80,6 @@ func ImportConfig(name string, clsMeta *meta.ClusterMeta) error {
 
 	if err := t.Execute(task.NewContext()); err != nil {
 		return errors.Trace(err)
-	} else {
-		return nil
 	}
+	return nil
 }

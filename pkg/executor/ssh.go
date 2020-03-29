@@ -15,10 +15,14 @@ package executor
 
 import (
 	"fmt"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 
 	"github.com/appleboy/easyssh-proxy"
+	"github.com/pingcap-incubator/tiops/pkg/utils"
 	"github.com/pingcap/errors"
 )
 
@@ -109,7 +113,42 @@ func (sshExec *SSHExecutor) Execute(cmd string, sudo bool, timeout ...time.Durat
 }
 
 // Transfer copies files via SCP
-// This function depends on `scp` (a tool from OpenSSH)
-func (sshExec *SSHExecutor) Transfer(src string, dst string) error {
-	return sshExec.Config.Scp(src, dst)
+// This function depends on `scp` (a tool from OpenSSH or other SSH implementation)
+// This function is based on easyssh.MakeConfig.Scp() but with support of copying
+// file from remote to local.
+func (sshExec *SSHExecutor) Transfer(src string, dst string, download bool) error {
+	if !download {
+		return sshExec.Config.Scp(src, dst)
+	}
+
+	// download file from remote
+	session, err := sshExec.Config.Connect()
+	if err != nil {
+		return err
+	}
+	defer session.Close()
+
+	targetPath := filepath.Base(dst)
+	if err = utils.CreateDir(targetPath); err != nil {
+		return err
+	}
+	targetFile, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+
+	go func() {
+		r, err := session.StdoutPipe()
+		if err != nil {
+			return
+		}
+
+		data, err := ioutil.ReadAll(r)
+		if err != nil {
+			return
+		}
+		fmt.Fprint(targetFile, data)
+	}()
+
+	return session.Run(fmt.Sprintf("scp -f %s", src))
 }
