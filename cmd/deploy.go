@@ -167,6 +167,9 @@ func deploy(clusterName, version, topoFile string, opt deployOptions) error {
 func buildDownloadCompTasks(version string, topo *meta.Specification) []task.Task {
 	var tasks []task.Task
 	topo.IterComponent(func(comp meta.Component) {
+		if len(comp.Instances()) < 1 {
+			return
+		}
 		version := getComponentVersion(comp.Name(), version)
 		t := task.NewBuilder().Download(comp.Name(), version).Build()
 		tasks = append(tasks, t)

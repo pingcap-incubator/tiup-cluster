@@ -14,22 +14,28 @@
 package cmd
 
 import (
-	"fmt"
+	"io"
 	"os"
+	"strings"
+	"time"
 
 	"github.com/fatih/color"
 	"github.com/pingcap-incubator/tiops/pkg/flags"
-
+	"github.com/pingcap-incubator/tiops/pkg/log"
 	"github.com/pingcap-incubator/tiops/pkg/meta"
+	"github.com/pingcap-incubator/tiops/pkg/utils"
 	"github.com/pingcap-incubator/tiops/pkg/version"
 	tiupmeta "github.com/pingcap-incubator/tiup/pkg/meta"
 	"github.com/pingcap-incubator/tiup/pkg/repository"
+	"github.com/pingcap/errors"
 	"github.com/spf13/cobra"
 )
 
 var rootCmd *cobra.Command
+var auditFile *os.File
 
 func init() {
+	flags.ShowBacktrace = len(os.Getenv("TIUP_BACKTRACE")) > 0
 	cobra.EnableCommandSorting = false
 
 	rootCmd = &cobra.Command{
@@ -42,6 +48,18 @@ func init() {
 			if err := meta.Initialize(); err != nil {
 				return err
 			}
+			auditDir := meta.ProfilePath(meta.TiOpsAuditDir)
+			if err := utils.CreateDir(auditDir); err != nil {
+				return errors.Trace(err)
+			}
+			auditFilePath := meta.ProfilePath(meta.TiOpsAuditDir, time.Now().Format(time.RFC3339))
+			f, err := os.OpenFile(auditFilePath, os.O_WRONLY|os.O_TRUNC|os.O_CREATE, os.ModePerm)
+			if err != nil {
+				return errors.Trace(err)
+			}
+			_, _ = auditFile.WriteString(strings.Join(os.Args, " ") + "\n")
+			auditFile = f
+			log.SetOutput(io.MultiWriter(os.Stdout, auditFile))
 			return tiupmeta.InitRepository(repository.Options{
 				GOOS:   "linux",
 				GOARCH: "amd64",
@@ -74,13 +92,18 @@ func init() {
 
 // Execute executes the root command
 func Execute() {
-	flags.ShowBacktrace = len(os.Getenv("TIUP_BACKTRACE")) > 0
-	if err := rootCmd.Execute(); err != nil {
+	var code int
+	err := rootCmd.Execute()
+	if err != nil {
 		if flags.ShowBacktrace {
-			fmt.Println(color.RedString("Error: %+v", err))
+			log.Output(color.RedString("Error: %+v", err))
 		} else {
-			fmt.Println(color.RedString("Error: %v", err))
+			log.Output(color.RedString("Error: %v", err))
 		}
-		os.Exit(1)
+		code = 1
 	}
+	if auditFile != nil {
+		_ = auditFile.Close()
+	}
+	os.Exit(code)
 }
