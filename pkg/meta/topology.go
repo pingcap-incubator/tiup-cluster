@@ -43,6 +43,7 @@ type (
 		Role() string
 		SSH() (string, int)
 		GetMainPort() int
+		IsImported() bool
 	}
 
 	// GlobalOptions represents the global options for all groups in topology
@@ -83,7 +84,7 @@ type (
 type TiDBSpec struct {
 	Host       string `yaml:"host"`
 	SSHPort    int    `yaml:"ssh_port,omitempty"`
-	IsImported bool   `yaml:"imported,omitempty"`
+	Imported   bool   `yaml:"imported,omitempty"`
 	Port       int    `yaml:"port" default:"4000"`
 	StatusPort int    `yaml:"status_port" default:"10080"`
 	DeployDir  string `yaml:"deploy_dir,omitempty"`
@@ -98,7 +99,7 @@ func statusByURL(url string) string {
 	// body doesn't have any status section needed
 	body, err := client.Get(url)
 	if err != nil {
-		return "N/A"
+		return "Down"
 	}
 	if body == nil {
 		return "Down"
@@ -128,11 +129,16 @@ func (s TiDBSpec) GetMainPort() int {
 	return s.Port
 }
 
+// IsImported returns if the node is imported from TiDB-Ansible
+func (s TiDBSpec) IsImported() bool {
+	return s.Imported
+}
+
 // TiKVSpec represents the TiKV topology specification in topology.yaml
 type TiKVSpec struct {
 	Host       string   `yaml:"host"`
 	SSHPort    int      `yaml:"ssh_port,omitempty"`
-	IsImported bool     `yaml:"imported,omitempty"`
+	Imported   bool     `yaml:"imported,omitempty"`
 	Port       int      `yaml:"port" default:"20160"`
 	StatusPort int      `yaml:"status_port" default:"20180"`
 	DeployDir  string   `yaml:"deploy_dir,omitempty"`
@@ -151,7 +157,7 @@ func (s TiKVSpec) Status(pdList ...string) string {
 	pdapi := api.NewPDClient(pdList[0], statusQueryTimeout, nil)
 	stores, err := pdapi.GetStores()
 	if err != nil {
-		return "N/A"
+		return "Down"
 	}
 
 	name := fmt.Sprintf("%s:%d", s.Host, s.Port)
@@ -178,11 +184,16 @@ func (s TiKVSpec) GetMainPort() int {
 	return s.Port
 }
 
+// IsImported returns if the node is imported from TiDB-Ansible
+func (s TiKVSpec) IsImported() bool {
+	return s.Imported
+}
+
 // PDSpec represents the PD topology specification in topology.yaml
 type PDSpec struct {
-	Host       string `yaml:"host"`
-	SSHPort    int    `yaml:"ssh_port,omitempty"`
-	IsImported bool   `yaml:"imported,omitempty"`
+	Host     string `yaml:"host"`
+	SSHPort  int    `yaml:"ssh_port,omitempty"`
+	Imported bool   `yaml:"imported,omitempty"`
 	// Use Name to get the name with a default value if it's empty.
 	Name       string `yaml:"name"`
 	ClientPort int    `yaml:"client_port" default:"2379"`
@@ -199,13 +210,13 @@ func (s PDSpec) Status(pdList ...string) string {
 		statusQueryTimeout, nil)
 	healths, err := pdapi.GetHealth()
 	if err != nil {
-		return "N/A"
+		return "Down"
 	}
 
 	// find leader node
 	leader, err := pdapi.GetLeader()
 	if err != nil {
-		return "N/A"
+		return "ERR"
 	}
 
 	for _, member := range healths.Healths {
@@ -239,17 +250,22 @@ func (s PDSpec) GetMainPort() int {
 	return s.ClientPort
 }
 
+// IsImported returns if the node is imported from TiDB-Ansible
+func (s PDSpec) IsImported() bool {
+	return s.Imported
+}
+
 // PumpSpec represents the Pump topology specification in topology.yaml
 type PumpSpec struct {
-	Host       string `yaml:"host"`
-	SSHPort    int    `yaml:"ssh_port,omitempty"`
-	IsImported bool   `yaml:"imported,omitempty"`
-	Port       int    `yaml:"port" default:"8250"`
-	DeployDir  string `yaml:"deploy_dir,omitempty"`
-	DataDir    string `yaml:"data_dir,omitempty"`
-	LogDir     string `yaml:"log_dir,omitempty"`
-	Offline    bool   `yaml:"offline,omitempty"`
-	NumaNode   bool   `yaml:"numa_node,omitempty"`
+	Host      string `yaml:"host"`
+	SSHPort   int    `yaml:"ssh_port,omitempty"`
+	Imported  bool   `yaml:"imported,omitempty"`
+	Port      int    `yaml:"port" default:"8250"`
+	DeployDir string `yaml:"deploy_dir,omitempty"`
+	DataDir   string `yaml:"data_dir,omitempty"`
+	LogDir    string `yaml:"log_dir,omitempty"`
+	Offline   bool   `yaml:"offline,omitempty"`
+	NumaNode  bool   `yaml:"numa_node,omitempty"`
 }
 
 // Role returns the component role of the instance
@@ -267,18 +283,23 @@ func (s PumpSpec) GetMainPort() int {
 	return s.Port
 }
 
+// IsImported returns if the node is imported from TiDB-Ansible
+func (s PumpSpec) IsImported() bool {
+	return s.Imported
+}
+
 // DrainerSpec represents the Drainer topology specification in topology.yaml
 type DrainerSpec struct {
-	Host       string `yaml:"host"`
-	SSHPort    int    `yaml:"ssh_port,omitempty"`
-	IsImported bool   `yaml:"imported,omitempty"`
-	Port       int    `yaml:"port" default:"8249"`
-	DeployDir  string `yaml:"deploy_dir,omitempty"`
-	DataDir    string `yaml:"data_dir,omitempty"`
-	LogDir     string `yaml:"log_dir,omitempty"`
-	CommitTS   string `yaml:"commit_ts,omitempty"`
-	Offline    bool   `yaml:"offline,omitempty"`
-	NumaNode   bool   `yaml:"numa_node,omitempty"`
+	Host      string `yaml:"host"`
+	SSHPort   int    `yaml:"ssh_port,omitempty"`
+	Imported  bool   `yaml:"imported,omitempty"`
+	Port      int    `yaml:"port" default:"8249"`
+	DeployDir string `yaml:"deploy_dir,omitempty"`
+	DataDir   string `yaml:"data_dir,omitempty"`
+	LogDir    string `yaml:"log_dir,omitempty"`
+	CommitTS  string `yaml:"commit_ts,omitempty"`
+	Offline   bool   `yaml:"offline,omitempty"`
+	NumaNode  bool   `yaml:"numa_node,omitempty"`
 }
 
 // Role returns the component role of the instance
@@ -296,16 +317,21 @@ func (s DrainerSpec) GetMainPort() int {
 	return s.Port
 }
 
+// IsImported returns if the node is imported from TiDB-Ansible
+func (s DrainerSpec) IsImported() bool {
+	return s.Imported
+}
+
 // PrometheusSpec represents the Prometheus Server topology specification in topology.yaml
 type PrometheusSpec struct {
-	Host       string `yaml:"host"`
-	SSHPort    int    `yaml:"ssh_port,omitempty"`
-	IsImported bool   `yaml:"imported,omitempty"`
-	Port       int    `yaml:"port" default:"9090"`
-	DeployDir  string `yaml:"deploy_dir,omitempty"`
-	DataDir    string `yaml:"data_dir,omitempty"`
-	LogDir     string `yaml:"log_dir,omitempty"`
-	Retention  string `yaml:"storage_retention,omitempty"`
+	Host      string `yaml:"host"`
+	SSHPort   int    `yaml:"ssh_port,omitempty"`
+	Imported  bool   `yaml:"imported,omitempty"`
+	Port      int    `yaml:"port" default:"9090"`
+	DeployDir string `yaml:"deploy_dir,omitempty"`
+	DataDir   string `yaml:"data_dir,omitempty"`
+	LogDir    string `yaml:"log_dir,omitempty"`
+	Retention string `yaml:"storage_retention,omitempty"`
 }
 
 // Role returns the component role of the instance
@@ -323,13 +349,18 @@ func (s PrometheusSpec) GetMainPort() int {
 	return s.Port
 }
 
+// IsImported returns if the node is imported from TiDB-Ansible
+func (s PrometheusSpec) IsImported() bool {
+	return s.Imported
+}
+
 // GrafanaSpec represents the Grafana topology specification in topology.yaml
 type GrafanaSpec struct {
-	Host       string `yaml:"host"`
-	SSHPort    int    `yaml:"ssh_port,omitempty"`
-	IsImported bool   `yaml:"imported,omitempty"`
-	Port       int    `yaml:"port" default:"3000"`
-	DeployDir  string `yaml:"deploy_dir,omitempty"`
+	Host      string `yaml:"host"`
+	SSHPort   int    `yaml:"ssh_port,omitempty"`
+	Imported  bool   `yaml:"imported,omitempty"`
+	Port      int    `yaml:"port" default:"3000"`
+	DeployDir string `yaml:"deploy_dir,omitempty"`
 }
 
 // Role returns the component role of the instance
@@ -347,11 +378,16 @@ func (s GrafanaSpec) GetMainPort() int {
 	return s.Port
 }
 
+// IsImported returns if the node is imported from TiDB-Ansible
+func (s GrafanaSpec) IsImported() bool {
+	return s.Imported
+}
+
 // AlertManagerSpec represents the AlertManager topology specification in topology.yaml
 type AlertManagerSpec struct {
 	Host        string `yaml:"host"`
 	SSHPort     int    `yaml:"ssh_port,omitempty"`
-	IsImported  bool   `yaml:"imported,omitempty"`
+	Imported    bool   `yaml:"imported,omitempty"`
 	WebPort     int    `yaml:"web_port" default:"9093"`
 	ClusterPort int    `yaml:"cluster_port" default:"9094"`
 	DeployDir   string `yaml:"deploy_dir,omitempty"`
@@ -372,6 +408,11 @@ func (s AlertManagerSpec) SSH() (string, int) {
 // GetMainPort returns the main port of the instance
 func (s AlertManagerSpec) GetMainPort() int {
 	return s.WebPort
+}
+
+// IsImported returns if the node is imported from TiDB-Ansible
+func (s AlertManagerSpec) IsImported() bool {
+	return s.Imported
 }
 
 // UnmarshalYAML sets default values when unmarshaling the topology file
@@ -464,6 +505,11 @@ func (topo *TopologySpecification) Validate() error {
 		compSpecs := topoSpec.Field(i)
 		for index := 0; index < compSpecs.Len(); index++ {
 			compSpec := compSpecs.Index(index)
+			// skip nodes imported from TiDB-Ansible
+			if compSpec.Interface().(InstanceSpec).IsImported() {
+				continue
+			}
+			// check hostname
 			host := compSpec.FieldByName("Host").String()
 			cfg := topoType.Field(i).Tag.Get("yaml")
 			if host == "" {
