@@ -15,7 +15,6 @@ package ansible
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/pingcap-incubator/tiops/pkg/executor"
@@ -30,15 +29,12 @@ var (
 // parseDirs sets values of directories of component
 func parseDirs(host *aini.Host, ins meta.InstanceSpec) (meta.InstanceSpec, error) {
 	hostName, sshPort := ins.SSH()
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return ins, err
-	}
+
 	e, err := executor.NewSSHExecutor(executor.SSHConfig{
 		Host:    hostName,
 		Port:    sshPort,
 		User:    host.Vars["ansible_user"],
-		KeyFile: fmt.Sprintf("%s/.ssh/id_rsa", homeDir), // ansible generated keyfile
+		KeyFile: SSHKeyPath(), // ansible generated keyfile
 	})
 	if err != nil {
 		return ins, err

@@ -101,9 +101,9 @@ func parseInventory(dir string, inv *aini.InventoryData) (string, *meta.ClusterM
 				host = srv.Name
 			}
 			tmpIns := meta.TiDBSpec{
-				Host:       host,
-				SSHPort:    srv.Port,
-				IsImported: true,
+				Host:     host,
+				SSHPort:  srv.Port,
+				Imported: true,
 			}
 
 			if port, ok := grpVars["tidb_port"]; ok {
@@ -145,9 +145,9 @@ func parseInventory(dir string, inv *aini.InventoryData) (string, *meta.ClusterM
 				host = srv.Name
 			}
 			tmpIns := meta.TiKVSpec{
-				Host:       host,
-				SSHPort:    srv.Port,
-				IsImported: true,
+				Host:     host,
+				SSHPort:  srv.Port,
+				Imported: true,
 			}
 
 			if port, ok := grpVars["tikv_port"]; ok {
@@ -192,9 +192,9 @@ func parseInventory(dir string, inv *aini.InventoryData) (string, *meta.ClusterM
 				host = srv.Name
 			}
 			tmpIns := meta.PDSpec{
-				Host:       host,
-				SSHPort:    srv.Port,
-				IsImported: true,
+				Host:     host,
+				SSHPort:  srv.Port,
+				Imported: true,
 			}
 
 			if clientPort, ok := grpVars["pd_client_port"]; ok {
@@ -244,9 +244,9 @@ func parseInventory(dir string, inv *aini.InventoryData) (string, *meta.ClusterM
 				host = srv.Name
 			}
 			tmpIns := meta.PrometheusSpec{
-				Host:       host,
-				SSHPort:    srv.Port,
-				IsImported: true,
+				Host:     host,
+				SSHPort:  srv.Port,
+				Imported: true,
 			}
 
 			if port, ok := grpVars["prometheus_port"]; ok {
@@ -282,9 +282,9 @@ func parseInventory(dir string, inv *aini.InventoryData) (string, *meta.ClusterM
 				host = srv.Name
 			}
 			tmpIns := meta.AlertManagerSpec{
-				Host:       host,
-				SSHPort:    srv.Port,
-				IsImported: true,
+				Host:     host,
+				SSHPort:  srv.Port,
+				Imported: true,
 			}
 
 			if port, ok := grpVars["alertmanager_port"]; ok {
@@ -319,9 +319,9 @@ func parseInventory(dir string, inv *aini.InventoryData) (string, *meta.ClusterM
 				host = srv.Name
 			}
 			tmpIns := meta.PumpSpec{
-				Host:       host,
-				SSHPort:    srv.Port,
-				IsImported: true,
+				Host:     host,
+				SSHPort:  srv.Port,
+				Imported: true,
 			}
 
 			// nothing in pump_servers.yml
@@ -362,9 +362,9 @@ func parseInventory(dir string, inv *aini.InventoryData) (string, *meta.ClusterM
 				host = srv.Name
 			}
 			tmpIns := meta.DrainerSpec{
-				Host:       host,
-				SSHPort:    srv.Port,
-				IsImported: true,
+				Host:     host,
+				SSHPort:  srv.Port,
+				Imported: true,
 			}
 
 			// nothing in drainer_servers.yml
