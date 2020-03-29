@@ -15,12 +15,15 @@ package ansible
 
 import (
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/pingcap-incubator/tiops/pkg/log"
 	"github.com/pingcap-incubator/tiops/pkg/meta"
+	"github.com/pingcap-incubator/tiops/pkg/utils"
 	"github.com/relex/aini"
 	"gopkg.in/yaml.v2"
 )
@@ -71,13 +74,25 @@ func parseInventory(dir string, inv *aini.InventoryData) (string, *meta.ClusterM
 			clsMeta.Version = host.Vars["tidb_version"]
 			clsName = host.Vars["cluster_name"]
 
-			log.Infof("Found cluster \"%s\" (%s), deployed with user %s, importing...",
+			log.Infof("Found cluster \"%s\" (%s), deployed with user %s.",
 				clsName, clsMeta.Version, clsMeta.User)
 			// only read the first host, all global vars should be the same
 			break
 		}
 	} else {
 		return "", nil, errors.New("no available host in the inventory file")
+	}
+
+	promptMsg := fmt.Sprintf("Prepared to import TiDB %s cluster %s, do you want to continue?\n[Y]es/[N]o:",
+		clsMeta.Version, clsName)
+	ans := utils.Prompt(promptMsg)
+	switch strings.ToLower(ans) {
+	case "y", "yes":
+		log.Infof("Importing cluster...")
+	case "n", "no":
+		return "", nil, errors.New("operation cancelled by user")
+	default:
+		return "", nil, errors.New("unknown input, abort")
 	}
 
 	// set global vars in group_vars/all.yml

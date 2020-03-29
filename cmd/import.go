@@ -14,6 +14,8 @@
 package cmd
 
 import (
+	"fmt"
+
 	"github.com/fatih/color"
 	"github.com/pingcap-incubator/tiops/pkg/ansible"
 	"github.com/pingcap-incubator/tiops/pkg/log"
@@ -65,9 +67,11 @@ func newImportCmd() *cobra.Command {
 				return err
 			}
 
+			// TODO: move original TiDB-Ansible directory to a staged location
+
 			log.Infof("Cluster %s imported.", clsName)
-			log.Infof("Try `%s` to see the cluster.",
-				color.HiYellowString("tiops display %s", clsName))
+			log.Output(fmt.Sprintf("Try `%s` to see the cluster.",
+				color.HiYellowString("tiops display %s", clsName)))
 			return nil
 		},
 	}
