@@ -16,6 +16,7 @@ package cmd
 import (
 	"github.com/pingcap-incubator/tiops/pkg/ansible"
 	"github.com/pingcap-incubator/tiops/pkg/meta"
+	"github.com/pingcap-incubator/tiops/pkg/utils"
 	"github.com/spf13/cobra"
 )
 
@@ -29,10 +30,28 @@ func newImportCmd() *cobra.Command {
 		Short:  "Import a TiDB cluster from tidb-ansible",
 		Hidden: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// migrate cluster metadata from Ansible inventory
 			clsName, clsMeta, err := ansible.ImportAnsible(ansibleDir)
 			if err != nil {
 				return err
 			}
+
+			// copy SSH key to TiOps profile directory
+			if err = utils.CreateDir(meta.ClusterPath(clsName, "ssh")); err != nil {
+				return err
+			}
+			srcKeyPathPriv := ansible.SSHKeyPath()
+			srcKeyPathPub := srcKeyPathPriv + ".pub"
+			dstKeyPathPriv := meta.ClusterPath(clsName, "ssh", "id_rsa")
+			dstKeyPathPub := dstKeyPathPriv + ".pub"
+			if err = utils.CopyFile(srcKeyPathPriv, dstKeyPathPriv); err != nil {
+				return err
+			}
+			if err = utils.CopyFile(srcKeyPathPub, dstKeyPathPub); err != nil {
+				return err
+			}
+
+			// copy config files form deployment servers
 			if err := ansible.ImportConfig(clsName, clsMeta); err != nil {
 				return err
 			}
