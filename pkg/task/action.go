@@ -80,5 +80,5 @@ func (c *ClusterOperate) Rollback(ctx *Context) error {
 
 // String implements the fmt.Stringer interface
 func (c *ClusterOperate) String() string {
-	return fmt.Sprintf("EnvInit: operation=%s, options=%+v", c.op, c.options)
+	return fmt.Sprintf("ClusterOperate: operation=%s, options=%+v", c.op, c.options)
 }
