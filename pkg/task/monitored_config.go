@@ -20,6 +20,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/pingcap-incubator/tiops/pkg/executor"
+	"github.com/pingcap-incubator/tiops/pkg/log"
 	"github.com/pingcap-incubator/tiops/pkg/meta"
 	"github.com/pingcap-incubator/tiops/pkg/template"
 	"github.com/pingcap-incubator/tiops/pkg/template/config"
@@ -39,6 +40,10 @@ type MonitoredConfig struct {
 
 // Execute implements the Task interface
 func (m *MonitoredConfig) Execute(ctx *Context) error {
+	ports := map[string]int{
+		meta.ComponentNodeExporter:     m.options.NodeExporterPort,
+		meta.ComponentBlackboxExporter: m.options.BlackboxExporterPort,
+	}
 	// Copy to remote server
 	exec, found := ctx.GetExecutor(m.host)
 	if !found {
@@ -49,7 +54,7 @@ func (m *MonitoredConfig) Execute(ctx *Context) error {
 		return err
 	}
 
-	if err := m.syncMonitoredSystemConfig(exec, cacheDir, m.component, m.options.NodeExporterPort); err != nil {
+	if err := m.syncMonitoredSystemConfig(exec, cacheDir, m.component, ports[m.component]); err != nil {
 		return err
 	}
 
@@ -64,10 +69,9 @@ func (m *MonitoredConfig) Execute(ctx *Context) error {
 	} else {
 		return fmt.Errorf("unknown monitored component %s", m.component)
 	}
-	if err := m.syncMonitoredScript(exec, cacheDir, meta.ComponentNodeExporter, cfg); err != nil {
+	if err := m.syncMonitoredScript(exec, cacheDir, m.component, cfg); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -82,7 +86,12 @@ func (m *MonitoredConfig) syncMonitoredSystemConfig(exec executor.TiOpsExecutor,
 		return err
 	}
 	if outp, errp, err := exec.Execute(fmt.Sprintf("mv %s /etc/systemd/system/%s-%d.service", tgt, comp, port), true); err != nil {
-		fmt.Println(string(outp), string(errp))
+		if len(outp) > 0 {
+			log.Output(string(outp))
+		}
+		if len(errp) > 0 {
+			log.Errorf(string(errp))
+		}
 		return err
 	}
 	return nil
@@ -109,7 +118,7 @@ func (m *MonitoredConfig) syncBlackboxConfig(exec executor.TiOpsExecutor, cacheD
 	if err := cfg.ConfigToFile(fp); err != nil {
 		return err
 	}
-	dst := filepath.Join(m.deployDir, "config", "blackbox.yaml")
+	dst := filepath.Join(m.deployDir, "conf", "blackbox.yml")
 	if err := exec.Transfer(fp, dst); err != nil {
 		return err
 	}

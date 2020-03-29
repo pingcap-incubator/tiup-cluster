@@ -573,7 +573,7 @@ func (i *MonitorInstance) InitConfig(e executor.TiOpsExecutor, user, cacheDir, d
 	if err := cfig.ConfigToFile(fp); err != nil {
 		return err
 	}
-	dst = filepath.Join(deployDir, "config", "prometheus.yml")
+	dst = filepath.Join(deployDir, "conf", "prometheus.yml")
 	if err := e.Transfer(fp, dst); err != nil {
 		return err
 	}
@@ -650,7 +650,7 @@ func (i *GrafanaInstance) InitConfig(e executor.TiOpsExecutor, user, cacheDir, d
 	if err := config.NewGrafanaConfig(i.GetHost(), deployDir).ConfigToFile(fp); err != nil {
 		return err
 	}
-	dst = filepath.Join(deployDir, "config", "grafana.ini")
+	dst = filepath.Join(deployDir, "conf", "grafana.ini")
 	if err := e.Transfer(fp, dst); err != nil {
 		return err
 	}
@@ -660,7 +660,7 @@ func (i *GrafanaInstance) InitConfig(e executor.TiOpsExecutor, user, cacheDir, d
 	if err := config.NewDashboardConfig("test-cluster", deployDir).ConfigToFile(fp); err != nil {
 		return err
 	}
-	dst = filepath.Join(deployDir, "config", "dashboard.yml")
+	dst = filepath.Join(deployDir, "conf", "dashboard.yml")
 	if err := e.Transfer(fp, dst); err != nil {
 		return err
 	}
@@ -670,7 +670,7 @@ func (i *GrafanaInstance) InitConfig(e executor.TiOpsExecutor, user, cacheDir, d
 	if err := config.NewDatasourceConfig("test-cluster", i.GetHost()).ConfigToFile(fp); err != nil {
 		return err
 	}
-	dst = filepath.Join(deployDir, "config", "datasource.yml")
+	dst = filepath.Join(deployDir, "conf", "datasource.yml")
 	if err := e.Transfer(fp, dst); err != nil {
 		return err
 	}

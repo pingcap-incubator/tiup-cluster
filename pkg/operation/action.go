@@ -117,8 +117,8 @@ func StartMonitored(getter ExecutorGetter, instance meta.Instance, options meta.
 	}
 	e := getter.Get(instance.GetHost())
 	for _, comp := range []string{meta.ComponentNodeExporter, meta.ComponentBlackboxExporter} {
-		log.Infof("Starting component %s\n", comp)
-		log.Infof("\tStarting instance %s\n", instance.GetHost())
+		log.Infof("Starting component %s", comp)
+		log.Infof("\tStarting instance %s", instance.GetHost())
 		c := module.SystemdModuleConfig{
 			Unit:         fmt.Sprintf("%s-%d.service", comp, ports[comp]),
 			ReloadDaemon: true,
@@ -145,7 +145,7 @@ func StartMonitored(getter ExecutorGetter, instance meta.Instance, options meta.
 			return errors.Annotatef(err, str)
 		}
 
-		log.Infof("\tStart %s success\n", instance.GetHost())
+		log.Infof("\tStart %s success", instance.GetHost())
 	}
 
 	return nil
@@ -206,7 +206,7 @@ func StopMonitored(getter ExecutorGetter, instance meta.Instance, options meta.M
 	}
 	e := getter.Get(instance.GetHost())
 	for _, comp := range []string{meta.ComponentNodeExporter, meta.ComponentBlackboxExporter} {
-		log.Infof("Stopping component %s\n", comp)
+		log.Infof("Stopping component %s", comp)
 
 		c := module.SystemdModuleConfig{
 			Unit:   fmt.Sprintf("%s-%d.service", comp, ports[comp]),

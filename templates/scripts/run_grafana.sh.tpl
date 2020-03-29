@@ -12,8 +12,10 @@ mkdir -p {{.DeployDir}}/provisioning/dashboards
 mkdir -p {{.DeployDir}}/provisioning/datasources
 
 cp {{.DeployDir}}/bin/*.json {{.DeployDir}}/dashboards/
-cp {{.DeployDir}}/config/datasource.yml {{.DeployDir}}/provisioning/datasources
-cp {{.DeployDir}}/config/dashboard.yml {{.DeployDir}}/provisioning/dashboards
+cp {{.DeployDir}}/conf/datasource.yml {{.DeployDir}}/provisioning/datasources
+cp {{.DeployDir}}/conf/dashboard.yml {{.DeployDir}}/provisioning/dashboards
+
+find {{.DeployDir}}/dashboards/ -type f -exec sed -i "s/\${DS_.*-CLUSTER}/test-cluster/g" {} \;
 
 LANG=en_US.UTF-8 \
 {{- if .NumaNode}}
@@ -22,4 +24,4 @@ exec numactl --cpunodebind={{.NumaNode}} --membind={{.NumaNode}} bin/bin/grafana
 exec bin/bin/grafana-server \
 {{- end}}
     --homepath="{{.DeployDir}}/bin" \
-    --config="{{.DeployDir}}/config/grafana.ini"
+    --config="{{.DeployDir}}/conf/grafana.ini"
