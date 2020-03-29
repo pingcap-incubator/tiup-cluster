@@ -30,7 +30,7 @@ func ImportConfig(name string, clsMeta *meta.ClusterMeta) error {
 	//if err := ioutil.WriteFile(meta.ClusterPath(name, "topology.yaml"), yamlFile, 0664); err != nil {
 	//	return err
 	//}
-	copyFileTasks := task.NewBuilder()
+	var copyFileTasks     []task.Task
 	for _, comp := range clsMeta.Topology.ComponentsByStartOrder() {
 		for idx, inst := range comp.Instances() {
 			switch inst.ComponentName() {
@@ -38,26 +38,38 @@ func ImportConfig(name string, clsMeta *meta.ClusterMeta) error {
 				if idx != 0 {
 					break
 				}
-				copyFileTasks.
+				t := task.NewBuilder().
+					SSHKeySet(
+						meta.ClusterPath(name, "ssh", "id_rsa"),
+						meta.ClusterPath(name, "ssh", "id_rsa.pub")).
 					UserSSH(inst.GetHost(), clsMeta.Topology.GlobalOptions.User).
 					CopyFile(inst.DeployDir()+"/conf/"+inst.ComponentName(),
 						inst.GetHost(),
-						meta.ClusterPath(name, "config", inst.ComponentName()+".toml"))
+						meta.ClusterPath(name, "config", inst.ComponentName()+".toml")).
+					Build()
+				copyFileTasks = append(copyFileTasks, t)
 			case "dariner":
-				copyFileTasks.
+				t := task.NewBuilder().
 					UserSSH(inst.GetHost(), clsMeta.Topology.GlobalOptions.User).
 					CopyFile(inst.DeployDir()+"/conf/"+inst.ComponentName(),
 						inst.GetHost(),
 						meta.ClusterPath(name,
 							"config",
-							fmt.Sprintf("%s_%s_%d.toml", inst.ComponentName(), inst.GetHost(), inst.GetPort())))
+							fmt.Sprintf("%s_%s_%d.toml", inst.ComponentName(), inst.GetHost(), inst.GetPort()))).
+					Build()
+				copyFileTasks = append(copyFileTasks, t)
 			default:
 				break
 			}
 		}
 	}
-	if err := copyFileTasks.Build().Execute(task.NewContext()); err != nil {
+	t := task.NewBuilder().
+		Parallel(copyFileTasks...).
+		Build()
+
+	if err := t.Execute(task.NewContext()); err != nil {
 		return errors.Trace(err)
+	} else {
+		return nil
 	}
-	return nil
 }
