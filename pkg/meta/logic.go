@@ -15,6 +15,8 @@ package meta
 
 import (
 	"fmt"
+	"io/ioutil"
+	"os"
 	"path/filepath"
 	"reflect"
 
@@ -27,6 +29,7 @@ import (
 	system "github.com/pingcap-incubator/tiops/pkg/template/systemd"
 	"github.com/pingcap-incubator/tiup/pkg/set"
 	"github.com/pingcap/errors"
+	"gopkg.in/yaml.v2"
 )
 
 // Components names supported by TiOps
@@ -81,6 +84,7 @@ func PortStarted(e executor.TiOpsExecutor, port int) error {
 	return w.Execute(e)
 }
 
+// PortStopped wait until a port is being released
 func PortStopped(e executor.TiOpsExecutor, port int) error {
 	c := module.WaitForConfig{
 		Port:  port,
@@ -130,7 +134,7 @@ func (i *instance) InitConfig(e executor.TiOpsExecutor, user, cacheDir, deployDi
 		return err
 	}
 	tgt := filepath.Join("/tmp", comp+"_"+uuid.New().String()+".service")
-	if err := e.Transfer(sysCfg, tgt); err != nil {
+	if err := e.Transfer(sysCfg, tgt, false); err != nil {
 		return err
 	}
 	cmd := fmt.Sprintf("mv %s /etc/systemd/system/%s-%d.service", tgt, comp, port)
@@ -139,6 +143,22 @@ func (i *instance) InitConfig(e executor.TiOpsExecutor, user, cacheDir, deployDi
 	}
 
 	return nil
+}
+
+// mergeServerConfig merges the server configuration and overwrite the global configuration
+func (i *instance) mergeServerConfig(e executor.TiOpsExecutor, globalConf, instanceConf yaml.MapSlice, cacheDir, deployDir string) error {
+	fp := filepath.Join(cacheDir, fmt.Sprintf("%s_%s-%d.toml", i.ComponentName(), i.GetHost(), i.GetPort()))
+	conf, err := merge2Toml(globalConf, instanceConf)
+	if err != nil {
+		return err
+	}
+	err = ioutil.WriteFile(fp, conf, os.ModePerm)
+	if err != nil {
+		return err
+	}
+	dst := filepath.Join(deployDir, "conf", fmt.Sprintf("%s.toml", i.ComponentName()))
+	// transfer config
+	return e.Transfer(fp, dst, false)
 }
 
 // ScaleConfig deploy temporary config on scaling
@@ -252,7 +272,7 @@ func (i *TiDBInstance) InitConfig(e executor.TiOpsExecutor, user, cacheDir, depl
 	if err := i.instance.InitConfig(e, user, cacheDir, deployDir); err != nil {
 		return err
 	}
-	ends := []*scripts.PDScript{}
+	var ends []*scripts.PDScript
 	for _, spec := range i.instance.topo.PDServers {
 		ends = append(ends, scripts.NewPDScript(spec.Name, spec.Host, spec.DeployDir, spec.DataDir))
 	}
@@ -262,22 +282,20 @@ func (i *TiDBInstance) InitConfig(e executor.TiOpsExecutor, user, cacheDir, depl
 		return err
 	}
 	dst := filepath.Join(deployDir, "scripts", "run_tidb.sh")
-	if err := e.Transfer(fp, dst); err != nil {
+	if err := e.Transfer(fp, dst, false); err != nil {
 		return err
 	}
 	if _, _, err := e.Execute("chmod +x "+dst, false); err != nil {
 		return err
 	}
-
-	return nil
+	spec := i.InstanceSpec.(TiDBSpec)
+	return i.mergeServerConfig(e, i.topo.ServerConfigs.TiDB, spec.Config, cacheDir, deployDir)
 }
 
 // ScaleConfig deploy temporary config on scaling
 func (i *TiDBInstance) ScaleConfig(e executor.TiOpsExecutor, b *Specification, user, cacheDir, deployDir string) error {
 	s := i.instance.topo
-	defer func() {
-		i.instance.topo = s
-	}()
+	defer func() { i.instance.topo = s }()
 	i.instance.topo = b
 	return i.InitConfig(e, user, cacheDir, deployDir)
 }
@@ -330,7 +348,7 @@ func (i *TiKVInstance) InitConfig(e executor.TiOpsExecutor, user, cacheDir, depl
 	}
 
 	// transfer run script
-	ends := []*scripts.PDScript{}
+	var ends []*scripts.PDScript
 	for _, spec := range i.instance.topo.PDServers {
 		ends = append(ends, scripts.NewPDScript(spec.Name, spec.Host, spec.DeployDir, spec.DataDir))
 	}
@@ -340,7 +358,7 @@ func (i *TiKVInstance) InitConfig(e executor.TiOpsExecutor, user, cacheDir, depl
 		return err
 	}
 	dst := filepath.Join(deployDir, "scripts", "run_tikv.sh")
-	if err := e.Transfer(fp, dst); err != nil {
+	if err := e.Transfer(fp, dst, false); err != nil {
 		return err
 	}
 
@@ -348,17 +366,8 @@ func (i *TiKVInstance) InitConfig(e executor.TiOpsExecutor, user, cacheDir, depl
 		return err
 	}
 
-	// transfer config
-	fp = filepath.Join(cacheDir, fmt.Sprintf("tikv_%s.toml", i.GetHost()))
-	if err := config.NewTiKVConfig().ConfigToFile(fp); err != nil {
-		return err
-	}
-	dst = filepath.Join(deployDir, "conf", "tikv.toml")
-	if err := e.Transfer(fp, dst); err != nil {
-		return err
-	}
-
-	return nil
+	spec := i.InstanceSpec.(TiKVSpec)
+	return i.mergeServerConfig(e, i.topo.ServerConfigs.TiKV, spec.Config, cacheDir, deployDir)
 }
 
 // ScaleConfig deploy temporary config on scaling
@@ -420,7 +429,7 @@ func (i *PDInstance) InitConfig(e executor.TiOpsExecutor, user, cacheDir, deploy
 		return err
 	}
 
-	ends := []*scripts.PDScript{}
+	var ends []*scripts.PDScript
 	name := ""
 	for _, spec := range i.instance.topo.PDServers {
 		if spec.Host == i.GetHost() && spec.ClientPort == i.GetPort() {
@@ -434,13 +443,14 @@ func (i *PDInstance) InitConfig(e executor.TiOpsExecutor, user, cacheDir, deploy
 		return err
 	}
 	dst := filepath.Join(deployDir, "scripts", "run_pd.sh")
-	if err := e.Transfer(fp, dst); err != nil {
+	if err := e.Transfer(fp, dst, false); err != nil {
 		return err
 	}
 	if _, _, err := e.Execute("chmod +x "+dst, false); err != nil {
 		return err
 	}
-	return nil
+	spec := i.InstanceSpec.(PDSpec)
+	return i.mergeServerConfig(e, i.topo.ServerConfigs.PD, spec.Config, cacheDir, deployDir)
 }
 
 // ScaleConfig deploy temporary config on scaling
@@ -464,7 +474,7 @@ func (i *PDInstance) ScaleConfig(e executor.TiOpsExecutor, b *Specification, use
 		return err
 	}
 	dst := filepath.Join(deployDir, "scripts", "run_pd.sh")
-	if err := e.Transfer(fp, dst); err != nil {
+	if err := e.Transfer(fp, dst, false); err != nil {
 		return err
 	}
 	if _, _, err := e.Execute("chmod +x "+dst, false); err != nil {
@@ -527,7 +537,7 @@ func (i *MonitorInstance) InitConfig(e executor.TiOpsExecutor, user, cacheDir, d
 		return err
 	}
 	dst := filepath.Join(deployDir, "scripts", "run_prometheus.sh")
-	if err := e.Transfer(fp, dst); err != nil {
+	if err := e.Transfer(fp, dst, false); err != nil {
 		return err
 	}
 
@@ -538,7 +548,7 @@ func (i *MonitorInstance) InitConfig(e executor.TiOpsExecutor, user, cacheDir, d
 	// transfer config
 	fp = filepath.Join(cacheDir, fmt.Sprintf("tikv_%s.yml", i.GetHost()))
 	// TODO: use real cluster name
-	cfig := config.NewPrometheusConfig("test-cluster")
+	cfig := config.NewPrometheusConfig("TiDB-Cluster")
 	uniqueHosts := set.NewStringSet()
 	for _, pd := range i.topo.PDServers {
 		uniqueHosts.Insert(pd.Host)
@@ -574,7 +584,7 @@ func (i *MonitorInstance) InitConfig(e executor.TiOpsExecutor, user, cacheDir, d
 		return err
 	}
 	dst = filepath.Join(deployDir, "conf", "prometheus.yml")
-	if err := e.Transfer(fp, dst); err != nil {
+	if err := e.Transfer(fp, dst, false); err != nil {
 		return err
 	}
 
@@ -637,7 +647,7 @@ func (i *GrafanaInstance) InitConfig(e executor.TiOpsExecutor, user, cacheDir, d
 		return err
 	}
 	dst := filepath.Join(deployDir, "scripts", "run_grafana.sh")
-	if err := e.Transfer(fp, dst); err != nil {
+	if err := e.Transfer(fp, dst, false); err != nil {
 		return err
 	}
 
@@ -651,7 +661,7 @@ func (i *GrafanaInstance) InitConfig(e executor.TiOpsExecutor, user, cacheDir, d
 		return err
 	}
 	dst = filepath.Join(deployDir, "conf", "grafana.ini")
-	if err := e.Transfer(fp, dst); err != nil {
+	if err := e.Transfer(fp, dst, false); err != nil {
 		return err
 	}
 
@@ -661,7 +671,7 @@ func (i *GrafanaInstance) InitConfig(e executor.TiOpsExecutor, user, cacheDir, d
 		return err
 	}
 	dst = filepath.Join(deployDir, "conf", "dashboard.yml")
-	if err := e.Transfer(fp, dst); err != nil {
+	if err := e.Transfer(fp, dst, false); err != nil {
 		return err
 	}
 
@@ -671,29 +681,30 @@ func (i *GrafanaInstance) InitConfig(e executor.TiOpsExecutor, user, cacheDir, d
 		return err
 	}
 	dst = filepath.Join(deployDir, "conf", "datasource.yml")
-	if err := e.Transfer(fp, dst); err != nil {
+	if err := e.Transfer(fp, dst, false); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-// AlertmanagerComponent represents Alertmanager component.
-type AlertmanagerComponent struct{ *Specification }
+// AlertManagerComponent represents Alertmanager component.
+type AlertManagerComponent struct{ *Specification }
 
 // Name implements Component interface.
-func (c *AlertmanagerComponent) Name() string {
+func (c *AlertManagerComponent) Name() string {
 	return ComponentAlertManager
 }
 
 // Instances implements Component interface.
-func (c *AlertmanagerComponent) Instances() []Instance {
+func (c *AlertManagerComponent) Instances() []Instance {
 	ins := make([]Instance, 0, len(c.Alertmanager))
 	for _, s := range c.Alertmanager {
 		ins = append(ins, &instance{
 			InstanceSpec: s,
 			name:         c.Name(),
 			host:         s.Host,
+			port:         s.WebPort,
 			sshp:         s.SSHPort,
 			topo:         c.Specification,
 
@@ -737,7 +748,7 @@ func (topo *Specification) ComponentsByStartOrder() (comps []Component) {
 	comps = append(comps, &DrainerComponent{topo})
 	comps = append(comps, &MonitorComponent{topo})
 	comps = append(comps, &GrafanaComponent{topo})
-	comps = append(comps, &AlertmanagerComponent{topo})
+	comps = append(comps, &AlertManagerComponent{topo})
 	return
 }
 

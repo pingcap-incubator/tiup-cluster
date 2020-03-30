@@ -4,6 +4,7 @@ go 1.14
 
 require (
 	github.com/AstroProfundis/tabby v1.1.0-color
+	github.com/BurntSushi/toml v0.3.1
 	github.com/appleboy/easyssh-proxy v1.3.0
 	github.com/creasty/defaults v1.3.0
 	github.com/fatih/color v1.9.0
@@ -17,6 +18,7 @@ require (
 	github.com/pingcap/errors v0.11.5-0.20190809092503-95897b64e011
 	github.com/pingcap/kvproto v0.0.0-20200317095539-c42a1d8db7d3
 	github.com/pingcap/pd/v4 v4.0.0-beta.2
+	github.com/relex/aini v1.1.3
 	github.com/spf13/cobra v0.0.6
 	go.etcd.io/etcd v0.5.0-alpha.5.0.20191023171146-3cf2f69b5738
 	golang.org/x/crypto v0.0.0-20200109152110-61a87790db17
