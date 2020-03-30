@@ -142,6 +142,11 @@ func buildScaleOutTask(
 		if !strings.HasPrefix(deployDir, "/") {
 			deployDir = filepath.Join("/home/", metadata.User, deployDir)
 		}
+		logDir := inst.LogDir()
+		if !strings.HasPrefix(logDir, "/") {
+			logDir = filepath.Join("/home/", metadata.User, logDir)
+		}
+
 		// Deploy component
 		t := task.NewBuilder().
 			UserSSH(inst.GetHost(), metadata.User).
@@ -149,10 +154,17 @@ func buildScaleOutTask(
 				filepath.Join(deployDir, "bin"),
 				filepath.Join(deployDir, "conf"),
 				filepath.Join(deployDir, "scripts"),
-				filepath.Join(deployDir, "log")).
+				logDir).
 			CopyComponent(inst.ComponentName(), version, inst.GetHost(), deployDir).
-			ScaleConfig(clusterName, metadata.Topology, inst, metadata.User, deployDir).
-			Build()
+			ScaleConfig(clusterName,
+				metadata.Topology,
+				inst,
+				metadata.User,
+				meta.DirPaths{
+					Deploy: deployDir,
+					Log:    logDir,
+				},
+			).Build()
 		deployCompTasks = append(deployCompTasks, t)
 	})
 
@@ -164,7 +176,10 @@ func buildScaleOutTask(
 		// Refresh all configuration
 		t := task.NewBuilder().
 			UserSSH(inst.GetHost(), metadata.User).
-			InitConfig(clusterName, inst, metadata.User, deployDir).
+			InitConfig(clusterName, inst, metadata.User, meta.DirPaths{
+				Deploy: deployDir,
+				Log:    logDir,
+			}).
 			Build()
 		refreshConfigTasks = append(refreshConfigTasks, t)
 	})
