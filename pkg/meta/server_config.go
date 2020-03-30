@@ -78,7 +78,9 @@ func merge2Toml(global, overwrite yaml.MapSlice) ([]byte, error) {
 	}
 
 	buf := &bytes.Buffer{}
-	err = toml.NewEncoder(buf).Encode(lhs)
+	enc := toml.NewEncoder(buf)
+	enc.Indent = ""
+	err = enc.Encode(lhs)
 	if err != nil {
 		return nil, err
 	}

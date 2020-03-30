@@ -286,11 +286,11 @@ tikv_servers:
 `), &topo)
 	c.Assert(err, IsNil)
 	expected := `[config]
-  item1 = 100
-  item2 = 500
-  [config.item3]
-    item5 = 700
-    item6 = 600
+item1 = 100
+item2 = 500
+[config.item3]
+item5 = 700
+item6 = 600
 `
 	got, err := merge2Toml(topo.ServerConfigs.TiKV, topo.TiKVServers[0].Config)
 	c.Assert(err, IsNil)
@@ -345,12 +345,18 @@ tikv_servers:
   - host: 172.19.0.103
 `), &topo)
 	c.Assert(err, IsNil)
-	expected := `[config]
-  item1 = 100
-  item2 = 500
-  [config.item3]
-    item5 = 700
-    item6 = 600
+	expected := `[schedule]
+hot-region-schedule-limit = 14
+leader-schedule-limit = 4
+max-merge-region-keys = 200000
+max-merge-region-size = 20
+max-pending-peer-count = 16
+max-snapshot-count = 3
+max-store-down-time = "30m"
+merge-schedule-limit = 18
+region-schedule-limit = 2048
+replica-schedule-limit = 164
+split-merge-interval = "1h"
 `
 	got, err := merge2Toml(topo.ServerConfigs.PD, topo.PDServers[1].Config)
 	c.Assert(err, IsNil)
