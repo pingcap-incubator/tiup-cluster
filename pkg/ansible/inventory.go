@@ -15,11 +15,15 @@ package ansible
 
 import (
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"path/filepath"
 	"strconv"
+	"strings"
 
+	"github.com/pingcap-incubator/tiops/pkg/log"
 	"github.com/pingcap-incubator/tiops/pkg/meta"
+	"github.com/pingcap-incubator/tiops/pkg/utils"
 	"github.com/relex/aini"
 	"gopkg.in/yaml.v2"
 )
@@ -70,11 +74,25 @@ func parseInventory(dir string, inv *aini.InventoryData) (string, *meta.ClusterM
 			clsMeta.Version = host.Vars["tidb_version"]
 			clsName = host.Vars["cluster_name"]
 
+			log.Infof("Found cluster \"%s\" (%s), deployed with user %s.",
+				clsName, clsMeta.Version, clsMeta.User)
 			// only read the first host, all global vars should be the same
 			break
 		}
 	} else {
 		return "", nil, errors.New("no available host in the inventory file")
+	}
+
+	promptMsg := fmt.Sprintf("Prepared to import TiDB %s cluster %s, do you want to continue?\n[Y]es/[N]o:",
+		clsMeta.Version, clsName)
+	ans := utils.Prompt(promptMsg)
+	switch strings.ToLower(ans) {
+	case "y", "yes":
+		log.Infof("Importing cluster...")
+	case "n", "no":
+		return "", nil, errors.New("operation cancelled by user")
+	default:
+		return "", nil, errors.New("unknown input, abort")
 	}
 
 	// set global vars in group_vars/all.yml
@@ -125,6 +143,7 @@ func parseInventory(dir string, inv *aini.InventoryData) (string, *meta.ClusterM
 				tmpIns.LogDir = logDir
 			}
 
+			log.Debugf("Imported %s node %s:%d.", tmpIns.Role(), tmpIns.Host, tmpIns.GetMainPort())
 			ins, err := parseDirs(srv, tmpIns)
 			if err != nil {
 				return "", nil, err
@@ -132,6 +151,7 @@ func parseInventory(dir string, inv *aini.InventoryData) (string, *meta.ClusterM
 
 			topo.TiDBServers = append(topo.TiDBServers, ins.(meta.TiDBSpec))
 		}
+		log.Infof("Imported %d TiDB node(s).", len(topo.TiDBServers))
 	}
 
 	// tikv_servers
@@ -172,6 +192,7 @@ func parseInventory(dir string, inv *aini.InventoryData) (string, *meta.ClusterM
 				tmpIns.LogDir = logDir
 			}
 
+			log.Debugf("Imported %s node %s:%d.", tmpIns.Role(), tmpIns.Host, tmpIns.GetMainPort())
 			ins, err := parseDirs(srv, tmpIns)
 			if err != nil {
 				return "", nil, err
@@ -179,6 +200,7 @@ func parseInventory(dir string, inv *aini.InventoryData) (string, *meta.ClusterM
 
 			topo.TiKVServers = append(topo.TiKVServers, ins.(meta.TiKVSpec))
 		}
+		log.Infof("Imported %d TiKV node(s).", len(topo.TiKVServers))
 	}
 
 	// pd_servers
@@ -219,6 +241,7 @@ func parseInventory(dir string, inv *aini.InventoryData) (string, *meta.ClusterM
 				tmpIns.LogDir = logDir
 			}
 
+			log.Debugf("Imported %s node %s:%d.", tmpIns.Role(), tmpIns.Host, tmpIns.GetMainPort())
 			ins, err := parseDirs(srv, tmpIns)
 			if err != nil {
 				return "", nil, err
@@ -226,6 +249,7 @@ func parseInventory(dir string, inv *aini.InventoryData) (string, *meta.ClusterM
 
 			topo.PDServers = append(topo.PDServers, ins.(meta.PDSpec))
 		}
+		log.Infof("Imported %d PD node(s).", len(topo.PDServers))
 	}
 
 	// spark_master
@@ -259,6 +283,7 @@ func parseInventory(dir string, inv *aini.InventoryData) (string, *meta.ClusterM
 				tmpIns.Retention = _retention
 			}
 
+			log.Debugf("Imported %s node %s:%d.", tmpIns.Role(), tmpIns.Host, tmpIns.GetMainPort())
 			ins, err := parseDirs(srv, tmpIns)
 			if err != nil {
 				return "", nil, err
@@ -266,6 +291,7 @@ func parseInventory(dir string, inv *aini.InventoryData) (string, *meta.ClusterM
 
 			topo.Monitors = append(topo.Monitors, ins.(meta.PrometheusSpec))
 		}
+		log.Infof("Imported %d monitoring node(s).", len(topo.Monitors))
 	}
 
 	// monitored_servers
@@ -295,6 +321,7 @@ func parseInventory(dir string, inv *aini.InventoryData) (string, *meta.ClusterM
 				tmpIns.ClusterPort, _ = strconv.Atoi(clusterPort)
 			}
 
+			log.Debugf("Imported %s node %s:%d.", tmpIns.Role(), tmpIns.Host, tmpIns.GetMainPort())
 			ins, err := parseDirs(srv, tmpIns)
 			if err != nil {
 				return "", nil, err
@@ -302,6 +329,39 @@ func parseInventory(dir string, inv *aini.InventoryData) (string, *meta.ClusterM
 
 			topo.Alertmanager = append(topo.Alertmanager, ins.(meta.AlertManagerSpec))
 		}
+		log.Infof("Imported %d Alertmanager node(s).", len(topo.Alertmanager))
+	}
+
+	// grafana_servers
+	if grp, ok := inv.Groups["grafana_servers"]; ok && len(grp.Hosts) > 0 {
+		grpVars, err := readGroupVars(dir, groupVarsGrafana)
+		if err != nil {
+			return "", nil, err
+		}
+		for _, srv := range grp.Hosts {
+			host := srv.Vars["ansible_host"]
+			if host == "" {
+				host = srv.Name
+			}
+			tmpIns := meta.GrafanaSpec{
+				Host:     host,
+				SSHPort:  srv.Port,
+				Imported: true,
+			}
+
+			if port, ok := grpVars["grafana_port"]; ok {
+				tmpIns.Port, _ = strconv.Atoi(port)
+			}
+
+			log.Debugf("Imported %s node %s:%d.", tmpIns.Role(), tmpIns.Host, tmpIns.GetMainPort())
+			ins, err := parseDirs(srv, tmpIns)
+			if err != nil {
+				return "", nil, err
+			}
+
+			topo.Grafana = append(topo.Grafana, ins.(meta.GrafanaSpec))
+		}
+		log.Infof("Imported %d Grafana node(s).", len(topo.Alertmanager))
 	}
 
 	// kafka_exporter_servers
@@ -340,6 +400,7 @@ func parseInventory(dir string, inv *aini.InventoryData) (string, *meta.ClusterM
 				tmpIns.LogDir = logDir
 			}
 
+			log.Debugf("Imported %s node %s:%d.", tmpIns.Role(), tmpIns.Host, tmpIns.GetMainPort())
 			ins, err := parseDirs(srv, tmpIns)
 			if err != nil {
 				return "", nil, err
@@ -347,6 +408,7 @@ func parseInventory(dir string, inv *aini.InventoryData) (string, *meta.ClusterM
 
 			topo.PumpServers = append(topo.PumpServers, ins.(meta.PumpSpec))
 		}
+		log.Infof("Imported %d Pump node(s).", len(topo.PumpServers))
 	}
 
 	// drainer_servers
@@ -373,6 +435,7 @@ func parseInventory(dir string, inv *aini.InventoryData) (string, *meta.ClusterM
 				tmpIns.Port, _ = strconv.Atoi(port)
 			}
 
+			log.Debugf("Imported %s node %s:%d.", tmpIns.Role(), tmpIns.Host, tmpIns.GetMainPort())
 			ins, err := parseDirs(srv, tmpIns)
 			if err != nil {
 				return "", nil, err
@@ -380,12 +443,14 @@ func parseInventory(dir string, inv *aini.InventoryData) (string, *meta.ClusterM
 
 			topo.Drainers = append(topo.Drainers, ins.(meta.DrainerSpec))
 		}
+		log.Infof("Imported %d Drainer node(s).", len(topo.Drainers))
 	}
 
 	// TODO: node_exporter and blackbox_exporter on custom port is not supported yet
 	// if it is set on a host line. Global values in group_vars/all.yml will be
 	// correctly parsed.
 
+	log.Infof("Finished importing inventory of %s.", clsName)
 	return clsName, clsMeta, nil
 }
 

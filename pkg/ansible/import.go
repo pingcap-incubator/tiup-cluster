@@ -19,6 +19,7 @@ import (
 	"path/filepath"
 
 	"github.com/creasty/defaults"
+	"github.com/pingcap-incubator/tiops/pkg/log"
 	"github.com/pingcap-incubator/tiops/pkg/meta"
 	"github.com/relex/aini"
 )
@@ -31,6 +32,7 @@ func ImportAnsible(dir string) (string, *meta.ClusterMeta, error) {
 	}
 	defer inventoryFile.Close()
 
+	log.Infof("Found inventory file %s, parsing...", inventoryFile.Name())
 	inventory, err := aini.Parse(inventoryFile)
 	if err != nil {
 		return "", nil, err
@@ -40,10 +42,6 @@ func ImportAnsible(dir string) (string, *meta.ClusterMeta, error) {
 	if err != nil {
 		return "", nil, err
 	}
-
-	// TODO: add output of imported cluster name and version
-	// TODO: check cluster name with other clusters managed by us for conflicts
-	// TODO: prompt user for a chance to set a new cluster name
 
 	// TODO: get values from templates of roles to overwrite defaults
 	if err := defaults.Set(clsMeta); err != nil {

@@ -18,6 +18,7 @@ import (
 	"strings"
 
 	"github.com/pingcap-incubator/tiops/pkg/executor"
+	"github.com/pingcap-incubator/tiops/pkg/log"
 	"github.com/pingcap-incubator/tiops/pkg/meta"
 	"github.com/relex/aini"
 )
@@ -39,6 +40,7 @@ func parseDirs(host *aini.Host, ins meta.InstanceSpec) (meta.InstanceSpec, error
 	if err != nil {
 		return ins, err
 	}
+	log.Debugf("Detecting deploy paths on %s...", hostName)
 
 	switch ins.Role() {
 	case meta.ComponentTiDB:

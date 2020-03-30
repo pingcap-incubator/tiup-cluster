@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/pingcap-incubator/tiops/pkg/log"
 	"github.com/pingcap-incubator/tiops/pkg/meta"
 	"github.com/pingcap-incubator/tiops/pkg/task"
 	"github.com/pingcap/errors"
@@ -34,6 +35,7 @@ func ImportConfig(name string, clsMeta *meta.ClusterMeta) error {
 	var copyFileTasks []task.Task
 	for _, comp := range clsMeta.Topology.ComponentsByStartOrder() {
 		for idx, inst := range comp.Instances() {
+			log.Infof("Copying config file of %s...", inst.ComponentName())
 			switch inst.ComponentName() {
 			case meta.ComponentPD, meta.ComponentTiKV, meta.ComponentPump, meta.ComponentTiDB:
 				if idx != 0 {
@@ -81,5 +83,6 @@ func ImportConfig(name string, clsMeta *meta.ClusterMeta) error {
 	if err := t.Execute(task.NewContext()); err != nil {
 		return errors.Trace(err)
 	}
+	log.Infof("Finished copying configs.")
 	return nil
 }
