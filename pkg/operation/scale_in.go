@@ -14,7 +14,7 @@
 package operator
 
 import (
-	"io"
+	"strconv"
 	"time"
 
 	"github.com/pingcap-incubator/tiops/pkg/api"
@@ -27,7 +27,6 @@ import (
 // ScaleIn scales in the cluster
 func ScaleIn(
 	getter ExecutorGetter,
-	w io.Writer,
 	spec *meta.Specification,
 	options Options,
 ) error {
@@ -66,6 +65,7 @@ func ScaleIn(
 
 	// At least a PD server exists
 	var pdClient *api.PDClient
+	binlogClient := api.NewBinlogClient(nil /* tls.Config */)
 	for _, instance := range (&meta.PDComponent{Specification: spec}).Instances() {
 		if !deletedNodes.Exist(instance.ID()) {
 			pdClient = api.NewPDClient(addr(instance), 10*time.Second, nil)
@@ -94,16 +94,24 @@ func ScaleIn(
 					return err
 				}
 			case meta.ComponentDrainer:
-				// TODO: binlog api
+				addr := instance.GetHost() + ":" + strconv.Itoa(instance.GetPort())
+				err := binlogClient.OfflineDrainer(addr, addr)
+				if err != nil {
+					return errors.AddStack(err)
+				}
 			case meta.ComponentPump:
-				// TODO: binlog api
+				addr := instance.GetHost() + ":" + strconv.Itoa(instance.GetPort())
+				err := binlogClient.OfflineDrainer(addr, addr)
+				if err != nil {
+					return errors.AddStack(err)
+				}
 			}
 
 			if !asyncOfflineComps.Exist(instance.ComponentName()) {
-				if err := StopComponent(getter, w, []meta.Instance{instance}); err != nil {
+				if err := StopComponent(getter, []meta.Instance{instance}); err != nil {
 					return errors.Annotatef(err, "failed to stop %s", component.Name())
 				}
-				if err := DestroyComponent(getter, w, []meta.Instance{instance}); err != nil {
+				if err := DestroyComponent(getter, []meta.Instance{instance}); err != nil {
 					return errors.Annotatef(err, "failed to destroy %s", component.Name())
 				}
 			} else {

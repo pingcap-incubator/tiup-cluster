@@ -16,6 +16,7 @@ package task
 import (
 	"fmt"
 
+	"github.com/pingcap-incubator/tiops/pkg/log"
 	"github.com/pingcap/errors"
 )
 
@@ -38,10 +39,10 @@ func (m *Shell) Execute(ctx *Context) error {
 	if m.sudo {
 		cmd = fmt.Sprintf(`sudo %s`, m.command)
 	} else {
-		cmd = fmt.Sprintf(`%s`, m.command)
+		cmd = m.command
 	}
 
-	fmt.Println("Run command: ", cmd)
+	log.Infof("Run command: %s", cmd)
 
 	_, _, err := exec.Execute(cmd, false)
 	if err != nil {

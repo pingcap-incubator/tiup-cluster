@@ -40,6 +40,8 @@ func newUpgradeCmd() *cobra.Command {
 			if len(args) != 2 {
 				return cmd.Help()
 			}
+
+			auditConfig.enable = true
 			return upgrade(args[0], args[1], opt)
 		},
 	}
@@ -58,7 +60,7 @@ func versionCompare(curVersion, newVersion string) error {
 		}
 		return errors.New(fmt.Sprintf("unsupport upgrade from %s to %s", curVersion, newVersion))
 	default:
-		return errors.New("unkown error")
+		return errors.Errorf("please specify a higher version than %s", curVersion)
 	}
 }
 

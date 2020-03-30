@@ -53,6 +53,8 @@ func newDeploy() *cobra.Command {
 			if len(opt.keyFile) == 0 && len(opt.password) == 0 {
 				return errPasswordKeyAtLeastOne
 			}
+
+			auditConfig.enable = true
 			return deploy(args[0], args[1], args[2], opt)
 		},
 	}
@@ -71,7 +73,7 @@ func getComponentVersion(comp, version string) repository.Version {
 	case meta.ComponentPrometheus:
 		return "v2.16.0"
 	case meta.ComponentGrafana:
-		return "v6.7.1"
+		return "v6.1.6"
 	case meta.ComponentAlertManager:
 		return "v0.20.0"
 	case meta.ComponentBlackboxExporter:
@@ -167,6 +169,9 @@ func deploy(clusterName, version, topoFile string, opt deployOptions) error {
 func buildDownloadCompTasks(version string, topo *meta.Specification) []task.Task {
 	var tasks []task.Task
 	topo.IterComponent(func(comp meta.Component) {
+		if len(comp.Instances()) < 1 {
+			return
+		}
 		version := getComponentVersion(comp.Name(), version)
 		t := task.NewBuilder().Download(comp.Name(), version).Build()
 		tasks = append(tasks, t)
@@ -201,7 +206,7 @@ func buildMonitoredDeployTask(
 					filepath.Join(deployDir, "scripts"),
 					filepath.Join(deployDir, "log")).
 				CopyComponent(comp, version, host, deployDir).
-				MonitoredConfig(clusterName, monitoredOptions, globalOptions.User, deployDir).
+				MonitoredConfig(clusterName, comp, host, monitoredOptions, globalOptions.User, deployDir).
 				Build()
 			deployCompTasks = append(deployCompTasks, t)
 		}

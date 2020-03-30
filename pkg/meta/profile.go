@@ -28,6 +28,7 @@ const (
 	TiOpsPackageCacheDir = "packages"
 	TiOpsClusterDir      = "clusters"
 	TiOpsLogDir          = "log"
+	TiOpsAuditDir        = "audit"
 )
 
 var profileDir string
