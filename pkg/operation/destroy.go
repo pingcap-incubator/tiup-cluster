@@ -46,7 +46,18 @@ func DestroyComponent(getter ExecutorGetter, instances []meta.Instance) error {
 		default:
 			command = ""
 		}
-		command = command + fmt.Sprintf("rm -rf %s;", ins.DeployDir()) + fmt.Sprintf("rm -rf /etc/systemd/system/%s;", ins.ServiceName())
+
+		// In TiDB-Ansible, deploy dir are shared by all components on the same
+		// host, so not deleting it.
+		// TODO: this may leave undeleted files when destroying the cluster, fix
+		// that later.
+		if !ins.IsImported() {
+			command += fmt.Sprintf("rm -rf %s;", ins.DeployDir())
+		} else {
+			log.Warnf("Deploy dir %s not deleted for TiDB-Ansible imported instance %s.",
+				ins.DeployDir(), ins.InstanceName())
+		}
+		command = command + fmt.Sprintf("rm -rf /etc/systemd/system/%s;", ins.ServiceName())
 		c := module.ShellModuleConfig{
 			Command:  command,
 			Sudo:     true, // the .service files are in a directory owned by root
