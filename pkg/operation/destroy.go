@@ -19,7 +19,7 @@ func Destroy(
 	for _, com := range coms {
 		err := DestroyComponent(getter, com.Instances())
 		if err != nil {
-			return errors.Annotatef(err, "failed to stop %s", com.Name())
+			return errors.Annotatef(err, "failed to destroy %s", com.Name())
 		}
 	}
 	return nil
