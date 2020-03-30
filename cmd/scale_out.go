@@ -85,7 +85,7 @@ func scaleOut(clusterName, topoFile string, opt scaleOutOptions) error {
 	newPart.ServerConfigs = metadata.Topology.ServerConfigs
 
 	// Build the scale out tasks
-	t, err := buildScaleOutTask(clusterName, metadata, opt, &newPart)
+	t, err := buildScaleOutTask(clusterName, metadata, opt, &newPart, mergedTopo)
 	if err != nil {
 		return err
 	}
@@ -101,7 +101,8 @@ func buildScaleOutTask(
 	clusterName string,
 	metadata *meta.ClusterMeta,
 	opt scaleOutOptions,
-	newPart *meta.TopologySpecification) (task.Task, error) {
+	newPart *meta.TopologySpecification,
+	mergedTopo *meta.TopologySpecification) (task.Task, error) {
 	var (
 		envInitTasks       []task.Task // tasks which are used to initialize environment
 		downloadCompTasks  []task.Task // tasks which are used to download components
@@ -149,10 +150,13 @@ func buildScaleOutTask(
 			Build()
 		deployCompTasks = append(deployCompTasks, t)
 
-		// Refresh the configuration
-		t = task.NewBuilder().
+	})
+
+	mergedTopo.IterInstance(func(inst meta.Instance) {
+		// Refresh all configuration
+		t := task.NewBuilder().
 			UserSSH(inst.GetHost(), metadata.User).
-			InitConfig(clusterName, inst, metadata.User, deployDir).
+			InitConfig(clusterName, inst, metadata.User, inst.DeployDir()).
 			Build()
 		refreshConfigTasks = append(refreshConfigTasks, t)
 	})
