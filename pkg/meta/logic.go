@@ -527,7 +527,7 @@ func (i *MonitorInstance) InitConfig(e executor.TiOpsExecutor, user, cacheDir, d
 		return err
 	}
 	dst := filepath.Join(deployDir, "scripts", "run_prometheus.sh")
-	if err := e.Transfer(fp, dst); err != nil {
+	if err := e.Transfer(fp, dst, false); err != nil {
 		return err
 	}
 
@@ -574,7 +574,7 @@ func (i *MonitorInstance) InitConfig(e executor.TiOpsExecutor, user, cacheDir, d
 		return err
 	}
 	dst = filepath.Join(deployDir, "conf", "prometheus.yml")
-	if err := e.Transfer(fp, dst); err != nil {
+	if err := e.Transfer(fp, dst, false); err != nil {
 		return err
 	}
 
@@ -637,7 +637,7 @@ func (i *GrafanaInstance) InitConfig(e executor.TiOpsExecutor, user, cacheDir, d
 		return err
 	}
 	dst := filepath.Join(deployDir, "scripts", "run_grafana.sh")
-	if err := e.Transfer(fp, dst); err != nil {
+	if err := e.Transfer(fp, dst, false); err != nil {
 		return err
 	}
 
@@ -651,7 +651,7 @@ func (i *GrafanaInstance) InitConfig(e executor.TiOpsExecutor, user, cacheDir, d
 		return err
 	}
 	dst = filepath.Join(deployDir, "conf", "grafana.ini")
-	if err := e.Transfer(fp, dst); err != nil {
+	if err := e.Transfer(fp, dst, false); err != nil {
 		return err
 	}
 
@@ -661,7 +661,7 @@ func (i *GrafanaInstance) InitConfig(e executor.TiOpsExecutor, user, cacheDir, d
 		return err
 	}
 	dst = filepath.Join(deployDir, "conf", "dashboard.yml")
-	if err := e.Transfer(fp, dst); err != nil {
+	if err := e.Transfer(fp, dst, false); err != nil {
 		return err
 	}
 
@@ -671,7 +671,7 @@ func (i *GrafanaInstance) InitConfig(e executor.TiOpsExecutor, user, cacheDir, d
 		return err
 	}
 	dst = filepath.Join(deployDir, "conf", "datasource.yml")
-	if err := e.Transfer(fp, dst); err != nil {
+	if err := e.Transfer(fp, dst, false); err != nil {
 		return err
 	}
 
