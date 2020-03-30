@@ -16,6 +16,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/fatih/color"
 	"github.com/pingcap-incubator/tiops/pkg/meta"
@@ -31,7 +32,7 @@ func init() {
 	cobra.EnableCommandSorting = false
 
 	rootCmd = &cobra.Command{
-		Use:           "tiops",
+		Use:           filepath.Base(os.Args[0]),
 		Short:         "Deploy a TiDB cluster for production",
 		SilenceUsage:  true,
 		SilenceErrors: true,
