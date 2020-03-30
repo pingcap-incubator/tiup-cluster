@@ -35,6 +35,7 @@ type componentInfo struct {
 
 type deployOptions struct {
 	user       string // username to login to the SSH server
+	usePasswd  bool   // use password for authentication
 	password   string // password of the user
 	keyFile    string // path to the private key file
 	passphrase string // passphrase of the private key file
@@ -50,6 +51,9 @@ func newDeploy() *cobra.Command {
 			if len(args) != 3 {
 				return cmd.Help()
 			}
+			if opt.usePasswd {
+				opt.password = tiopsutils.GetPasswd("Password:")
+			}
 			if len(opt.keyFile) == 0 && len(opt.password) == 0 {
 				return errPasswordKeyAtLeastOne
 			}
@@ -60,7 +64,7 @@ func newDeploy() *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&opt.user, "user", "root", "Specify the system user name")
-	cmd.Flags().StringVar(&opt.password, "password", "", "Specify the password of system user")
+	cmd.Flags().BoolVar(&opt.usePasswd, "password", false, "Specify the password of system user")
 	cmd.Flags().StringVar(&opt.keyFile, "key", "", "Specify the key path of system user")
 	cmd.Flags().StringVar(&opt.passphrase, "passphrase", "", "Specify the passphrase of the key")
 
