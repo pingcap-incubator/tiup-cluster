@@ -5,7 +5,6 @@
 #   ssh_port: 22
 #   deploy_dir: "deploy"
 #   data_dir: "data"
-#   log_dir: "log"
 
 # Monitored variables are used to 
 # monitored:
