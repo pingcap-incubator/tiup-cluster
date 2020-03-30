@@ -20,12 +20,14 @@ import (
 	"sync"
 
 	"github.com/pingcap-incubator/tiops/pkg/executor"
+	"github.com/pingcap-incubator/tiops/pkg/flags"
+	"github.com/pingcap-incubator/tiops/pkg/log"
 	"github.com/pingcap-incubator/tiup/pkg/repository"
 )
 
 var (
-	// ErrUnsupportRollback means the task do not support rollback.
-	ErrUnsupportRollback = stderrors.New("unsupport rollback")
+	// ErrUnsupportedRollback means the task do not support rollback.
+	ErrUnsupportedRollback = stderrors.New("unsupported rollback")
 	// ErrNoExecutor means can get the executor.
 	ErrNoExecutor = stderrors.New("no executor")
 )
@@ -33,6 +35,7 @@ var (
 type (
 	// Task represents a operation while TiOps execution
 	Task interface {
+		fmt.Stringer
 		Execute(ctx *Context) error
 		Rollback(ctx *Context) error
 	}
@@ -124,10 +127,18 @@ func (ctx *Context) SetManifest(comp string, m *repository.VersionManifest) {
 	return
 }
 
+func isSingleTask(t Task) bool {
+	_, isS := t.(Serial)
+	_, isP := t.(Parallel)
+	return !isS && !isP
+}
+
 // Execute implements the Task interface
 func (s Serial) Execute(ctx *Context) error {
 	for _, t := range s {
-		fmt.Println("+", fmt.Sprintf("%T => %+v", t, t))
+		if isSingleTask(t) {
+			log.Infof("+ [ Serial ] - %s", t.String())
+		}
 		err := t.Execute(ctx)
 		if err != nil {
 			return err
@@ -148,13 +159,26 @@ func (s Serial) Rollback(ctx *Context) error {
 	return nil
 }
 
+// String implements the fmt.Stringer interface
+func (s Serial) String() string {
+	var ss []string
+	for _, t := range s {
+		ss = append(ss, t.String())
+	}
+	return strings.Join(ss, "\n")
+}
+
 type errs []error
 
 // Error implements the error interface
 func (es errs) Error() string {
 	ss := make([]string, 0, len(es))
 	for _, e := range es {
-		ss = append(ss, fmt.Sprintf("%+v", e))
+		if flags.ShowBacktrace {
+			ss = append(ss, fmt.Sprintf("%+v", e))
+		} else {
+			ss = append(ss, fmt.Sprintf("%v", e))
+		}
 	}
 	return strings.Join(ss, "\n")
 }
@@ -168,6 +192,9 @@ func (pt Parallel) Execute(ctx *Context) error {
 		wg.Add(1)
 		go func(t Task) {
 			defer wg.Done()
+			if isSingleTask(t) {
+				log.Debugf("+ [Parallel] - %s", t.String())
+			}
 			err := t.Execute(ctx)
 			if err != nil {
 				mu.Lock()
@@ -202,4 +229,13 @@ func (pt Parallel) Rollback(ctx *Context) error {
 	}
 	wg.Wait()
 	return es
+}
+
+// String implements the fmt.Stringer interface
+func (pt Parallel) String() string {
+	var ss []string
+	for _, t := range pt {
+		ss = append(ss, t.String())
+	}
+	return strings.Join(ss, "\n")
 }

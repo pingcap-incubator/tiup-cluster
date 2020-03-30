@@ -32,6 +32,13 @@ type Downloader struct {
 
 // Execute implements the Task interface
 func (d *Downloader) Execute(_ *Context) error {
+	if d.component == "" {
+		return errors.New("component name not specified")
+	}
+	if d.version.IsEmpty() {
+		return errors.Errorf("version not specified for component '%s'", d.component)
+	}
+
 	resName := fmt.Sprintf("%s-%s", d.component, d.version)
 	fileName := fmt.Sprintf("%s-linux-amd64.tar.gz", resName)
 	srcPath := meta.ProfilePath(meta.TiOpsPackageCacheDir, fileName)
@@ -50,7 +57,15 @@ func (d *Downloader) Execute(_ *Context) error {
 			DisableDecompress: true,
 		})
 
-		err := repo.DownloadFile(meta.ProfilePath(meta.TiOpsPackageCacheDir), resName)
+		versions, err := repo.ComponentVersions(d.component)
+		if err != nil {
+			return err
+		}
+		if !versions.ContainsVersion(d.version) {
+			return errors.Errorf("component '%s' doesn't contains version '%s'", d.component, d.version)
+		}
+
+		err = repo.DownloadFile(meta.ProfilePath(meta.TiOpsPackageCacheDir), resName)
 		if err != nil {
 			return errors.Trace(err)
 		}
@@ -63,4 +78,9 @@ func (d *Downloader) Execute(_ *Context) error {
 func (d *Downloader) Rollback(ctx *Context) error {
 	// We cannot delete the component because of some versions maybe exists before
 	return nil
+}
+
+// String implements the fmt.Stringer interface
+func (d *Downloader) String() string {
+	return fmt.Sprintf("Download: component=%s, version=%s", d.component, d.version)
 }

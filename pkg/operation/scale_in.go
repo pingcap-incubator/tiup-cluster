@@ -14,8 +14,11 @@
 package operator
 
 import (
-	"io"
+	"strconv"
+	"time"
 
+	"github.com/pingcap-incubator/tiops/pkg/api"
+	"github.com/pingcap-incubator/tiops/pkg/log"
 	"github.com/pingcap-incubator/tiops/pkg/meta"
 	"github.com/pingcap-incubator/tiup/pkg/set"
 	"github.com/pingcap/errors"
@@ -24,7 +27,6 @@ import (
 // ScaleIn scales in the cluster
 func ScaleIn(
 	getter ExecutorGetter,
-	w io.Writer,
 	spec *meta.Specification,
 	options Options,
 ) error {
@@ -40,7 +42,7 @@ func ScaleIn(
 
 	// Clean components
 	deletedDiff := map[string][]meta.Instance{}
-	deletedNodes := set.NewStringSet(options.DeletedNodes...)
+	deletedNodes := set.NewStringSet(options.Nodes...)
 	for nodeID := range deletedNodes {
 		inst, found := instances[nodeID]
 		if !found {
@@ -61,31 +63,60 @@ func ScaleIn(
 
 	asyncOfflineComps := set.NewStringSet(meta.ComponentPump, meta.ComponentTiKV, meta.ComponentDrainer)
 
+	// At least a PD server exists
+	var pdClient *api.PDClient
+	binlogClient := api.NewBinlogClient(nil /* tls.Config */)
+	for _, instance := range (&meta.PDComponent{Specification: spec}).Instances() {
+		if !deletedNodes.Exist(instance.ID()) {
+			pdClient = api.NewPDClient(addr(instance), 10*time.Second, nil)
+			break
+		}
+	}
+
+	if pdClient == nil {
+		return errors.New("cannot find available PD instance")
+	}
+
 	// Delete member from cluster
 	for _, component := range spec.ComponentsByStartOrder() {
 		for _, instance := range component.Instances() {
-			if !deletedNodes.Exist(instance.GetHost()) {
+			if !deletedNodes.Exist(instance.ID()) {
 				continue
 			}
 
 			switch component.Name() {
 			case meta.ComponentTiKV:
-				// TODO: pdapi delete store
+				if err := pdClient.DelStore(instance.GetHost()); err != nil {
+					return err
+				}
 			case meta.ComponentPD:
-				// TODO: delete pd
+				if err := pdClient.DelPD(instance.(*meta.PDInstance).Name); err != nil {
+					return err
+				}
 			case meta.ComponentDrainer:
-				// TODO: binlog api
+				addr := instance.GetHost() + ":" + strconv.Itoa(instance.GetPort())
+				err := binlogClient.OfflineDrainer(addr, addr)
+				if err != nil {
+					return errors.AddStack(err)
+				}
 			case meta.ComponentPump:
-				// TODO: binlog api
+				addr := instance.GetHost() + ":" + strconv.Itoa(instance.GetPort())
+				err := binlogClient.OfflineDrainer(addr, addr)
+				if err != nil {
+					return errors.AddStack(err)
+				}
 			}
 
 			if !asyncOfflineComps.Exist(instance.ComponentName()) {
-				if err := StopComponent(getter, w, []meta.Instance{instance}); err != nil {
+				if err := StopComponent(getter, []meta.Instance{instance}); err != nil {
 					return errors.Annotatef(err, "failed to stop %s", component.Name())
 				}
-				if err := DestroyComponent(getter, w, []meta.Instance{instance}); err != nil {
+				if err := DestroyComponent(getter, []meta.Instance{instance}); err != nil {
 					return errors.Annotatef(err, "failed to destroy %s", component.Name())
 				}
+			} else {
+				log.Warnf("The component `%s` will be destroyed in background, maybe exists in several minutes or hours",
+					component.Name())
 			}
 		}
 	}

@@ -83,7 +83,7 @@ func (sshExec *SSHExecutor) Initialize(config SSHConfig) error {
 func (sshExec *SSHExecutor) Execute(cmd string, sudo bool, timeout ...time.Duration) ([]byte, []byte, error) {
 	// try to acquire root permission
 	if sudo {
-		cmd = fmt.Sprintf("sudo -H -u root %s", cmd)
+		cmd = fmt.Sprintf("sudo -H -u root bash -c \"%s\"", cmd)
 	}
 
 	// set a basic PATH in case it's empty on login
@@ -93,7 +93,8 @@ func (sshExec *SSHExecutor) Execute(cmd string, sudo bool, timeout ...time.Durat
 	// default timeout is 60s in easyssh-proxy
 	stdout, stderr, done, err := sshExec.Config.Run(cmd, timeout...)
 	if err != nil {
-		return []byte(stdout), []byte(stderr), err
+		return []byte(stdout), []byte(stderr),
+			errors.Annotatef(err, "cmd: '%s' on %s:%s", cmd, sshExec.Config.Server, sshExec.Config.Port)
 	}
 
 	if !done { // timeout case,

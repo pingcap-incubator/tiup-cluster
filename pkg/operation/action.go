@@ -14,32 +14,42 @@
 package operator
 
 import (
-	"bytes"
 	"fmt"
-	"io"
 	"strings"
 
 	"github.com/pingcap-incubator/tiops/pkg/executor"
+	"github.com/pingcap-incubator/tiops/pkg/log"
 	"github.com/pingcap-incubator/tiops/pkg/meta"
 	"github.com/pingcap-incubator/tiops/pkg/module"
+	"github.com/pingcap-incubator/tiup/pkg/set"
 	"github.com/pingcap/errors"
 )
 
 // Start the cluster.
 func Start(
 	getter ExecutorGetter,
-	w io.Writer,
 	spec *meta.Specification,
-	component string,
-	node string,
+	options Options,
 ) error {
-	coms := spec.ComponentsByStartOrder()
-	coms = filterComponent(coms, component)
+	uniqueHosts := set.NewStringSet()
+	roleFilter := set.NewStringSet(options.Roles...)
+	nodeFilter := set.NewStringSet(options.Nodes...)
+	components := spec.ComponentsByStartOrder()
+	components = filterComponent(components, roleFilter)
 
-	for _, com := range coms {
-		err := StartComponent(getter, w, filterInstance(com.Instances(), node))
+	for _, com := range components {
+		insts := filterInstance(com.Instances(), nodeFilter)
+		err := StartComponent(getter, insts)
 		if err != nil {
 			return errors.Annotatef(err, "failed to start %s", com.Name())
+		}
+		for _, inst := range insts {
+			if !uniqueHosts.Exist(inst.GetHost()) {
+				uniqueHosts.Insert(inst.GetHost())
+				if err := StartMonitored(getter, inst, spec.MonitoredOptions); err != nil {
+					return err
+				}
+			}
 		}
 	}
 
@@ -49,18 +59,28 @@ func Start(
 // Stop the cluster.
 func Stop(
 	getter ExecutorGetter,
-	w io.Writer,
 	spec *meta.Specification,
-	component string,
-	node string,
+	options Options,
 ) error {
-	coms := spec.ComponentsByStopOrder()
-	coms = filterComponent(coms, component)
+	uniqueHosts := set.NewStringSet()
+	roleFilter := set.NewStringSet(options.Roles...)
+	nodeFilter := set.NewStringSet(options.Nodes...)
+	components := spec.ComponentsByStopOrder()
+	components = filterComponent(components, roleFilter)
 
-	for _, com := range coms {
-		err := StopComponent(getter, w, filterInstance(com.Instances(), node))
+	for _, com := range components {
+		insts := filterInstance(com.Instances(), nodeFilter)
+		err := StopComponent(getter, insts)
 		if err != nil {
 			return errors.Annotatef(err, "failed to stop %s", com.Name())
+		}
+		for _, inst := range insts {
+			if !uniqueHosts.Exist(inst.GetHost()) {
+				uniqueHosts.Insert(inst.GetHost())
+				if err := StopMonitored(getter, inst, spec.MonitoredOptions); err != nil {
+					return err
+				}
+			}
 		}
 	}
 	return nil
@@ -69,20 +89,19 @@ func Stop(
 // Restart the cluster.
 func Restart(
 	getter ExecutorGetter,
-	w io.Writer,
 	spec *meta.Specification,
-	component string,
-	node string,
+	options Options,
 ) error {
-	coms := spec.ComponentsByStartOrder()
-	coms = filterComponent(coms, component)
+	roleFilter := set.NewStringSet(options.Roles...)
+	components := spec.ComponentsByStartOrder()
+	components = filterComponent(components, roleFilter)
 
-	err := Stop(getter, w, spec, component, node)
+	err := Stop(getter, spec, options)
 	if err != nil {
 		return errors.Annotatef(err, "failed to stop")
 	}
 
-	err = Start(getter, w, spec, component, node)
+	err = Start(getter, spec, options)
 	if err != nil {
 		return errors.Annotatef(err, "failed to start")
 	}
@@ -90,30 +109,76 @@ func Restart(
 	return nil
 }
 
+// StartMonitored start BlackboxExporter and NodeExporter
+func StartMonitored(getter ExecutorGetter, instance meta.Instance, options meta.MonitoredOptions) error {
+	ports := map[string]int{
+		meta.ComponentNodeExporter:     options.NodeExporterPort,
+		meta.ComponentBlackboxExporter: options.BlackboxExporterPort,
+	}
+	e := getter.Get(instance.GetHost())
+	for _, comp := range []string{meta.ComponentNodeExporter, meta.ComponentBlackboxExporter} {
+		log.Infof("Starting component %s", comp)
+		log.Infof("\tStarting instance %s", instance.GetHost())
+		c := module.SystemdModuleConfig{
+			Unit:         fmt.Sprintf("%s-%d.service", comp, ports[comp]),
+			ReloadDaemon: true,
+			Action:       "start",
+		}
+		systemd := module.NewSystemdModule(c)
+		stdout, stderr, err := systemd.Execute(e)
+
+		if len(stdout) > 0 {
+			log.Output(string(stdout))
+		}
+		if len(stderr) > 0 {
+			log.Errorf(string(stderr))
+		}
+
+		if err != nil {
+			return errors.Annotatef(err, "failed to start: %s", instance.GetHost())
+		}
+
+		// Check ready.
+		if err := meta.PortStarted(e, ports[comp]); err != nil {
+			str := fmt.Sprintf("\t%s failed to start: %s", instance.GetHost(), err)
+			log.Errorf(str)
+			return errors.Annotatef(err, str)
+		}
+
+		log.Infof("\tStart %s success", instance.GetHost())
+	}
+
+	return nil
+}
+
 // StartComponent start the instances.
-func StartComponent(getter ExecutorGetter, w io.Writer, instances []meta.Instance) error {
+func StartComponent(getter ExecutorGetter, instances []meta.Instance) error {
 	if len(instances) <= 0 {
 		return nil
 	}
 
 	name := instances[0].ComponentName()
-	fmt.Fprintf(w, "Starting component %s\n", name)
+	log.Infof("Starting component %s", name)
 
 	for _, ins := range instances {
 		e := getter.Get(ins.GetHost())
-		fmt.Fprintf(w, "\tStarting instance %s\n", ins.GetHost())
+		log.Infof("\tStarting instance %s", ins.GetHost())
 
 		// Start by systemd.
 		c := module.SystemdModuleConfig{
-			Unit:   ins.ServiceName(),
-			Action: "start",
-			// Scope: "",
+			Unit:         ins.ServiceName(),
+			ReloadDaemon: true,
+			Action:       "start",
 		}
 		systemd := module.NewSystemdModule(c)
 		stdout, stderr, err := systemd.Execute(e)
 
-		io.Copy(w, bytes.NewReader(stdout))
-		io.Copy(w, bytes.NewReader(stderr))
+		if len(stdout) > 0 {
+			log.Output(string(stdout))
+		}
+		if len(stderr) > 0 {
+			log.Errorf(string(stderr))
+		}
 
 		if err != nil {
 			return errors.Annotatef(err, "failed to start: %s", ins.GetHost())
@@ -123,28 +188,66 @@ func StartComponent(getter ExecutorGetter, w io.Writer, instances []meta.Instanc
 		err = ins.Ready(e)
 		if err != nil {
 			str := fmt.Sprintf("\t%s failed to start: %s", ins.GetHost(), err)
-			fmt.Fprintln(w, str)
+			log.Errorf(str)
 			return errors.Annotatef(err, str)
 		}
 
-		fmt.Fprintf(w, "\tStart %s success\n", ins.GetHost())
+		log.Infof("\tStart %s success", ins.GetHost())
+	}
+
+	return nil
+}
+
+// StopMonitored stop BlackboxExporter and NodeExporter
+func StopMonitored(getter ExecutorGetter, instance meta.Instance, options meta.MonitoredOptions) error {
+	ports := map[string]int{
+		meta.ComponentNodeExporter:     options.NodeExporterPort,
+		meta.ComponentBlackboxExporter: options.BlackboxExporterPort,
+	}
+	e := getter.Get(instance.GetHost())
+	for _, comp := range []string{meta.ComponentNodeExporter, meta.ComponentBlackboxExporter} {
+		log.Infof("Stopping component %s", comp)
+
+		c := module.SystemdModuleConfig{
+			Unit:   fmt.Sprintf("%s-%d.service", comp, ports[comp]),
+			Action: "stop",
+		}
+		systemd := module.NewSystemdModule(c)
+		stdout, stderr, err := systemd.Execute(e)
+
+		if len(stdout) > 0 {
+			log.Output(string(stdout))
+		}
+		if len(stderr) > 0 {
+			log.Errorf(string(stderr))
+		}
+
+		if err != nil {
+			return errors.Annotatef(err, "failed to stop: %s", instance.GetHost())
+		}
+
+		if err := meta.PortStopped(e, ports[comp]); err != nil {
+			str := fmt.Sprintf("\t%s failed to stop: %s", instance.GetHost(), err)
+			log.Errorf(str)
+			return errors.Annotatef(err, str)
+		}
 	}
 
 	return nil
 }
 
 // StopComponent stop the instances.
-func StopComponent(getter ExecutorGetter, w io.Writer, instances []meta.Instance) error {
+func StopComponent(getter ExecutorGetter, instances []meta.Instance) error {
 	if len(instances) <= 0 {
 		return nil
 	}
 
 	name := instances[0].ComponentName()
-	fmt.Fprintf(w, "Stopping component %s\n", name)
+	log.Infof("Stopping component %s", name)
 
 	for _, ins := range instances {
 		e := getter.Get(ins.GetHost())
-		fmt.Fprintf(w, "\tStopping instance %s\n", ins.GetHost())
+		log.Infof("\tStopping instance %s", ins.GetHost())
 
 		// Stop by systemd.
 		c := module.SystemdModuleConfig{
@@ -155,8 +258,12 @@ func StopComponent(getter ExecutorGetter, w io.Writer, instances []meta.Instance
 		systemd := module.NewSystemdModule(c)
 		stdout, stderr, err := systemd.Execute(e)
 
-		io.Copy(w, bytes.NewReader(stdout))
-		io.Copy(w, bytes.NewReader(stderr))
+		if len(stdout) > 0 {
+			log.Output(string(stdout))
+		}
+		if len(stderr) > 0 {
+			log.Errorf(string(stderr))
+		}
 
 		if err != nil {
 			return errors.Annotatef(err, "failed to stop: %s", ins.GetHost())
@@ -165,11 +272,11 @@ func StopComponent(getter ExecutorGetter, w io.Writer, instances []meta.Instance
 		err = ins.WaitForDown(e)
 		if err != nil {
 			str := fmt.Sprintf("\t%s failed to stop: %s", ins.GetHost(), err)
-			fmt.Fprintln(w, str)
+			log.Errorf(str)
 			return errors.Annotatef(err, str)
 		}
 
-		fmt.Fprintf(w, "\tStop %s success\n", ins.GetHost())
+		log.Infof("\tStop %s success", ins.GetHost())
 	}
 
 	return nil
@@ -208,7 +315,7 @@ func getServiceStatus(e executor.TiOpsExecutor, name string) (active string, err
 }
 
 // PrintClusterStatus print cluster status into the io.Writer.
-func PrintClusterStatus(getter ExecutorGetter, w io.Writer, spec *meta.Specification) (health bool) {
+func PrintClusterStatus(getter ExecutorGetter, spec *meta.Specification) (health bool) {
 	health = true
 
 	for _, com := range spec.ComponentsByStartOrder() {
@@ -216,16 +323,16 @@ func PrintClusterStatus(getter ExecutorGetter, w io.Writer, spec *meta.Specifica
 			continue
 		}
 
-		fmt.Fprintln(w, com.Name())
+		log.Infof(com.Name())
 		for _, ins := range com.Instances() {
-			fmt.Fprintf(w, "\t%s\n", ins.GetHost())
+			log.Infof("\t%s", ins.GetHost())
 			e := getter.Get(ins.GetHost())
 			active, err := getServiceStatus(e, ins.ServiceName())
 			if err != nil {
 				health = false
-				fmt.Fprintf(w, "\t\t%s\n", err.Error())
+				log.Errorf("\t\t%v", err)
 			} else {
-				fmt.Fprintf(w, "\t\t%s\n", active)
+				log.Infof("\t\t%s", active)
 			}
 		}
 

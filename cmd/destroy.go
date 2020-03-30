@@ -14,13 +14,15 @@
 package cmd
 
 import (
+	"os"
+
+	"github.com/pingcap-incubator/tiops/pkg/log"
 	"github.com/pingcap-incubator/tiops/pkg/meta"
 	operator "github.com/pingcap-incubator/tiops/pkg/operation"
 	"github.com/pingcap-incubator/tiops/pkg/task"
+	"github.com/pingcap/errors"
 	"github.com/spf13/cobra"
 )
-
-var options     operator.Options
 
 func newDestroyCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -31,20 +33,29 @@ func newDestroyCmd() *cobra.Command {
 				return cmd.Help()
 			}
 
-			metadata, err := meta.ClusterMetadata(args[0])
+			auditConfig.enable = true
+			clusterName := args[0]
+			metadata, err := meta.ClusterMetadata(clusterName)
 			if err != nil {
 				return err
 			}
 			t := task.NewBuilder().
 				SSHKeySet(
-					meta.ClusterPath(args[0], "ssh", "id_rsa"),
-					meta.ClusterPath(args[0], "ssh", "id_rsa.pub")).
+					meta.ClusterPath(clusterName, "ssh", "id_rsa"),
+					meta.ClusterPath(clusterName, "ssh", "id_rsa.pub")).
 				ClusterSSH(metadata.Topology, metadata.User).
-				ClusterOperate(metadata.Topology, operator.StopOperation, options).
+				ClusterOperate(metadata.Topology, operator.StopOperation, operator.Options{}).
 				ClusterOperate(metadata.Topology, operator.DestroyOperation, operator.Options{}).
 				Build()
 
-			return t.Execute(task.NewContext())
+			if err := t.Execute(task.NewContext()); err != nil {
+				return err
+			}
+			if err := os.RemoveAll(meta.ClusterPath(clusterName)); err != nil {
+				return errors.Trace(err)
+			}
+			log.Infof("Destroy cluster `%s` successfully", clusterName)
+			return nil
 		},
 	}
 	return cmd

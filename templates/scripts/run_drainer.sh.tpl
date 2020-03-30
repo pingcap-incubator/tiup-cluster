@@ -1,6 +1,5 @@
 #!/bin/bash
 set -e
-ulimit -n 1000000
 
 # WARNING: This file was auto-generated. Do not edit!
 #          All your edit might be overwritten!
@@ -11,9 +10,9 @@ cd "${DEPLOY_DIR}" || exit 1
 {{- define "PDList"}}
   {{- range $idx, $pd := .}}
     {{- if eq $idx 0}}
-      {{- $pd.Scheme}}://{{$pd.IP}}:{{$pd.PeerPort}}
+      {{- $pd.Scheme}}://{{$pd.IP}}:{{$pd.ClientPort}}
     {{- else -}}
-      ,{{- $pd.Scheme}}://{{$pd.IP}}:{{$pd.PeerPort}}
+      ,{{- $pd.Scheme}}://{{$pd.IP}}:{{$pd.ClientPort}}
     {{- end}}
   {{- end}}
 {{- end}}

@@ -14,7 +14,7 @@
 package operator
 
 import (
-	"io"
+	"strconv"
 	"time"
 
 	"github.com/pingcap-incubator/tiops/pkg/api"
@@ -26,25 +26,26 @@ import (
 // Upgrade the cluster.
 func Upgrade(
 	getter ExecutorGetter,
-	w io.Writer,
 	spec *meta.Specification,
 	options Options,
 ) error {
+	roleFilter := set.NewStringSet(options.Roles...)
+	nodeFilter := set.NewStringSet(options.Nodes...)
 	components := spec.ComponentsByStartOrder()
-	components = filterComponent(components, options.Role)
+	components = filterComponent(components, roleFilter)
 
 	leaderAware := set.NewStringSet(meta.ComponentPD, meta.ComponentTiKV)
 
-	var pdHosts []string
+	var pdAddrs []string
 
 	for _, component := range components {
 		if component.Name() == meta.ComponentPD {
 			for _, instance := range component.Instances() {
-				pdHosts = append(pdHosts, instance.GetHost())
+				pdAddrs = append(pdAddrs, addr(instance))
 			}
 		}
 
-		instances := filterInstance(component.Instances(), options.Node)
+		instances := filterInstance(component.Instances(), nodeFilter)
 		if len(instances) < 1 {
 			continue
 		}
@@ -54,7 +55,7 @@ func Upgrade(
 			switch component.Name() {
 			case meta.ComponentPD:
 				for _, instance := range instances {
-					pdClient := api.NewPDClient(instance.GetHost(), 5*time.Second, nil)
+					pdClient := api.NewPDClient(addr(instance), 5*time.Second, nil)
 					leader, err := pdClient.GetLeader()
 					if err != nil {
 						return errors.Annotatef(err, "failed to get PD leader %s", instance.GetHost())
@@ -64,28 +65,28 @@ func Upgrade(
 							return errors.Annotatef(err, "failed to evict PD leader %s", instance.GetHost())
 						}
 					}
-					if err := StopComponent(getter, w, []meta.Instance{instance}); err != nil {
+					if err := StopComponent(getter, []meta.Instance{instance}); err != nil {
 						return errors.Annotatef(err, "failed to stop %s", component.Name())
 					}
-					if err := StartComponent(getter, w, []meta.Instance{instance}); err != nil {
+					if err := StartComponent(getter, []meta.Instance{instance}); err != nil {
 						return errors.Annotatef(err, "failed to start %s", component.Name())
 					}
 				}
 
 			case meta.ComponentTiKV:
-				if pdHosts == nil || len(pdHosts) <= 0 {
-					return errors.New("cannot find pd host")
+				if pdAddrs == nil || len(pdAddrs) <= 0 {
+					return errors.New("cannot find pd addr")
 				}
 
 				for _, instance := range instances {
-					pdClient := api.NewPDClient(pdHosts[0], 5*time.Second, nil)
-					if err := pdClient.EvictStoreLeader(instance.GetHost()); err != nil {
+					pdClient := api.NewPDClient(pdAddrs[0], 5*time.Second, nil)
+					if err := pdClient.EvictStoreLeader(addr(instance)); err != nil {
 						return errors.Annotatef(err, "failed to evict store leader %s", instance.GetHost())
 					}
-					if err := StopComponent(getter, w, []meta.Instance{instance}); err != nil {
+					if err := StopComponent(getter, []meta.Instance{instance}); err != nil {
 						return errors.Annotatef(err, "failed to stop %s", component.Name())
 					}
-					if err := StartComponent(getter, w, []meta.Instance{instance}); err != nil {
+					if err := StartComponent(getter, []meta.Instance{instance}); err != nil {
 						return errors.Annotatef(err, "failed to start %s", component.Name())
 					}
 				}
@@ -93,12 +94,19 @@ func Upgrade(
 			continue
 		}
 
-		if err := StopComponent(getter, w, instances); err != nil {
+		if err := StopComponent(getter, instances); err != nil {
 			return errors.Annotatef(err, "failed to stop %s", component.Name())
 		}
-		if err := StartComponent(getter, w, instances); err != nil {
+		if err := StartComponent(getter, instances); err != nil {
 			return errors.Annotatef(err, "failed to start %s", component.Name())
 		}
 	}
 	return nil
+}
+
+func addr(ins meta.Instance) string {
+	if ins.GetPort() == 0 || ins.GetPort() == 80 {
+		panic(ins)
+	}
+	return ins.GetHost() + ":" + strconv.Itoa(ins.GetPort())
 }

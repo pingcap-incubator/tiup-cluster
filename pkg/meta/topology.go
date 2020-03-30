@@ -15,12 +15,16 @@ package meta
 
 import (
 	"fmt"
+	"path/filepath"
 	"reflect"
+	"strings"
 	"time"
 
 	"github.com/creasty/defaults"
 	"github.com/pingcap-incubator/tiops/pkg/api"
 	"github.com/pingcap-incubator/tiops/pkg/utils"
+	"github.com/pingcap-incubator/tiup/pkg/set"
+	"github.com/pingcap/errors"
 )
 
 const (
@@ -39,35 +43,74 @@ const (
 	RoleMonitor = "monitor"
 )
 
-// InstanceSpec represent a instance specification
-type InstanceSpec interface {
-	Role() string
-}
+type (
+	// InstanceSpec represent a instance specification
+	InstanceSpec interface {
+		Role() string
+	}
+
+	// GlobalOptions represents the global options for all groups in topology
+	// pecification in topology.yaml
+	GlobalOptions struct {
+		User      string `yaml:"user,omitempty" default:"tidb"`
+		SSHPort   int    `yaml:"ssh_port,omitempty" default:"22"`
+		DeployDir string `yaml:"deploy_dir,omitempty" default:"deploy"`
+		DataDir   string `yaml:"data_dir,omitempty"  default:"data"`
+	}
+
+	// MonitoredOptions represents the monitored node configuration
+	MonitoredOptions struct {
+		NodeExporterPort     int    `yaml:"node_exporter_port,omitempty" default:"9100"`
+		BlackboxExporterPort int    `yaml:"blackbox_exporter_port,omitempty" default:"9115"`
+		DeployDir            string `yaml:"deploy_dir,omitempty"`
+		DataDir              string `yaml:"data_dir,omitempty"`
+	}
+
+	// TopologySpecification represents the specification of topology.yaml
+	TopologySpecification struct {
+		GlobalOptions    GlobalOptions      `yaml:"global,omitempty"`
+		MonitoredOptions MonitoredOptions   `yaml:"monitored,omitempty"`
+		TiDBServers      []TiDBSpec         `yaml:"tidb_servers"`
+		TiKVServers      []TiKVSpec         `yaml:"tikv_servers"`
+		PDServers        []PDSpec           `yaml:"pd_servers"`
+		PumpServers      []PumpSpec         `yaml:"pump_servers,omitempty"`
+		Drainers         []DrainerSpec      `yaml:"drainer_servers,omitempty"`
+		Monitors         []PrometheusSpec   `yaml:"monitoring_servers"`
+		Grafana          []GrafanaSpec      `yaml:"grafana_servers,omitempty"`
+		Alertmanager     []AlertManagerSpec `yaml:"alertmanager_servers,omitempty"`
+	}
+)
 
 // TiDBSpec represents the TiDB topology specification in topology.yaml
 type TiDBSpec struct {
 	Host       string `yaml:"host"`
 	Port       int    `yaml:"port" default:"4000"`
 	StatusPort int    `yaml:"status_port" default:"10080"`
-	SSHPort    int    `yaml:"ssh_port,omitempty" default:"22"`
+	SSHPort    int    `yaml:"ssh_port,omitempty"`
 	DeployDir  string `yaml:"deploy_dir,omitempty"`
 	NumaNode   bool   `yaml:"numa_node,omitempty"`
 }
 
-// Status queries current status of the instance
-func (s TiDBSpec) Status(pdList ...string) string {
+// statusByURL queries current status of the instance by http status api.
+func statusByURL(url string) string {
 	client := utils.NewHTTPClient(statusQueryTimeout, nil)
-	url := fmt.Sprintf("http://%s:%d/status", s.Host, s.StatusPort)
 
 	// body doesn't have any status section needed
 	body, err := client.Get(url)
 	if err != nil {
-		return "ERR"
+		return "N/A"
 	}
 	if body == nil {
 		return "Down"
 	}
 	return "Up"
+
+}
+
+// Status queries current status of the instance
+func (s TiDBSpec) Status(pdList ...string) string {
+	url := fmt.Sprintf("http://%s:%d/status", s.Host, s.StatusPort)
+	return statusByURL(url)
 }
 
 // Role returns the component role of the instance
@@ -80,7 +123,7 @@ type TiKVSpec struct {
 	Host       string   `yaml:"host"`
 	Port       int      `yaml:"port" default:"20160"`
 	StatusPort int      `yaml:"status_port" default:"20180"`
-	SSHPort    int      `yaml:"ssh_port,omitempty" default:"22"`
+	SSHPort    int      `yaml:"ssh_port,omitempty"`
 	DeployDir  string   `yaml:"deploy_dir,omitempty"`
 	DataDir    string   `yaml:"data_dir,omitempty"`
 	Offline    bool     `yaml:"offline,omitempty"`
@@ -96,7 +139,7 @@ func (s TiKVSpec) Status(pdList ...string) string {
 	pdapi := api.NewPDClient(pdList[0], statusQueryTimeout, nil)
 	stores, err := pdapi.GetStores()
 	if err != nil {
-		return "ERR"
+		return "N/A"
 	}
 
 	name := fmt.Sprintf("%s:%d", s.Host, s.Port)
@@ -120,7 +163,7 @@ type PDSpec struct {
 	Host       string `yaml:"host"`
 	ClientPort int    `yaml:"client_port" default:"2379"`
 	PeerPort   int    `yaml:"peer_port" default:"2380"`
-	SSHPort    int    `yaml:"ssh_port,omitempty" default:"22"`
+	SSHPort    int    `yaml:"ssh_port,omitempty"`
 	DeployDir  string `yaml:"deploy_dir,omitempty"`
 	DataDir    string `yaml:"data_dir,omitempty"`
 	NumaNode   bool   `yaml:"numa_node,omitempty"`
@@ -132,13 +175,13 @@ func (s PDSpec) Status(pdList ...string) string {
 		statusQueryTimeout, nil)
 	healths, err := pdapi.GetHealth()
 	if err != nil {
-		return "ERR"
+		return "N/A"
 	}
 
 	// find leader node
 	leader, err := pdapi.GetLeader()
 	if err != nil {
-		return "ERR"
+		return "N/A"
 	}
 
 	for _, member := range healths.Healths {
@@ -166,7 +209,7 @@ func (s PDSpec) Role() string {
 type PumpSpec struct {
 	Host      string `yaml:"host"`
 	Port      int    `yaml:"port" default:"8250"`
-	SSHPort   int    `yaml:"ssh_port,omitempty" default:"22"`
+	SSHPort   int    `yaml:"ssh_port,omitempty"`
 	DeployDir string `yaml:"deploy_dir,omitempty"`
 	DataDir   string `yaml:"data_dir,omitempty"`
 	Offline   bool   `yaml:"offline,omitempty"`
@@ -182,7 +225,7 @@ func (s PumpSpec) Role() string {
 type DrainerSpec struct {
 	Host      string `yaml:"host"`
 	Port      int    `yaml:"port" default:"8249"`
-	SSHPort   int    `yaml:"ssh_port,omitempty" default:"22"`
+	SSHPort   int    `yaml:"ssh_port,omitempty"`
 	DeployDir string `yaml:"deploy_dir,omitempty"`
 	DataDir   string `yaml:"data_dir,omitempty"`
 	CommitTS  string `yaml:"commit_ts,omitempty"`
@@ -199,7 +242,7 @@ func (s DrainerSpec) Role() string {
 type PrometheusSpec struct {
 	Host      string `yaml:"host"`
 	Port      int    `yaml:"port" default:"9090"`
-	SSHPort   int    `yaml:"ssh_port,omitempty" default:"22"`
+	SSHPort   int    `yaml:"ssh_port,omitempty"`
 	DeployDir string `yaml:"deploy_dir,omitempty"`
 	DataDir   string `yaml:"data_dir,omitempty"`
 }
@@ -213,7 +256,7 @@ func (s PrometheusSpec) Role() string {
 type GrafanaSpec struct {
 	Host      string `yaml:"host"`
 	Port      int    `yaml:"port" default:"3000"`
-	SSHPort   int    `yaml:"ssh_port,omitempty" default:"22"`
+	SSHPort   int    `yaml:"ssh_port,omitempty"`
 	DeployDir string `yaml:"deploy_dir,omitempty"`
 }
 
@@ -227,7 +270,7 @@ type AlertManagerSpec struct {
 	Host        string `yaml:"host"`
 	WebPort     int    `yaml:"web_port" default:"9093"`
 	ClusterPort int    `yaml:"cluster_port" default:"9094"`
-	SSHPort     int    `yaml:"ssh_port,omitempty" default:"22"`
+	SSHPort     int    `yaml:"ssh_port,omitempty"`
 	DeployDir   string `yaml:"deploy_dir,omitempty"`
 	DataDir     string `yaml:"data_dir,omitempty"`
 }
@@ -237,31 +280,6 @@ func (s AlertManagerSpec) Role() string {
 	return RoleMonitor
 }
 
-/*
-// TopologyGlobalOptions represents the global options for all groups in topology
-// pecification in topology.yaml
-type TopologyGlobalOptions struct {
-	SSHPort              int    `yaml:"ssh_port,omitempty" default:"22"`
-	DeployDir            string `yaml:"deploy_dir,omitempty"`
-	DataDir              string `yaml:"data_dir,omitempty"`
-	NodeExporterPort     int    `yaml:"node_exporter_port,omitempty" default:"9100"`
-	BlackboxExporterPort int    `yaml:"blackbox_exporter_port,omitempty" default:"9115"`
-}
-*/
-
-// TopologySpecification represents the specification of topology.yaml
-type TopologySpecification struct {
-	//GlobalOptions TopologyGlobalOptions `yaml:"global,omitempty"`
-	TiDBServers  []TiDBSpec         `yaml:"tidb_servers"`
-	TiKVServers  []TiKVSpec         `yaml:"tikv_servers"`
-	PDServers    []PDSpec           `yaml:"pd_servers"`
-	PumpServers  []PumpSpec         `yaml:"pump_servers,omitempty"`
-	Drainers     []DrainerSpec      `yaml:"drainer_servers,omitempty"`
-	Monitors     []PrometheusSpec   `yaml:"monitoring_servers"`
-	Grafana      []GrafanaSpec      `yaml:"grafana_servers,omitempty"`
-	Alertmanager []AlertManagerSpec `yaml:"alertmanager_servers,omitempty"`
-}
-
 // UnmarshalYAML sets default values when unmarshaling the topology file
 func (topo *TopologySpecification) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	type topology TopologySpecification
@@ -269,9 +287,165 @@ func (topo *TopologySpecification) UnmarshalYAML(unmarshal func(interface{}) err
 		return err
 	}
 
-	defaults.Set(topo)
-	if err := fillCustomDefaults(topo); err != nil {
+	if err := defaults.Set(topo); err != nil {
+		return errors.Trace(err)
+	}
+
+	// Set monitored options
+	if topo.MonitoredOptions.DeployDir == "" {
+		topo.MonitoredOptions.DeployDir = filepath.Join(topo.GlobalOptions.DeployDir,
+			fmt.Sprintf("%s-%d", RoleMonitor, topo.MonitoredOptions.NodeExporterPort))
+	}
+	if topo.MonitoredOptions.DataDir == "" {
+		topo.MonitoredOptions.DataDir = filepath.Join(topo.GlobalOptions.DataDir,
+			fmt.Sprintf("%s-%d", RoleMonitor, topo.MonitoredOptions.NodeExporterPort))
+	}
+
+	if err := fillCustomDefaults(&topo.GlobalOptions, topo); err != nil {
 		return err
+	}
+
+	return topo.Validate()
+}
+
+// Validate validates the topology specification and produce error if the
+// specification invalid (e.g: port conflicts or directory conflicts)
+func (topo *TopologySpecification) Validate() error {
+	findField := func(v reflect.Value, fieldName string) (int, bool) {
+		for i := 0; i < v.NumField(); i++ {
+			if v.Type().Field(i).Name == fieldName {
+				return i, true
+			}
+		}
+		return -1, false
+	}
+
+	type (
+		usedPort struct {
+			host string
+			port int
+		}
+		usedDir struct {
+			host string
+			dir  string
+		}
+		conflict struct {
+			tp  string
+			cfg string
+		}
+	)
+
+	portTypes := []string{
+		"Port",
+		"StatusPort",
+		"PeerPort",
+		"ClientPort",
+		"WebPort",
+		"ClusterPort",
+	}
+
+	dirTypes := []string{
+		"DataDir",
+		"DeployDir",
+	}
+
+	// usedInfo => type
+	var (
+		portStats   = map[usedPort]conflict{}
+		dirStats    = map[usedDir]conflict{}
+		uniqueHosts = set.NewStringSet()
+	)
+
+	topoSpec := reflect.ValueOf(topo).Elem()
+	topoType := reflect.TypeOf(topo).Elem()
+	for i := 0; i < topoSpec.NumField(); i++ {
+		if isSkipField(topoSpec.Field(i)) {
+			continue
+		}
+
+		compSpecs := topoSpec.Field(i)
+		for index := 0; index < compSpecs.Len(); index++ {
+			compSpec := compSpecs.Index(index)
+			host := compSpec.FieldByName("Host").String()
+			cfg := topoType.Field(i).Tag.Get("yaml")
+			if host == "" {
+				return errors.Errorf("`%s` contains empty host field", cfg)
+			}
+			uniqueHosts.Insert(host)
+
+			// Directory conflicts
+			for _, dirType := range dirTypes {
+				if j, found := findField(compSpec, dirType); found {
+					item := usedDir{
+						host: host,
+						dir:  compSpec.Field(j).String(),
+					}
+					// `yaml:"data_dir,omitempty"`
+					tp := strings.Split(compSpec.Type().Field(j).Tag.Get("yaml"), ",")[0]
+					prev, exist := dirStats[item]
+					if exist {
+						return errors.Errorf("directory '%s' conflicts between '%s:%s.%s' and '%s:%s.%s'",
+							item.dir, prev.cfg, item.host, prev.tp, cfg, item.host, tp)
+					}
+					dirStats[item] = conflict{
+						tp:  tp,
+						cfg: cfg,
+					}
+				}
+			}
+
+			// Ports conflicts
+			for _, portType := range portTypes {
+				if j, found := findField(compSpec, portType); found {
+					item := usedPort{
+						host: host,
+						port: int(compSpec.Field(j).Int()),
+					}
+					tp := compSpec.Type().Field(j).Tag.Get("yaml")
+					prev, exist := portStats[item]
+					if exist {
+						return errors.Errorf("port '%d' conflicts between '%s:%s.%s' and '%s:%s.%s'",
+							item.port, prev.cfg, item.host, prev.tp, cfg, item.host, tp)
+					}
+					portStats[item] = conflict{
+						tp:  tp,
+						cfg: cfg,
+					}
+				}
+			}
+		}
+	}
+
+	// Port conflicts in monitored components
+	monitoredPortTypes := []string{
+		"NodeExporterPort",
+		"BlackboxExporterPort",
+	}
+	monitoredOpt := topoSpec.FieldByName(monitorOptionTypeName)
+	for host := range uniqueHosts {
+		cfg := "monitored"
+		for _, portType := range monitoredPortTypes {
+			f := monitoredOpt.FieldByName(portType)
+			item := usedPort{
+				host: host,
+				port: int(f.Int()),
+			}
+			ft, found := monitoredOpt.Type().FieldByName(portType)
+			if !found {
+				return errors.Errorf("incompatible change `%s.%s`", monitorOptionTypeName, portType)
+			}
+			// `yaml:"node_exporter_port,omitempty"`
+			tp := strings.Split(ft.Tag.Get("yaml"), ",")[0]
+			prev, exist := portStats[item]
+			if exist {
+				return errors.Errorf("port '%d' conflicts between '%s:%s.%s' and '%s:%s.%s'",
+					item.port, prev.cfg, item.host, prev.tp, cfg, item.host, tp)
+			}
+			portStats[item] = conflict{
+				tp:  tp,
+				cfg: cfg,
+			}
+		}
 	}
 
 	return nil
@@ -288,14 +462,30 @@ func (topo *TopologySpecification) GetPDList() []string {
 	return pdList
 }
 
+// Merge returns a new TopologySpecification which sum old ones
+func (topo *TopologySpecification) Merge(that *TopologySpecification) *TopologySpecification {
+	return &TopologySpecification{
+		GlobalOptions:    topo.GlobalOptions,
+		MonitoredOptions: topo.MonitoredOptions,
+		TiDBServers:      append(topo.TiDBServers, that.TiDBServers...),
+		TiKVServers:      append(topo.TiKVServers, that.TiKVServers...),
+		PDServers:        append(topo.PDServers, that.PDServers...),
+		PumpServers:      append(topo.PumpServers, that.PumpServers...),
+		Drainers:         append(topo.Drainers, that.Drainers...),
+		Monitors:         append(topo.Monitors, that.Monitors...),
+		Grafana:          append(topo.Grafana, that.Grafana...),
+		Alertmanager:     append(topo.Alertmanager, that.Alertmanager...),
+	}
+}
+
 // fillDefaults tries to fill custom fields to their default values
-func fillCustomDefaults(data interface{}) error {
+func fillCustomDefaults(globalOptions *GlobalOptions, data interface{}) error {
 	v := reflect.ValueOf(data).Elem()
 	t := v.Type()
 
 	var err error
 	for i := 0; i < t.NumField(); i++ {
-		if err = setCustomDefaults(v.Field(i)); err != nil {
+		if err = setCustomDefaults(globalOptions, v.Field(i)); err != nil {
 			return err
 		}
 	}
@@ -303,27 +493,48 @@ func fillCustomDefaults(data interface{}) error {
 	return nil
 }
 
-func setCustomDefaults(field reflect.Value) error {
-	if !field.CanSet() {
+var (
+	globalOptionTypeName  = reflect.TypeOf(GlobalOptions{}).Name()
+	monitorOptionTypeName = reflect.TypeOf(MonitoredOptions{}).Name()
+)
+
+// Skip global/monitored options
+func isSkipField(field reflect.Value) bool {
+	tp := field.Type().Name()
+	return tp == globalOptionTypeName || tp == monitorOptionTypeName
+}
+
+func setDefaultDir(parent, role, port string, field reflect.Value) {
+	if field.String() != "" {
+		return
+	}
+	if defaults.CanUpdate(field.Interface()) {
+		dir := fmt.Sprintf("%s-%s", role, port)
+		field.Set(reflect.ValueOf(filepath.Join(parent, dir)))
+	}
+}
+
+func setCustomDefaults(globalOptions *GlobalOptions, field reflect.Value) error {
+	if !field.CanSet() || isSkipField(field) {
 		return nil
 	}
 
 	switch field.Kind() {
 	case reflect.Slice:
 		for i := 0; i < field.Len(); i++ {
-			if err := setCustomDefaults(field.Index(i)); err != nil {
+			if err := setCustomDefaults(globalOptions, field.Index(i)); err != nil {
 				return err
 			}
 		}
 	case reflect.Struct:
 		ref := reflect.New(field.Type())
 		ref.Elem().Set(field)
-		if err := fillCustomDefaults(ref.Interface()); err != nil {
+		if err := fillCustomDefaults(globalOptions, ref.Interface()); err != nil {
 			return err
 		}
 		field.Set(ref.Elem())
 	case reflect.Ptr:
-		if err := setCustomDefaults(field.Elem()); err != nil {
+		if err := setCustomDefaults(globalOptions, field.Elem()); err != nil {
 			return err
 		}
 	}
@@ -334,30 +545,22 @@ func setCustomDefaults(field reflect.Value) error {
 
 	for j := 0; j < field.NumField(); j++ {
 		switch field.Type().Field(j).Name {
-		case "Host":
-			if field.Field(j).String() == "" {
-				// TODO: remove empty server from topology
+		case "SSHPort":
+			if field.Field(j).Int() != 0 {
+				continue
 			}
+			field.Field(j).Set(reflect.ValueOf(globalOptions.SSHPort))
 		case "Name":
-			if field.Field(j).String() == "" {
-				host := field.FieldByName("Host").Interface().(string)
-				clientPort := field.FieldByName("ClientPort").Interface().(int)
-				field.Field(j).Set(reflect.ValueOf(fmt.Sprintf("pd-%s-%d", host, clientPort)))
-			}
-		case "DeployDir", "DataDir":
 			if field.Field(j).String() != "" {
 				continue
 			}
-
-			// fill default path for empty value, default paths are relative
-			// ones, when using the value, remember to check and fill base
-			// paths of them.
-			if defaults.CanUpdate(field.Field(j).Interface()) {
-				dir := fmt.Sprintf("%s-%s",
-					field.Interface().(InstanceSpec).Role(),
-					getPort(field))
-				field.Field(j).Set(reflect.ValueOf(dir))
-			}
+			host := field.FieldByName("Host").String()
+			clientPort := field.FieldByName("ClientPort").Int()
+			field.Field(j).Set(reflect.ValueOf(fmt.Sprintf("pd-%s-%d", host, clientPort)))
+		case "DataDir":
+			setDefaultDir(globalOptions.DataDir, field.Interface().(InstanceSpec).Role(), getPort(field), field.Field(j))
+		case "DeployDir":
+			setDefaultDir(globalOptions.DeployDir, field.Interface().(InstanceSpec).Role(), getPort(field), field.Field(j))
 		}
 	}
 
@@ -367,7 +570,7 @@ func setCustomDefaults(field reflect.Value) error {
 func getPort(v reflect.Value) string {
 	for i := 0; i < v.NumField(); i++ {
 		switch v.Type().Field(i).Name {
-		case "Port", "ClientPort", "WebPort":
+		case "Port", "ClientPort", "WebPort", "NodeExporterPort":
 			return fmt.Sprintf("%d", v.Field(i).Int())
 		}
 	}

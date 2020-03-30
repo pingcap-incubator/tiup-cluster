@@ -128,6 +128,9 @@ if [ -z "${DEV}" ]; then
         # (cd ..; tar --exclude=./docker --exclude=./.git --exclude-ignore=.gitignore -cf - .)  | tar Cxf ./control/tiops -
         (cd ..; tar --exclude=./docker --exclude=./.git -cf - .)  | tar Cxf ./control/tiops -
     )
+else
+	INFO "Build tiops in $TIOPS_ROOT"
+	(cd $TIOPS_ROOT;GOOS=linux GOARCH=amd64 make build)
 fi
 
 if [ "${INIT_ONLY}" -eq 1 ]; then
@@ -144,6 +147,8 @@ exists docker-compose ||
 INFO "Running \`docker-compose build\`"
 # shellcheck disable=SC2086
 docker-compose -f docker-compose.yml ${COMPOSE} ${DEV} build
+
+docker network create --gateway 172.19.0.1 --subnet 172.19.0.0/16 tiops > /dev/null 2>&1 || echo "Skip create tiops network"
 
 INFO "Running \`docker-compose up\`"
 if [ "${RUN_AS_DAEMON}" -eq 1 ]; then

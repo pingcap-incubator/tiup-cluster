@@ -14,24 +14,23 @@
 package cmd
 
 import (
-	"github.com/pingcap-incubator/tiops/pkg/task"
 	"github.com/spf13/cobra"
 )
 
-func newTestCmd() *cobra.Command {
+func newImportCmd() *cobra.Command {
+	var (
+		ansible string
+	)
+
 	cmd := &cobra.Command{
-		Use:    "test",
-		Short:  "Run shell command on host in the tidb cluster",
+		Use:    "import",
+		Short:  "Import a TiDB cluster from tidb-ansible",
 		Hidden: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			t := task.NewBuilder().RootSSH("127.0.0.1", 22, "root", "", "/Users/huangjiahao/.ssh/id_rsa", "").
-				CopyFile("/tmp/a", "127.0.0.1", "/tmp/b").
-				Build()
-			ctx := task.NewContext()
-			err := t.Execute(ctx)
-
-			return err
+			return cmd.Help()
 		},
 	}
+
+	cmd.Flags().StringVarP(&ansible, "ansible-path", "A", "", "the path for tidb-ansible")
 	return cmd
 }

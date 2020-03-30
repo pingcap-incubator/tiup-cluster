@@ -37,6 +37,8 @@ func newExecCmd() *cobra.Command {
 			if len(args) != 1 {
 				return cmd.Help()
 			}
+
+			auditConfig.enable = true
 			metadata, err := meta.ClusterMetadata(os.Args[1])
 			if err != nil {
 				return err

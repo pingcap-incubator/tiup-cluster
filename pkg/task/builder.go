@@ -14,8 +14,6 @@
 package task
 
 import (
-	"os"
-
 	"github.com/pingcap-incubator/tiops/pkg/meta"
 	operator "github.com/pingcap-incubator/tiops/pkg/operation"
 	"github.com/pingcap-incubator/tiup/pkg/repository"
@@ -33,7 +31,7 @@ func NewBuilder() *Builder {
 
 // RootSSH appends a RootSSH task to the current task collection
 func (b *Builder) RootSSH(host string, port int, user, password, keyFile, passphrase string) *Builder {
-	b.tasks = append(b.tasks, RootSSH{
+	b.tasks = append(b.tasks, &RootSSH{
 		host:       host,
 		port:       port,
 		user:       user,
@@ -46,7 +44,7 @@ func (b *Builder) RootSSH(host string, port int, user, password, keyFile, passph
 
 // UserSSH append a UserSSH task to the current task collection
 func (b *Builder) UserSSH(host, deployUser string) *Builder {
-	b.tasks = append(b.tasks, UserSSH{
+	b.tasks = append(b.tasks, &UserSSH{
 		host:       host,
 		deployUser: deployUser,
 	})
@@ -58,7 +56,7 @@ func (b *Builder) ClusterSSH(spec *meta.Specification, deployUser string) *Build
 	var tasks []Task
 	for _, com := range spec.ComponentsByStartOrder() {
 		for _, in := range com.Instances() {
-			tasks = append(tasks, UserSSH{
+			tasks = append(tasks, &UserSSH{
 				host:       in.GetHost(),
 				deployUser: deployUser,
 			})
@@ -132,6 +130,31 @@ func (b *Builder) InitConfig(name string, inst meta.Instance, deployUser, deploy
 	return b
 }
 
+// ScaleConfig generate temporary config on scaling
+func (b *Builder) ScaleConfig(name string, base *meta.TopologySpecification, inst meta.Instance, deployUser, deployDir string) *Builder {
+	b.tasks = append(b.tasks, &ScaleConfig{
+		name:       name,
+		base:       base,
+		instance:   inst,
+		deployUser: deployUser,
+		deployDir:  deployDir,
+	})
+	return b
+}
+
+// MonitoredConfig appends a CopyComponent task to the current task collection
+func (b *Builder) MonitoredConfig(name, comp, host string, options meta.MonitoredOptions, deployUser, deployDir string) *Builder {
+	b.tasks = append(b.tasks, &MonitoredConfig{
+		name:       name,
+		component:  comp,
+		host:       host,
+		options:    options,
+		deployUser: deployUser,
+		deployDir:  deployDir,
+	})
+	return b
+}
+
 // SSHKeyGen appends a SSHKeyGen task to the current task collection
 func (b *Builder) SSHKeyGen(keypath string) *Builder {
 	b.tasks = append(b.tasks, &SSHKeyGen{
@@ -169,7 +192,6 @@ func (b *Builder) ClusterOperate(
 		spec:    spec,
 		op:      op,
 		options: options,
-		w:       os.Stdout,
 	})
 
 	return b
@@ -177,15 +199,6 @@ func (b *Builder) ClusterOperate(
 
 // Mkdir appends a Mkdir task to the current task collection
 func (b *Builder) Mkdir(host string, dirs ...string) *Builder {
-	b.tasks = append(b.tasks, &Mkdir{
-		host: host,
-		dirs: dirs,
-	})
-	return b
-}
-
-// Rmdir appends a Rmdir task to the current task collection
-func (b *Builder) Rmdir(host string, dirs ...string) *Builder {
 	b.tasks = append(b.tasks, &Mkdir{
 		host: host,
 		dirs: dirs,
@@ -209,7 +222,16 @@ func (b *Builder) Parallel(tasks ...Task) *Builder {
 	return b
 }
 
+// Serial appends the tasks to the tail of queue
+func (b *Builder) Serial(tasks ...Task) *Builder {
+	b.tasks = append(b.tasks, tasks...)
+	return b
+}
+
 // Build returns a task that contains all tasks appended by previous operation
 func (b *Builder) Build() Task {
+	if len(b.tasks) == 1 {
+		return b.tasks[0]
+	}
 	return Serial(b.tasks)
 }

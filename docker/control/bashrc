@@ -2,6 +2,18 @@ eval $(ssh-agent) &> /dev/null
 ssh-add /root/.ssh/id_rsa &> /dev/null
 
 export PATH=$PATH:/usr/local/go/bin
+export PATH=$PATH:/tiops/bin
+
+if [ -d "/mirrors" ]; then
+	export TIUP_MIRRORS=/mirrors
+fi
+
+# You may uncomment the following lines if you want `ls' to be colorized:
+export LS_OPTIONS='--color=auto'
+eval "`dircolors`"
+alias ls='ls $LS_OPTIONS'
+alias ll='ls $LS_OPTIONS -l'
+alias l='ls $LS_OPTIONS -lA'
 
 cat <<EOF
 Welcome to tiops on Docker
@@ -10,6 +22,8 @@ Welcome to tiops on Docker
 This container runs the tiops tests in sub-containers.
 
 You are currently in the base dir of the git repo for tiops.
+
+Run `tiops` to play with tiops.
 
 To run a test:
    TODO

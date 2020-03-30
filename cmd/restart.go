@@ -21,15 +21,18 @@ import (
 )
 
 func newRestartCmd() *cobra.Command {
-	var (
-		clusterName string
-		options     operator.Options
-	)
+	var options operator.Options
 
 	cmd := &cobra.Command{
-		Use:   "restart",
-		Short: "Restart TiDB cluster",
+		Use:   "restart <cluster-name>",
+		Short: "Restart a TiDB cluster",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) != 1 {
+				return cmd.Help()
+			}
+
+			auditConfig.enable = true
+			clusterName := args[0]
 			metadata, err := meta.ClusterMetadata(clusterName)
 			if err != nil {
 				return err
@@ -48,8 +51,7 @@ func newRestartCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&clusterName, "cluster", "", "cluster name")
-	cmd.Flags().StringVar(&options.Role, "role", "", "role name")
-	cmd.Flags().StringVar(&options.Node, "node-id", "", "node id")
+	cmd.Flags().StringSliceVarP(&options.Roles, "role", "R", nil, "Only restart specified roles")
+	cmd.Flags().StringSliceVarP(&options.Nodes, "node", "N", nil, "Only restart specified nodes")
 	return cmd
 }
