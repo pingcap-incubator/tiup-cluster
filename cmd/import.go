@@ -30,7 +30,7 @@ func newImportCmd() *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:   "import [OPTIONS]",
+		Use:   "import [Flags]",
 		Short: "Import an exist TiDB cluster from TiDB-Ansible",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// migrate cluster metadata from Ansible inventory
