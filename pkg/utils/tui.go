@@ -68,6 +68,7 @@ func Prompt(prompt string) string {
 	return strings.TrimSuffix(input, "\n")
 }
 
+// Confirm accepts YES/NO from console by user
 func Confirm(prompt string) (string, bool) {
 	ans := Prompt(prompt)
 	switch strings.ToLower(ans) {
