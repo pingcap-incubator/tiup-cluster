@@ -37,7 +37,7 @@ func ImportConfig(name string, clsMeta *meta.ClusterMeta) error {
 		for idx, inst := range comp.Instances() {
 			log.Infof("Copying config file of %s...", inst.ComponentName())
 			switch inst.ComponentName() {
-			case meta.ComponentPD, meta.ComponentTiKV, meta.ComponentPump, meta.ComponentTiDB:
+			case meta.ComponentPD, meta.ComponentTiKV, meta.ComponentPump, meta.ComponentTiDB, meta.ComponentTiFlash:
 				if idx != 0 {
 					break
 				}

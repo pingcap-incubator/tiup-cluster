@@ -643,6 +643,10 @@ func (i *MonitorInstance) InitConfig(e executor.TiOpsExecutor, user, cacheDir, d
 		uniqueHosts.Insert(db.Host)
 		cfig.AddTiDB(db.Host, uint64(db.StatusPort))
 	}
+	for _, db := range i.topo.TiFlashServers {
+		uniqueHosts.Insert(db.Host)
+		cfig.AddTiFlash(db.Host, uint64(db.TCPPort))
+	}
 	for _, pump := range i.topo.PumpServers {
 		uniqueHosts.Insert(pump.Host)
 		cfig.AddPump(pump.Host, uint64(pump.Port))
@@ -826,6 +830,7 @@ func (topo *Specification) ComponentsByStartOrder() (comps []Component) {
 	comps = append(comps, &TiKVComponent{topo})
 	comps = append(comps, &PumpComponent{topo})
 	comps = append(comps, &TiDBComponent{topo})
+	comps = append(comps, &TiFlashComponent{topo})
 	comps = append(comps, &DrainerComponent{topo})
 	comps = append(comps, &MonitorComponent{topo})
 	comps = append(comps, &GrafanaComponent{topo})
