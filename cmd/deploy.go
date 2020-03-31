@@ -134,6 +134,12 @@ func deploy(clusterName, version, topoFile string, opt deployOptions) error {
 		if !strings.HasPrefix(deployDir, "/") {
 			deployDir = filepath.Join("/home/", topo.GlobalOptions.User, deployDir)
 		}
+		// data dir would be empty for components which don't need it
+		dataDir := inst.DataDir()
+		if dataDir != "" && !strings.HasPrefix(dataDir, "/") {
+			dataDir = filepath.Join("/home/", topo.GlobalOptions.User, dataDir)
+		}
+		// log dir will always be with values, but might not used by the component
 		logDir := inst.LogDir()
 		if !strings.HasPrefix(logDir, "/") {
 			logDir = filepath.Join("/home/", topo.GlobalOptions.User, logDir)
@@ -144,6 +150,7 @@ func deploy(clusterName, version, topoFile string, opt deployOptions) error {
 				filepath.Join(deployDir, "bin"),
 				filepath.Join(deployDir, "conf"),
 				filepath.Join(deployDir, "scripts"),
+				dataDir,
 				logDir).
 			CopyComponent(inst.ComponentName(), version, inst.GetHost(), deployDir).
 			InitConfig(
@@ -152,6 +159,7 @@ func deploy(clusterName, version, topoFile string, opt deployOptions) error {
 				topo.GlobalOptions.User,
 				meta.DirPaths{
 					Deploy: deployDir,
+					Data:   dataDir,
 					Log:    logDir,
 				},
 			).
@@ -213,6 +221,11 @@ func buildMonitoredDeployTask(
 			if !strings.HasPrefix(deployDir, "/") {
 				deployDir = filepath.Join("/home/", globalOptions.User, deployDir)
 			}
+			// data dir would be empty for components which don't need it
+			dataDir := monitoredOptions.DataDir
+			if dataDir != "" && !strings.HasPrefix(dataDir, "/") {
+				dataDir = filepath.Join("/home/", globalOptions.User, dataDir)
+			}
 			logDir := monitoredOptions.LogDir
 			if !strings.HasPrefix(logDir, "/") {
 				logDir = filepath.Join("/home/", globalOptions.User, logDir)
@@ -225,10 +238,21 @@ func buildMonitoredDeployTask(
 					filepath.Join(deployDir, "bin"),
 					filepath.Join(deployDir, "conf"),
 					filepath.Join(deployDir, "scripts"),
+					dataDir,
 					logDir).
 				CopyComponent(comp, version, host, deployDir).
-				MonitoredConfig(clusterName, comp, host, monitoredOptions, globalOptions.User, deployDir).
-				Build()
+				MonitoredConfig(
+					clusterName,
+					comp,
+					host,
+					monitoredOptions,
+					globalOptions.User,
+					meta.DirPaths{
+						Deploy: deployDir,
+						Data:   dataDir,
+						Log:    logDir,
+					},
+				).Build()
 			deployCompTasks = append(deployCompTasks, t)
 		}
 	}

@@ -71,7 +71,13 @@ func (i *PumpInstance) InitConfig(e executor.TiOpsExecutor, user string, paths D
 	// transfer run script
 	ends := []*scripts.PDScript{}
 	for _, spec := range i.instance.topo.PDServers {
-		ends = append(ends, scripts.NewPDScript(spec.Name, spec.Host, spec.DeployDir, spec.DataDir))
+		ends = append(ends, scripts.NewPDScript(
+			spec.Name,
+			spec.Host,
+			spec.DeployDir,
+			spec.DataDir,
+			spec.LogDir,
+		))
 	}
 
 	cfg := scripts.NewPumpScript(
@@ -79,6 +85,7 @@ func (i *PumpInstance) InitConfig(e executor.TiOpsExecutor, user string, paths D
 		i.GetHost(),
 		paths.Deploy,
 		paths.Data,
+		paths.Log,
 	).AppendEndpoints(ends...)
 
 	fp := filepath.Join(paths.Cache, fmt.Sprintf("run_pump_%s_%d.sh", i.GetHost(), i.GetPort()))

@@ -142,6 +142,12 @@ func buildScaleOutTask(
 		if !strings.HasPrefix(deployDir, "/") {
 			deployDir = filepath.Join("/home/", metadata.User, deployDir)
 		}
+		// data dir would be empty for components which don't need it
+		dataDir := inst.DataDir()
+		if dataDir != "" && !strings.HasPrefix(dataDir, "/") {
+			dataDir = filepath.Join("/home/", metadata.User, dataDir)
+		}
+		// log dir will always be with values, but might not used by the component
 		logDir := inst.LogDir()
 		if !strings.HasPrefix(logDir, "/") {
 			logDir = filepath.Join("/home/", metadata.User, logDir)
@@ -154,6 +160,7 @@ func buildScaleOutTask(
 				filepath.Join(deployDir, "bin"),
 				filepath.Join(deployDir, "conf"),
 				filepath.Join(deployDir, "scripts"),
+				dataDir,
 				logDir).
 			CopyComponent(inst.ComponentName(), version, inst.GetHost(), deployDir).
 			ScaleConfig(clusterName,
@@ -162,6 +169,7 @@ func buildScaleOutTask(
 				metadata.User,
 				meta.DirPaths{
 					Deploy: deployDir,
+					Data:   dataDir,
 					Log:    logDir,
 				},
 			).Build()
@@ -178,6 +186,7 @@ func buildScaleOutTask(
 			UserSSH(inst.GetHost(), metadata.User).
 			InitConfig(clusterName, inst, metadata.User, meta.DirPaths{
 				Deploy: deployDir,
+				Data:   dataDir,
 				Log:    logDir,
 			}).
 			Build()

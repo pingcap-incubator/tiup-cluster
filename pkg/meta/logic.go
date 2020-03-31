@@ -213,7 +213,7 @@ func (i *instance) DataDir() string {
 }
 
 func (i *instance) LogDir() string {
-	logDir := reflect.ValueOf(i.InstanceSpec).FieldByName("DataDir").Interface().(string)
+	logDir := reflect.ValueOf(i.InstanceSpec).FieldByName("LogDir").Interface().(string)
 	if logDir == "" {
 		logDir = "log"
 	}
@@ -287,9 +287,19 @@ func (i *TiDBInstance) InitConfig(e executor.TiOpsExecutor, user string, paths D
 	}
 	var ends []*scripts.PDScript
 	for _, spec := range i.instance.topo.PDServers {
-		ends = append(ends, scripts.NewPDScript(spec.Name, spec.Host, spec.DeployDir, spec.DataDir))
+		ends = append(ends, scripts.NewPDScript(
+			spec.Name,
+			spec.Host,
+			spec.DeployDir,
+			spec.DataDir,
+			spec.LogDir,
+		))
 	}
-	cfg := scripts.NewTiDBScript(i.GetHost(), paths.Deploy).AppendEndpoints(ends...)
+	cfg := scripts.NewTiDBScript(
+		i.GetHost(),
+		paths.Deploy,
+		paths.Log,
+	).AppendEndpoints(ends...)
 	fp := filepath.Join(paths.Cache, fmt.Sprintf("run_tidb_%s.sh", i.GetHost()))
 	if err := cfg.ConfigToFile(fp); err != nil {
 		return err
@@ -363,9 +373,20 @@ func (i *TiKVInstance) InitConfig(e executor.TiOpsExecutor, user string, paths D
 	// transfer run script
 	var ends []*scripts.PDScript
 	for _, spec := range i.instance.topo.PDServers {
-		ends = append(ends, scripts.NewPDScript(spec.Name, spec.Host, spec.DeployDir, spec.DataDir))
+		ends = append(ends, scripts.NewPDScript(
+			spec.Name,
+			spec.Host,
+			spec.DeployDir,
+			spec.DataDir,
+			spec.LogDir,
+		))
 	}
-	cfg := scripts.NewTiKVScript(i.GetHost(), paths.Deploy, i.instance.DataDir()).AppendEndpoints(ends...)
+	cfg := scripts.NewTiKVScript(
+		i.GetHost(),
+		paths.Deploy,
+		paths.Data,
+		paths.Log,
+	).AppendEndpoints(ends...)
 	fp := filepath.Join(paths.Cache, fmt.Sprintf("run_tikv_%s_%d.sh", i.GetHost(), i.GetPort()))
 	if err := cfg.ConfigToFile(fp); err != nil {
 		return err
@@ -448,9 +469,21 @@ func (i *PDInstance) InitConfig(e executor.TiOpsExecutor, user string, paths Dir
 		if spec.Host == i.GetHost() && spec.ClientPort == i.GetPort() {
 			name = spec.Name
 		}
-		ends = append(ends, scripts.NewPDScript(spec.Name, spec.Host, spec.DeployDir, spec.DataDir))
+		ends = append(ends, scripts.NewPDScript(
+			spec.Name,
+			spec.Host,
+			spec.DeployDir,
+			spec.DataDir,
+			spec.LogDir,
+		))
 	}
-	cfg := scripts.NewPDScript(name, i.GetHost(), paths.Deploy, i.instance.DataDir()).AppendEndpoints(ends...)
+	cfg := scripts.NewPDScript(
+		name,
+		i.GetHost(),
+		paths.Deploy,
+		paths.Data,
+		paths.Log,
+	).AppendEndpoints(ends...)
 	fp := filepath.Join(paths.Cache, fmt.Sprintf("run_pd_%s.sh", i.GetHost()))
 	if err := cfg.ConfigToFile(fp); err != nil {
 		return err
@@ -477,10 +510,22 @@ func (i *PDInstance) ScaleConfig(e executor.TiOpsExecutor, b *Specification, use
 		if spec.Host == i.GetHost() {
 			name = spec.Name
 		}
-		ends = append(ends, scripts.NewPDScript(spec.Name, spec.Host, spec.DeployDir, spec.DataDir))
+		ends = append(ends, scripts.NewPDScript(
+			spec.Name,
+			spec.Host,
+			spec.DeployDir,
+			spec.DataDir,
+			spec.LogDir,
+		))
 	}
 
-	cfg := scripts.NewPDScaleScript(name, i.GetHost(), paths.Deploy, i.instance.DataDir()).AppendEndpoints(ends...)
+	cfg := scripts.NewPDScaleScript(
+		name,
+		i.GetHost(),
+		paths.Deploy,
+		paths.Data,
+		paths.Log,
+	).AppendEndpoints(ends...)
 	fp := filepath.Join(paths.Cache, fmt.Sprintf("run_pd_%s_%d.sh", i.GetHost(), i.GetPort()))
 	log.Infof("script path: %s", fp)
 	if err := cfg.ConfigToFile(fp); err != nil {
@@ -544,7 +589,12 @@ func (i *MonitorInstance) InitConfig(e executor.TiOpsExecutor, user string, path
 	}
 
 	// transfer run script
-	cfg := scripts.NewPrometheusScript(i.GetHost(), paths.Deploy, filepath.Join(paths.Deploy, "data")).WithPort(uint64(i.GetPort()))
+	cfg := scripts.NewPrometheusScript(
+		i.GetHost(),
+		paths.Deploy,
+		paths.Data,
+		paths.Log,
+	).WithPort(uint64(i.GetPort()))
 	fp := filepath.Join(paths.Cache, fmt.Sprintf("run_prometheus_%s_%d.sh", i.GetHost(), i.GetPort()))
 	if err := cfg.ConfigToFile(fp); err != nil {
 		return err
