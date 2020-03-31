@@ -49,20 +49,6 @@ func newAuditCmd() *cobra.Command {
 	return cmd
 }
 
-type table [][]string
-
-func (p table) Len() int {
-	return len(p)
-}
-
-func (p table) Less(i, j int) bool {
-	return p[i][1] > p[j][1]
-}
-
-func (p table) Swap(i, j int) {
-	p[i], p[j] = p[j], p[i]
-}
-
 func showAuditList() error {
 	firstLine := func(fileName string) (string, error) {
 		file, err := os.Open(meta.ProfilePath(meta.TiOpsAuditDir, fileName))
@@ -81,7 +67,6 @@ func showAuditList() error {
 	auditDir := meta.ProfilePath(meta.TiOpsAuditDir)
 	// Header
 	clusterTable := [][]string{{"ID", "Time", "Command"}}
-	var rows table
 	fileInfos, err := ioutil.ReadDir(auditDir)
 	if err != nil && !os.IsNotExist(err) {
 		return err
@@ -99,18 +84,16 @@ func showAuditList() error {
 		if err != nil {
 			continue
 		}
-
-		rows = append(rows, []string{
+		clusterTable = append(clusterTable, []string{
 			fi.Name(),
 			t.Format(time.RFC3339),
 			cmd,
 		})
 	}
 
-	sort.Sort(rows)
-	for id := 0 ; id < len(rows) ; id++ {
-		clusterTable = append(clusterTable, rows[id])
-	}
+	sort.Slice(clusterTable[1:], func(i, j int) bool {
+		return clusterTable[i+1][1] > clusterTable[j+1][1]
+	})
 
 	utils.PrintTable(clusterTable, true)
 	return nil
