@@ -117,6 +117,10 @@ func confirmTopology(clusterName, version string, topo *meta.Specification) erro
 
 	utils.PrintTable(clusterTable, true)
 
+	log.Warnf("Attention:")
+	log.Warnf("    1. If the topology is not what you expected, check your yaml file.")
+	log.Warnf("    1. Please confirm there is no port/directory conflicts in same host.")
+
 	input, confirmed := utils.Confirm(fmt.Sprintf("Do you want to continue?[Y]es/[N]o:"))
 	if !confirmed {
 		return errors.Errorf("operation cancelled: %s", input)
