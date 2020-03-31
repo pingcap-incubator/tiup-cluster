@@ -65,7 +65,7 @@ func newScaleOutCmd() *cobra.Command {
 
 func scaleOut(clusterName, topoFile string, opt scaleOutOptions) error {
 	if tiuputils.IsNotExist(meta.ClusterPath(clusterName, meta.MetaFileName)) {
-		return errors.Errorf("cannot start non-exists cluster %s", clusterName)
+		return errors.Errorf("cannot scale-out non-exists cluster %s", clusterName)
 	}
 
 	var newPart meta.TopologySpecification

@@ -34,7 +34,7 @@ func newStopCmd() *cobra.Command {
 
 			clusterName := args[0]
 			if utils.IsNotExist(meta.ClusterPath(clusterName, meta.MetaFileName)) {
-				return errors.Errorf("cannot start non-exists cluster %s", clusterName)
+				return errors.Errorf("cannot stop non-exists cluster %s", clusterName)
 			}
 
 			auditConfig.enable = true

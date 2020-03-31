@@ -48,7 +48,7 @@ func newScaleInCmd() *cobra.Command {
 
 func scaleIn(cluster string, options operator.Options) error {
 	if tiuputils.IsNotExist(meta.ClusterPath(cluster, meta.MetaFileName)) {
-		return errors.Errorf("cannot start non-exists cluster %s", cluster)
+		return errors.Errorf("cannot scale-in non-exists cluster %s", cluster)
 	}
 
 	metadata, err := meta.ClusterMetadata(cluster)

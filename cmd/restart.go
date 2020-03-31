@@ -35,7 +35,7 @@ func newRestartCmd() *cobra.Command {
 
 			clusterName := args[0]
 			if tiuputils.IsNotExist(meta.ClusterPath(clusterName, meta.MetaFileName)) {
-				return errors.Errorf("cannot start non-exists cluster %s", clusterName)
+				return errors.Errorf("cannot restart non-exists cluster %s", clusterName)
 			}
 
 			auditConfig.enable = true

@@ -67,7 +67,7 @@ func versionCompare(curVersion, newVersion string) error {
 
 func upgrade(name, version string, opt upgradeOptions) error {
 	if utils.IsNotExist(meta.ClusterPath(name, meta.MetaFileName)) {
-		return errors.Errorf("cannot start non-exists cluster %s", name)
+		return errors.Errorf("cannot upgrade non-exists cluster %s", name)
 	}
 
 	metadata, err := meta.ClusterMetadata(name)
