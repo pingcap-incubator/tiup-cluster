@@ -209,7 +209,11 @@ func (i *instance) DeployDir() string {
 }
 
 func (i *instance) DataDir() string {
-	return reflect.ValueOf(i.InstanceSpec).FieldByName("DataDir").Interface().(string)
+	dataDir := reflect.ValueOf(i.InstanceSpec).FieldByName("DataDir")
+	if !dataDir.IsValid() {
+		return ""
+	}
+	return dataDir.Interface().(string)
 }
 
 func (i *instance) LogDir() string {
