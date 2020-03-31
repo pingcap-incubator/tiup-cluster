@@ -71,7 +71,6 @@ func ClusterMetadata(clusterName string) (*ClusterMeta, error) {
 	if err = yaml.Unmarshal(yamlFile, &cm); err != nil {
 		return nil, errors.Trace(err)
 	}
-	cm.Topology.ClusterName = clusterName
 	return &cm, nil
 }
 

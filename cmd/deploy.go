@@ -100,7 +100,6 @@ func deploy(clusterName, version, topoFile string, opt deployOptions) error {
 	if err := utils.ParseYaml(topoFile, &topo); err != nil {
 		return err
 	}
-	topo.ClusterName = clusterName
 	if err := os.MkdirAll(meta.ClusterPath(clusterName), 0755); err != nil {
 		return err
 	}

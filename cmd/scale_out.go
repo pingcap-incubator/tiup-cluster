@@ -72,7 +72,6 @@ func scaleOut(clusterName, topoFile string, opt scaleOutOptions) error {
 	if err := utils.ParseYaml(topoFile, &newPart); err != nil {
 		return err
 	}
-	newPart.ClusterName = clusterName
 
 	metadata, err := meta.ClusterMetadata(clusterName)
 	if err != nil {
