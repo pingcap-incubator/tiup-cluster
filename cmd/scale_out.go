@@ -14,24 +14,28 @@
 package cmd
 
 import (
+	"fmt"
 	"path/filepath"
 	"strings"
 
+	"github.com/pingcap-incubator/tiup/pkg/set"
+	tiuputils "github.com/pingcap-incubator/tiup/pkg/utils"
+	"github.com/pingcap/errors"
+	"github.com/spf13/cobra"
+
+	"github.com/pingcap-incubator/tiops/pkg/bindversion"
 	"github.com/pingcap-incubator/tiops/pkg/logger"
 	"github.com/pingcap-incubator/tiops/pkg/meta"
 	operator "github.com/pingcap-incubator/tiops/pkg/operation"
 	"github.com/pingcap-incubator/tiops/pkg/task"
 	"github.com/pingcap-incubator/tiops/pkg/utils"
-	"github.com/pingcap-incubator/tiup/pkg/set"
-	tiuputils "github.com/pingcap-incubator/tiup/pkg/utils"
-	"github.com/pingcap/errors"
-	"github.com/spf13/cobra"
 )
 
 var errPasswordKeyAtLeastOne = errors.New("--password and --key need to specify at least one")
 
 type scaleOutOptions struct {
 	user       string // username to login to the SSH server
+	usePasswd  bool   // use password for authentication
 	password   string // password of the user
 	keyFile    string // path to the private key file
 	passphrase string // passphrase of the private key file
@@ -47,6 +51,10 @@ func newScaleOutCmd() *cobra.Command {
 			if len(args) != 2 {
 				return cmd.Help()
 			}
+			if opt.usePasswd {
+				opt.password = utils.GetPasswd("Password:")
+				fmt.Println("")
+			}
 			if len(opt.keyFile) == 0 && len(opt.password) == 0 {
 				return errPasswordKeyAtLeastOne
 			}
@@ -57,7 +65,7 @@ func newScaleOutCmd() *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&opt.user, "user", "root", "Specify the system user name")
-	cmd.Flags().StringVar(&opt.password, "password", "", "Specify the password of system user")
+	cmd.Flags().BoolVar(&opt.usePasswd, "password", false, "Specify the password of system user")
 	cmd.Flags().StringVar(&opt.keyFile, "key", "", "Specify the key path of system user")
 	cmd.Flags().StringVar(&opt.passphrase, "passphrase", "", "Specify the passphrase of the key")
 
@@ -138,7 +146,7 @@ func buildScaleOutTask(
 
 	// Deploy the new topology and refresh the configuration
 	newPart.IterInstance(func(inst meta.Instance) {
-		version := getComponentVersion(inst.ComponentName(), metadata.Version)
+		version := bindversion.ComponentVersion(inst.ComponentName(), metadata.Version)
 		deployDir := inst.DeployDir()
 		if !strings.HasPrefix(deployDir, "/") {
 			deployDir = filepath.Join("/home/", metadata.User, deployDir)

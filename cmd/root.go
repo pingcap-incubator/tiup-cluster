@@ -19,6 +19,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/fatih/color"
 	"github.com/joomcode/errorx"
 	"github.com/pingcap-incubator/tiup/pkg/localdata"
 	tiupmeta "github.com/pingcap-incubator/tiup/pkg/meta"
@@ -84,6 +85,7 @@ func init() {
 		newListCmd(),
 		newAuditCmd(),
 		newImportCmd(),
+		newEditConfigCmd(),
 	)
 }
 
@@ -157,6 +159,8 @@ func Execute() {
 	}
 
 	logger.OutputAuditLogIfEnabled()
+
+	color.Unset()
 
 	os.Exit(code)
 }
