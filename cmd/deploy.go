@@ -71,7 +71,7 @@ func newDeploy() *cobra.Command {
 	cmd.Flags().BoolVar(&opt.usePasswd, "password", false, "Specify the password of system user")
 	cmd.Flags().StringVar(&opt.keyFile, "key", "", "Specify the key path of system user")
 	cmd.Flags().StringVar(&opt.passphrase, "passphrase", "", "Specify the passphrase of the key")
-	cmd.Flags().BoolVar(&opt.skipConfirm, "skip-confirm", false, "Skip the confirmation of topology")
+	cmd.Flags().BoolVar(&opt.skipConfirm, "noconfirm", false, "Skip the confirmation of topology")
 
 	return cmd
 }

@@ -79,7 +79,7 @@ func newDestroyCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().BoolVar(&skipConfirm, "skip-confirm", false, "Skip the confirmation of destroying")
+	cmd.Flags().BoolVar(&skipConfirm, "noconfirm", false, "Skip the confirmation of destroying")
 
 	return cmd
 }
