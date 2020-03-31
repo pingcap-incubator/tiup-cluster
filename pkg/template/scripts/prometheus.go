@@ -26,24 +26,26 @@ import (
 // PrometheusScript represent the data to generate Prometheus config
 type PrometheusScript struct {
 	IP        string
-	Port      uint64
+	Port      int
 	DeployDir string
 	DataDir   string
+	LogDir    string
 	NumaNode  string
 }
 
 // NewPrometheusScript returns a PrometheusScript with given arguments
-func NewPrometheusScript(ip, deployDir, dataDir string) *PrometheusScript {
+func NewPrometheusScript(ip, deployDir, dataDir, logDir string) *PrometheusScript {
 	return &PrometheusScript{
 		IP:        ip,
 		Port:      9090,
 		DeployDir: deployDir,
 		DataDir:   dataDir,
+		LogDir:    logDir,
 	}
 }
 
 // WithPort set Port field of PrometheusScript
-func (c *PrometheusScript) WithPort(port uint64) *PrometheusScript {
+func (c *PrometheusScript) WithPort(port int) *PrometheusScript {
 	c.Port = port
 	return c
 }

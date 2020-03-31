@@ -27,28 +27,30 @@ import (
 type DrainerScript struct {
 	NodeID    string
 	IP        string
-	Port      uint64
+	Port      int
 	DeployDir string
 	DataDir   string
+	LogDir    string
 	NumaNode  string
 	CommitTs  int64
 	Endpoints []*PDScript
 }
 
 // NewDrainerScript returns a DrainerScript with given arguments
-func NewDrainerScript(nodeID, ip, deployDir, dataDir string) *DrainerScript {
+func NewDrainerScript(nodeID, ip, deployDir, dataDir, logDir string) *DrainerScript {
 	return &DrainerScript{
 		NodeID:    nodeID,
 		IP:        ip,
 		Port:      8249,
 		DeployDir: deployDir,
 		DataDir:   dataDir,
+		LogDir:    logDir,
 		CommitTs:  -1,
 	}
 }
 
 // WithPort set Port field of DrainerScript
-func (c *DrainerScript) WithPort(port uint64) *DrainerScript {
+func (c *DrainerScript) WithPort(port int) *DrainerScript {
 	c.Port = port
 	return c
 }

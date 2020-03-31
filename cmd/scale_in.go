@@ -21,6 +21,8 @@ import (
 	operator "github.com/pingcap-incubator/tiops/pkg/operation"
 	"github.com/pingcap-incubator/tiops/pkg/task"
 	"github.com/pingcap-incubator/tiup/pkg/set"
+	tiuputils "github.com/pingcap-incubator/tiup/pkg/utils"
+	"github.com/pingcap/errors"
 	"github.com/spf13/cobra"
 )
 
@@ -45,6 +47,10 @@ func newScaleInCmd() *cobra.Command {
 }
 
 func scaleIn(cluster string, options operator.Options) error {
+	if tiuputils.IsNotExist(meta.ClusterPath(cluster, meta.MetaFileName)) {
+		return errors.Errorf("cannot scale-in non-exists cluster %s", cluster)
+	}
+
 	metadata, err := meta.ClusterMetadata(cluster)
 	if err != nil {
 		return err
@@ -62,7 +68,23 @@ func scaleIn(cluster string, options operator.Options) error {
 			if !strings.HasPrefix(deployDir, "/") {
 				deployDir = filepath.Join("/home/", metadata.User, deployDir)
 			}
-			t := task.NewBuilder().InitConfig(cluster, instance, metadata.User, deployDir).Build()
+			dataDir := instance.DataDir()
+			if dataDir != "" && !strings.HasPrefix(dataDir, "/") {
+				dataDir = filepath.Join("/home/", metadata.User, dataDir)
+			}
+			logDir := instance.LogDir()
+			if !strings.HasPrefix(logDir, "/") {
+				logDir = filepath.Join("/home/", metadata.User, logDir)
+			}
+			t := task.NewBuilder().InitConfig(cluster,
+				instance,
+				metadata.User,
+				meta.DirPaths{
+					Deploy: deployDir,
+					Data:   dataDir,
+					Log:    logDir,
+				},
+			).Build()
 			regenConfigTasks = append(regenConfigTasks, t)
 		}
 	}
@@ -73,7 +95,7 @@ func scaleIn(cluster string, options operator.Options) error {
 			meta.ClusterPath(cluster, "ssh", "id_rsa.pub")).
 		ClusterSSH(metadata.Topology, metadata.User).
 		ClusterOperate(metadata.Topology, operator.ScaleInOperation, options).
-		UpdateMeta(cluster, metadata, options.Nodes).
+		UpdateMeta(cluster, metadata, operator.AsyncNodes(metadata.Topology, options.Nodes, false)).
 		Parallel(regenConfigTasks...).
 		Build()
 

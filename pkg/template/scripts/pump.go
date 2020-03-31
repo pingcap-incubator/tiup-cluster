@@ -27,27 +27,29 @@ import (
 type PumpScript struct {
 	NodeID    string
 	Host      string
-	Port      uint64
+	Port      int
 	DeployDir string
 	DataDir   string
+	LogDir    string
 	NumaNode  string
 	CommitTs  int64
 	Endpoints []*PDScript
 }
 
 // NewPumpScript returns a PumpScript with given arguments
-func NewPumpScript(nodeID, host, deployDir, dataDir string) *PumpScript {
+func NewPumpScript(nodeID, host, deployDir, dataDir, logDir string) *PumpScript {
 	return &PumpScript{
 		NodeID:    nodeID,
 		Host:      host,
 		Port:      8250,
 		DeployDir: deployDir,
 		DataDir:   dataDir,
+		LogDir:    logDir,
 	}
 }
 
 // WithPort set Port field of PumpScript
-func (c *PumpScript) WithPort(port uint64) *PumpScript {
+func (c *PumpScript) WithPort(port int) *PumpScript {
 	c.Port = port
 	return c
 }

@@ -22,6 +22,7 @@ import (
 	"github.com/pingcap-incubator/tiops/pkg/task"
 	"github.com/pingcap-incubator/tiops/pkg/utils"
 	"github.com/pingcap-incubator/tiup/pkg/set"
+	tiuputils "github.com/pingcap-incubator/tiup/pkg/utils"
 	"github.com/pingcap/errors"
 	"github.com/spf13/cobra"
 )
@@ -63,6 +64,10 @@ func newScaleOutCmd() *cobra.Command {
 }
 
 func scaleOut(clusterName, topoFile string, opt scaleOutOptions) error {
+	if tiuputils.IsNotExist(meta.ClusterPath(clusterName, meta.MetaFileName)) {
+		return errors.Errorf("cannot scale-out non-exists cluster %s", clusterName)
+	}
+
 	var newPart meta.TopologySpecification
 	if err := utils.ParseYaml(topoFile, &newPart); err != nil {
 		return err
@@ -72,11 +77,19 @@ func scaleOut(clusterName, topoFile string, opt scaleOutOptions) error {
 	if err != nil {
 		return err
 	}
+
+	// Abort scale out operation if the merged topology is invalid
 	mergedTopo := metadata.Topology.Merge(&newPart)
 	if err := mergedTopo.Validate(); err != nil {
 		return err
 	}
 
+	// Inherit existing global configuration
+	newPart.GlobalOptions = metadata.Topology.GlobalOptions
+	newPart.MonitoredOptions = metadata.Topology.MonitoredOptions
+	newPart.ServerConfigs = metadata.Topology.ServerConfigs
+
+	// Build the scale out tasks
 	t, err := buildScaleOutTask(clusterName, metadata, mergedTopo, opt, &newPart)
 	if err != nil {
 		return err
@@ -92,7 +105,7 @@ func scaleOut(clusterName, topoFile string, opt scaleOutOptions) error {
 func buildScaleOutTask(
 	clusterName string,
 	metadata *meta.ClusterMeta,
-	topo *meta.Specification,
+	mergedTopo *meta.Specification,
 	opt scaleOutOptions,
 	newPart *meta.TopologySpecification) (task.Task, error) {
 	var (
@@ -129,6 +142,17 @@ func buildScaleOutTask(
 		if !strings.HasPrefix(deployDir, "/") {
 			deployDir = filepath.Join("/home/", metadata.User, deployDir)
 		}
+		// data dir would be empty for components which don't need it
+		dataDir := inst.DataDir()
+		if dataDir != "" && !strings.HasPrefix(dataDir, "/") {
+			dataDir = filepath.Join("/home/", metadata.User, dataDir)
+		}
+		// log dir will always be with values, but might not used by the component
+		logDir := inst.LogDir()
+		if !strings.HasPrefix(logDir, "/") {
+			logDir = filepath.Join("/home/", metadata.User, logDir)
+		}
+
 		// Deploy component
 		t := task.NewBuilder().
 			UserSSH(inst.GetHost(), metadata.User).
@@ -136,16 +160,43 @@ func buildScaleOutTask(
 				filepath.Join(deployDir, "bin"),
 				filepath.Join(deployDir, "conf"),
 				filepath.Join(deployDir, "scripts"),
-				filepath.Join(deployDir, "log")).
+				dataDir,
+				logDir).
 			CopyComponent(inst.ComponentName(), version, inst.GetHost(), deployDir).
-			ScaleConfig(clusterName, metadata.Topology, inst, metadata.User, deployDir).
-			Build()
+			ScaleConfig(clusterName,
+				metadata.Topology,
+				inst,
+				metadata.User,
+				meta.DirPaths{
+					Deploy: deployDir,
+					Data:   dataDir,
+					Log:    logDir,
+				},
+			).Build()
 		deployCompTasks = append(deployCompTasks, t)
+	})
 
-		// Refresh the configuration
-		t = task.NewBuilder().
+	mergedTopo.IterInstance(func(inst meta.Instance) {
+		deployDir := inst.DeployDir()
+		if !strings.HasPrefix(deployDir, "/") {
+			deployDir = filepath.Join("/home/", metadata.User, deployDir)
+		}
+		dataDir := inst.DataDir()
+		if dataDir != "" && !strings.HasPrefix(dataDir, "/") {
+			dataDir = filepath.Join("/home/", metadata.User, dataDir)
+		}
+		logDir := inst.LogDir()
+		if !strings.HasPrefix(logDir, "/") {
+			logDir = filepath.Join("/home/", metadata.User, logDir)
+		}
+		// Refresh all configuration
+		t := task.NewBuilder().
 			UserSSH(inst.GetHost(), metadata.User).
-			InitConfig(clusterName, inst, metadata.User, deployDir).
+			InitConfig(clusterName, inst, metadata.User, meta.DirPaths{
+				Deploy: deployDir,
+				Data:   dataDir,
+				Log:    logDir,
+			}).
 			Build()
 		refreshConfigTasks = append(refreshConfigTasks, t)
 	})
@@ -164,11 +215,13 @@ func buildScaleOutTask(
 		SSHKeySet(
 			meta.ClusterPath(clusterName, "ssh", "id_rsa"),
 			meta.ClusterPath(clusterName, "ssh", "id_rsa.pub")).
-		Parallel(envInitTasks...).
 		Parallel(downloadCompTasks...).
+		Parallel(envInitTasks...).
 		Parallel(deployCompTasks...).
 		// TODO: find another way to make sure current cluster started
+		ClusterSSH(metadata.Topology, metadata.User).
 		ClusterOperate(metadata.Topology, operator.StartOperation, operator.Options{}).
+		ClusterSSH(newPart, metadata.User).
 		ClusterOperate(newPart, operator.StartOperation, operator.Options{}).
 		Parallel(refreshConfigTasks...).
 		Build(), nil
