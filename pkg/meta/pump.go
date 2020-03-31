@@ -51,41 +51,36 @@ type PumpInstance struct {
 }
 
 // ScaleConfig deploy temporary config on scaling
-func (i *PumpInstance) ScaleConfig(e executor.TiOpsExecutor, b *Specification, user, cacheDir, deployDir string) error {
+func (i *PumpInstance) ScaleConfig(e executor.TiOpsExecutor, b *Specification, cluster, user string, paths DirPaths) error {
 	s := i.instance.topo
 	defer func() {
 		i.instance.topo = s
 	}()
 	i.instance.topo = b
 
-	return i.InitConfig(e, user, cacheDir, deployDir)
+	return i.InitConfig(e, cluster, user, paths)
 }
 
 // InitConfig implements Instance interface.
-func (i *PumpInstance) InitConfig(e executor.TiOpsExecutor, user, cacheDir, deployDir string) error {
-	if err := i.instance.InitConfig(e, user, cacheDir, deployDir); err != nil {
+func (i *PumpInstance) InitConfig(e executor.TiOpsExecutor, cluster, user string, paths DirPaths) error {
+	if err := i.instance.InitConfig(e, cluster, user, paths); err != nil {
 		return err
 	}
 
-	// transfer run script
-	ends := []*scripts.PDScript{}
-	for _, spec := range i.instance.topo.PDServers {
-		ends = append(ends, scripts.NewPDScript(spec.Name, spec.Host, spec.DeployDir, spec.DataDir))
-	}
-
+	spec := i.InstanceSpec.(PumpSpec)
 	cfg := scripts.NewPumpScript(
 		i.GetHost()+":"+strconv.Itoa(i.GetPort()),
 		i.GetHost(),
-		deployDir,
-		filepath.Join(deployDir, "data"),
-	).AppendEndpoints(ends...)
+		paths.Deploy,
+		paths.Data,
+		paths.Log,
+	).WithPort(spec.Port).AppendEndpoints(i.instance.topo.Endpoints(user)...)
 
-	fp := filepath.Join(cacheDir, fmt.Sprintf("run_pump_%s_%d.sh", i.GetHost(), i.GetPort()))
-
+	fp := filepath.Join(paths.Cache, fmt.Sprintf("run_pump_%s_%d.sh", i.GetHost(), i.GetPort()))
 	if err := cfg.ConfigToFile(fp); err != nil {
 		return err
 	}
-	dst := filepath.Join(deployDir, "scripts", "run_pump.sh")
+	dst := filepath.Join(paths.Deploy, "scripts", "run_pump.sh")
 	if err := e.Transfer(fp, dst, false); err != nil {
 		return err
 	}
@@ -94,6 +89,5 @@ func (i *PumpInstance) InitConfig(e executor.TiOpsExecutor, user, cacheDir, depl
 		return err
 	}
 
-	spec := i.InstanceSpec.(PumpSpec)
-	return i.mergeServerConfig(e, i.topo.ServerConfigs.Pump, spec.Config, cacheDir, deployDir)
+	return i.mergeServerConfig(e, i.topo.ServerConfigs.Pump, spec.Config, paths)
 }

@@ -157,7 +157,6 @@ type TiKVSpec struct {
 	DataDir    string        `yaml:"data_dir,omitempty"`
 	LogDir     string        `yaml:"log_dir,omitempty"`
 	Offline    bool          `yaml:"offline,omitempty"`
-	Labels     []string      `yaml:"labels,omitempty"`
 	NumaNode   bool          `yaml:"numa_node,omitempty"`
 	Config     yaml.MapSlice `yaml:"config,omitempty"`
 }
@@ -451,10 +450,6 @@ func (topo *TopologySpecification) UnmarshalYAML(unmarshal func(interface{}) err
 		topo.MonitoredOptions.DataDir = filepath.Join(topo.GlobalOptions.DataDir,
 			fmt.Sprintf("%s-%d", RoleMonitor, topo.MonitoredOptions.NodeExporterPort))
 	}
-	if topo.MonitoredOptions.LogDir == "" {
-		topo.MonitoredOptions.LogDir = filepath.Join(topo.GlobalOptions.LogDir,
-			fmt.Sprintf("%s-%d", RoleMonitor, topo.MonitoredOptions.NodeExporterPort))
-	}
 
 	if err := fillCustomDefaults(&topo.GlobalOptions, topo); err != nil {
 		return err
@@ -723,8 +718,6 @@ func setCustomDefaults(globalOptions *GlobalOptions, field reflect.Value) error 
 			setDefaultDir(globalOptions.DataDir, field.Interface().(InstanceSpec).Role(), getPort(field), field.Field(j))
 		case "DeployDir":
 			setDefaultDir(globalOptions.DeployDir, field.Interface().(InstanceSpec).Role(), getPort(field), field.Field(j))
-		case "LogDir":
-			setDefaultDir(globalOptions.LogDir, field.Interface().(InstanceSpec).Role(), getPort(field), field.Field(j))
 		}
 	}
 

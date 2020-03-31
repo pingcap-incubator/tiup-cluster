@@ -30,16 +30,17 @@ type PDScript struct {
 	Name       string
 	Scheme     string
 	IP         string
-	ClientPort uint64
-	PeerPort   uint64
+	ClientPort int
+	PeerPort   int
 	DeployDir  string
 	DataDir    string
+	LogDir     string
 	NumaNode   string
 	Endpoints  []*PDScript
 }
 
 // NewPDScript returns a PDScript with given arguments
-func NewPDScript(name, ip, deployDir, dataDir string) *PDScript {
+func NewPDScript(name, ip, deployDir, dataDir, logDir string) *PDScript {
 	return &PDScript{
 		Name:       name,
 		Scheme:     "http",
@@ -48,6 +49,7 @@ func NewPDScript(name, ip, deployDir, dataDir string) *PDScript {
 		PeerPort:   2380,
 		DeployDir:  deployDir,
 		DataDir:    dataDir,
+		LogDir:     logDir,
 	}
 }
 
@@ -58,13 +60,13 @@ func (c *PDScript) WithScheme(scheme string) *PDScript {
 }
 
 // WithClientPort set ClientPort field of PDScript
-func (c *PDScript) WithClientPort(port uint64) *PDScript {
+func (c *PDScript) WithClientPort(port int) *PDScript {
 	c.ClientPort = port
 	return c
 }
 
 // WithPeerPort set PeerPort field of PDScript
-func (c *PDScript) WithPeerPort(port uint64) *PDScript {
+func (c *PDScript) WithPeerPort(port int) *PDScript {
 	c.PeerPort = port
 	return c
 }
@@ -131,8 +133,8 @@ type PDScaleScript struct {
 }
 
 // NewPDScaleScript return a new PDScaleScript
-func NewPDScaleScript(name, ip, deployDir, dataDir string) *PDScaleScript {
-	return &PDScaleScript{*NewPDScript(name, ip, deployDir, dataDir)}
+func NewPDScaleScript(name, ip, deployDir, dataDir, logDir string) *PDScaleScript {
+	return &PDScaleScript{*NewPDScript(name, ip, deployDir, dataDir, logDir)}
 }
 
 // WithScheme set Scheme field of PDScaleScript
@@ -142,13 +144,13 @@ func (c *PDScaleScript) WithScheme(scheme string) *PDScaleScript {
 }
 
 // WithClientPort set ClientPort field of PDScaleScript
-func (c *PDScaleScript) WithClientPort(port uint64) *PDScaleScript {
+func (c *PDScaleScript) WithClientPort(port int) *PDScaleScript {
 	c.ClientPort = port
 	return c
 }
 
 // WithPeerPort set PeerPort field of PDScript
-func (c *PDScaleScript) WithPeerPort(port uint64) *PDScaleScript {
+func (c *PDScaleScript) WithPeerPort(port int) *PDScaleScript {
 	c.PeerPort = port
 	return c
 }

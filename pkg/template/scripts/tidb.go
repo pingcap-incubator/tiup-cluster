@@ -26,31 +26,33 @@ import (
 // TiDBScript represent the data to generate TiDB config
 type TiDBScript struct {
 	IP         string
-	Port       uint64
-	StatusPort uint64
+	Port       int
+	StatusPort int
 	DeployDir  string
+	LogDir     string
 	NumaNode   string
 	Endpoints  []*PDScript
 }
 
 // NewTiDBScript returns a TiDBScript with given arguments
-func NewTiDBScript(ip, deployDir string) *TiDBScript {
+func NewTiDBScript(ip, deployDir, logDir string) *TiDBScript {
 	return &TiDBScript{
 		IP:         ip,
 		Port:       4000,
 		StatusPort: 10080,
 		DeployDir:  deployDir,
+		LogDir:     logDir,
 	}
 }
 
 // WithPort set Port field of TiDBScript
-func (c *TiDBScript) WithPort(port uint64) *TiDBScript {
+func (c *TiDBScript) WithPort(port int) *TiDBScript {
 	c.Port = port
 	return c
 }
 
 // WithStatusPort set StatusPort field of TiDBScript
-func (c *TiDBScript) WithStatusPort(port uint64) *TiDBScript {
+func (c *TiDBScript) WithStatusPort(port int) *TiDBScript {
 	c.StatusPort = port
 	return c
 }

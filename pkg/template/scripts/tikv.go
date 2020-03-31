@@ -26,33 +26,35 @@ import (
 // TiKVScript represent the data to generate TiKV config
 type TiKVScript struct {
 	IP         string
-	Port       uint64
-	StatusPort uint64
+	Port       int
+	StatusPort int
 	DeployDir  string
 	DataDir    string
+	LogDir     string
 	NumaNode   string
 	Endpoints  []*PDScript
 }
 
 // NewTiKVScript returns a TiKVScript with given arguments
-func NewTiKVScript(ip, deployDir, dataDir string) *TiKVScript {
+func NewTiKVScript(ip, deployDir, dataDir, logDir string) *TiKVScript {
 	return &TiKVScript{
 		IP:         ip,
 		Port:       20160,
 		StatusPort: 20180,
 		DeployDir:  deployDir,
 		DataDir:    dataDir,
+		LogDir:     logDir,
 	}
 }
 
 // WithPort set Port field of TiKVScript
-func (c *TiKVScript) WithPort(port uint64) *TiKVScript {
+func (c *TiKVScript) WithPort(port int) *TiKVScript {
 	c.Port = port
 	return c
 }
 
 // WithStatusPort set StatusPort field of TiKVScript
-func (c *TiKVScript) WithStatusPort(port uint64) *TiKVScript {
+func (c *TiKVScript) WithStatusPort(port int) *TiKVScript {
 	c.StatusPort = port
 	return c
 }
