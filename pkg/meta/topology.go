@@ -71,6 +71,7 @@ type (
 		TiDB    yaml.MapSlice `yaml:"tidb"`
 		TiKV    yaml.MapSlice `yaml:"tikv"`
 		PD      yaml.MapSlice `yaml:"pd"`
+		TiFlash yaml.MapSlice `yaml:"tiflash"`
 		Pump    yaml.MapSlice `yaml:"pump"`
 		Drainer yaml.MapSlice `yaml:"drainer"`
 	}
@@ -283,6 +284,7 @@ type TiFlashSpec struct {
 	DataDir    string `yaml:"data_dir,omitempty"`
 	LogDir     string `yaml:"log_dir,omitempty"`
 	NumaNode   bool   `yaml:"numa_node,omitempty"`
+	Config     yaml.MapSlice `yaml:"config,omitempty"`
 }
 
 // Status queries current status of the instance

@@ -26,34 +26,36 @@ import (
 // TiFlashScript represent the data to generate TiFlash config
 type TiFlashScript struct {
 	IP         string
-	Port       uint64
-	StatusPort uint64
+	TCPPort    int
+	HTTPPort   int
 	DeployDir  string
 	DataDir    string
+	LogDir     string
 	NumaNode   string
 	Endpoints  []*PDScript
 }
 
 // NewTiFlashScript returns a TiFlashScript with given arguments
-func NewTiFlashScript(ip, deployDir, dataDir string) *TiFlashScript {
+func NewTiFlashScript(ip, deployDir, dataDir string, logDir string) *TiFlashScript {
 	return &TiFlashScript{
 		IP:         ip,
-		Port:       20160,
-		StatusPort: 20180,
+		TCPPort:	9000,
+		HTTPPort:	8123,
 		DeployDir:  deployDir,
 		DataDir:    dataDir,
+		LogDir:     logDir,
 	}
 }
 
-// WithPort set Port field of TiFlashScript
-func (c *TiFlashScript) WithPort(port uint64) *TiFlashScript {
-	c.Port = port
+// WithTCPPort set TCPPort field of TiFlashScript
+func (c *TiFlashScript) WithTCPPort(port int) *TiFlashScript {
+	c.TCPPort = port
 	return c
 }
 
-// WithStatusPort set StatusPort field of TiFlashScript
-func (c *TiFlashScript) WithStatusPort(port uint64) *TiFlashScript {
-	c.StatusPort = port
+// WithHTTPPort set HTTPPort field of TiFlashScript
+func (c *TiFlashScript) WithHTTPPort(port int) *TiFlashScript {
+	c.HTTPPort = port
 	return c
 }
 
@@ -72,7 +74,7 @@ func (c *TiFlashScript) AppendEndpoints(ends ...*PDScript) *TiFlashScript {
 // Config read ${localdata.EnvNameComponentInstallDir}/templates/scripts/run_TiFlash.sh.tpl as template
 // and generate the config by ConfigWithTemplate
 func (c *TiFlashScript) Config() ([]byte, error) {
-	fp := path.Join(os.Getenv(localdata.EnvNameComponentInstallDir), "templates", "scripts", "run_TiFlash.sh.tpl")
+	fp := path.Join(os.Getenv(localdata.EnvNameComponentInstallDir), "templates", "scripts", "run_tiflash.sh.tpl")
 	tpl, err := ioutil.ReadFile(fp)
 	if err != nil {
 		return nil, err

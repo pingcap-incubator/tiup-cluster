@@ -563,22 +563,24 @@ type TiFlashInstance struct {
 }
 
 // InitConfig implement Instance interface
-func (i *TiFlashInstance) InitConfig(e executor.TiOpsExecutor, user, cacheDir, deployDir string) error {
-	if err := i.instance.InitConfig(e, user, cacheDir, deployDir); err != nil {
+func (i *TiFlashInstance) InitConfig(e executor.TiOpsExecutor, cluster, user string, paths DirPaths) error {
+	if err := i.instance.InitConfig(e, cluster, user, paths); err != nil {
 		return err
 	}
 
-	// transfer run script
-	ends := []*scripts.PDScript{}
-	for _, spec := range i.instance.topo.PDServers {
-		ends = append(ends, scripts.NewPDScript(spec.Name, spec.Host, spec.DeployDir, spec.DataDir))
-	}
-	cfg := scripts.NewTiFlashScript(i.GetHost(), deployDir, i.instance.DataDir()).AppendEndpoints(ends...)
-	fp := filepath.Join(cacheDir, fmt.Sprintf("run_tiflash_%s_%d.sh", i.GetHost(), i.GetPort()))
+	spec := i.InstanceSpec.(TiFlashSpec)
+	cfg := scripts.NewTiFlashScript(
+		i.GetHost(),
+		paths.Deploy,
+		paths.Data,
+		paths.Log,
+	).WithTCPPort(spec.TCPPort).WithHTTPPort(spec.HTTPPort).AppendEndpoints(i.instance.topo.Endpoints(user)...)
+	fp := filepath.Join(paths.Cache, fmt.Sprintf("run_tiflash_%s_%d.sh", i.GetHost(), i.GetPort()))
 	if err := cfg.ConfigToFile(fp); err != nil {
 		return err
 	}
-	dst := filepath.Join(deployDir, "scripts", "run_tiflash.sh")
+	dst := filepath.Join(paths.Deploy, "scripts", "run_tiflash.sh")
+
 	if err := e.Transfer(fp, dst, false); err != nil {
 		return err
 	}
@@ -587,27 +589,17 @@ func (i *TiFlashInstance) InitConfig(e executor.TiOpsExecutor, user, cacheDir, d
 		return err
 	}
 
-	// transfer config
-	fp = filepath.Join(cacheDir, fmt.Sprintf("tiflash_%s.toml", i.GetHost()))
-	if err := config.NewTiFlashConfig().ConfigToFile(fp); err != nil {
-		return err
-	}
-	dst = filepath.Join(deployDir, "conf", "tiflash.toml")
-	if err := e.Transfer(fp, dst, false); err != nil {
-		return err
-	}
-
-	return nil
+	return i.mergeServerConfig(e, i.topo.ServerConfigs.TiFlash, spec.Config, paths)
 }
 
 // ScaleConfig deploy temporary config on scaling
-func (i *TiFlashInstance) ScaleConfig(e executor.TiOpsExecutor, b *Specification, user, cacheDir, deployDir string) error {
+func (i *TiFlashInstance) ScaleConfig(e executor.TiOpsExecutor, b *Specification, cluster, user string, paths DirPaths) error {
 	s := i.instance.topo
 	defer func() {
 		i.instance.topo = s
 	}()
 	i.instance.topo = b
-	return i.InitConfig(e, user, cacheDir, deployDir)
+	return i.InitConfig(e, cluster, user, paths)
 }
 
 // MonitorComponent represents Monitor component.
