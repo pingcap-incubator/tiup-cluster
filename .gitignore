@@ -1,3 +1,5 @@
+tiops-debug-*.log
+
 bin/
 *.tar
 *.gz

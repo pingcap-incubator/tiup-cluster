@@ -16,6 +16,7 @@ package cmd
 import (
 	"os"
 
+	"github.com/pingcap-incubator/tiops/pkg/logger"
 	"github.com/pingcap-incubator/tiops/pkg/meta"
 	"github.com/pingcap-incubator/tiops/pkg/task"
 	tiuputils "github.com/pingcap-incubator/tiup/pkg/utils"
@@ -45,7 +46,7 @@ func newExecCmd() *cobra.Command {
 				return errors.Errorf("cannot execute command on non-exists cluster %s", clusterName)
 			}
 
-			auditConfig.enable = true
+			logger.EnableAuditLog()
 			metadata, err := meta.ClusterMetadata(clusterName)
 			if err != nil {
 				return err

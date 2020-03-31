@@ -18,6 +18,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/pingcap-incubator/tiops/pkg/logger"
 	"github.com/pingcap-incubator/tiops/pkg/meta"
 	operator "github.com/pingcap-incubator/tiops/pkg/operation"
 	"github.com/pingcap-incubator/tiops/pkg/task"
@@ -42,7 +43,7 @@ func newUpgradeCmd() *cobra.Command {
 				return cmd.Help()
 			}
 
-			auditConfig.enable = true
+			logger.EnableAuditLog()
 			return upgrade(args[0], args[1], opt)
 		},
 	}

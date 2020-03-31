@@ -17,6 +17,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/pingcap-incubator/tiops/pkg/logger"
 	"github.com/pingcap-incubator/tiops/pkg/meta"
 	operator "github.com/pingcap-incubator/tiops/pkg/operation"
 	"github.com/pingcap-incubator/tiops/pkg/task"
@@ -36,7 +37,7 @@ func newScaleInCmd() *cobra.Command {
 				return cmd.Help()
 			}
 
-			auditConfig.enable = true
+			logger.EnableAuditLog()
 			return scaleIn(args[0], options)
 		},
 	}

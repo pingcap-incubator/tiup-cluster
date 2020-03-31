@@ -17,6 +17,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/pingcap-incubator/tiops/pkg/logger"
 	"github.com/pingcap-incubator/tiops/pkg/meta"
 	operator "github.com/pingcap-incubator/tiops/pkg/operation"
 	"github.com/pingcap-incubator/tiops/pkg/task"
@@ -50,7 +51,7 @@ func newScaleOutCmd() *cobra.Command {
 				return errPasswordKeyAtLeastOne
 			}
 
-			auditConfig.enable = true
+			logger.EnableAuditLog()
 			return scaleOut(args[0], args[1], opt)
 		},
 	}
@@ -69,7 +70,7 @@ func scaleOut(clusterName, topoFile string, opt scaleOutOptions) error {
 	}
 
 	var newPart meta.TopologySpecification
-	if err := utils.ParseYaml(topoFile, &newPart); err != nil {
+	if err := utils.ParseTopologyYaml(topoFile, &newPart); err != nil {
 		return err
 	}
 

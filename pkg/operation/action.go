@@ -277,7 +277,7 @@ func StartMonitored(getter ExecutorGetter, instance meta.Instance, options meta.
 		stdout, stderr, err := systemd.Execute(e)
 
 		if len(stdout) > 0 {
-			log.Output(string(stdout))
+			fmt.Println(string(stdout))
 		}
 		if len(stderr) > 0 {
 			log.Errorf(string(stderr))
@@ -323,7 +323,7 @@ func StartComponent(getter ExecutorGetter, instances []meta.Instance) error {
 		stdout, stderr, err := systemd.Execute(e)
 
 		if len(stdout) > 0 {
-			log.Output(string(stdout))
+			fmt.Println(string(stdout))
 		}
 		if len(stderr) > 0 {
 			log.Errorf(string(stderr))
@@ -365,7 +365,7 @@ func StopMonitored(getter ExecutorGetter, instance meta.Instance, options meta.M
 		stdout, stderr, err := systemd.Execute(e)
 
 		if len(stdout) > 0 {
-			log.Output(string(stdout))
+			fmt.Println(string(stdout))
 		}
 		if len(stderr) > 0 {
 			log.Errorf(string(stderr))
@@ -408,7 +408,7 @@ func StopComponent(getter ExecutorGetter, instances []meta.Instance) error {
 		stdout, stderr, err := systemd.Execute(e)
 
 		if len(stdout) > 0 {
-			log.Output(string(stdout))
+			fmt.Println(string(stdout))
 		}
 		if len(stderr) > 0 {
 			log.Errorf(string(stderr))
