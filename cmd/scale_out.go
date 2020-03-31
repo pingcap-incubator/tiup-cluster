@@ -178,8 +178,8 @@ func buildScaleOutTask(
 		SSHKeySet(
 			meta.ClusterPath(clusterName, "ssh", "id_rsa"),
 			meta.ClusterPath(clusterName, "ssh", "id_rsa.pub")).
-		Parallel(envInitTasks...).
 		Parallel(downloadCompTasks...).
+		Parallel(envInitTasks...).
 		Parallel(deployCompTasks...).
 		// TODO: find another way to make sure current cluster started
 		ClusterSSH(metadata.Topology, metadata.User).
