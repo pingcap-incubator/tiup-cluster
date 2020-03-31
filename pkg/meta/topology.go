@@ -75,6 +75,7 @@ type (
 
 	// TopologySpecification represents the specification of topology.yaml
 	TopologySpecification struct {
+		ClusterName      string
 		GlobalOptions    GlobalOptions      `yaml:"global,omitempty"`
 		MonitoredOptions MonitoredOptions   `yaml:"monitored,omitempty"`
 		ServerConfigs    ServerConfigs      `yaml:"server_configs,omitempty"`

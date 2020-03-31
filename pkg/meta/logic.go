@@ -704,7 +704,7 @@ func (i *GrafanaInstance) InitConfig(e executor.TiOpsExecutor, user string, path
 	}
 
 	// transfer run script
-	cfg := scripts.NewGrafanaScript(paths.Deploy)
+	cfg := scripts.NewGrafanaScript(i.topo.ClusterName, paths.Deploy)
 	fp := filepath.Join(paths.Cache, fmt.Sprintf("run_grafana_%s_%d.sh", i.GetHost(), i.GetPort()))
 	if err := cfg.ConfigToFile(fp); err != nil {
 		return err
@@ -730,7 +730,7 @@ func (i *GrafanaInstance) InitConfig(e executor.TiOpsExecutor, user string, path
 
 	// transfer dashboard.yml
 	fp = filepath.Join(paths.Cache, fmt.Sprintf("dashboard_%s.yml", i.GetHost()))
-	if err := config.NewDashboardConfig("test-cluster", paths.Deploy).ConfigToFile(fp); err != nil {
+	if err := config.NewDashboardConfig(i.topo.ClusterName, paths.Deploy).ConfigToFile(fp); err != nil {
 		return err
 	}
 	dst = filepath.Join(paths.Deploy, "conf", "dashboard.yml")
@@ -740,7 +740,7 @@ func (i *GrafanaInstance) InitConfig(e executor.TiOpsExecutor, user string, path
 
 	// transfer datasource.yml
 	fp = filepath.Join(paths.Cache, fmt.Sprintf("datasource_%s.yml", i.GetHost()))
-	if err := config.NewDatasourceConfig("test-cluster", i.GetHost()).ConfigToFile(fp); err != nil {
+	if err := config.NewDatasourceConfig(i.topo.ClusterName, i.GetHost()).ConfigToFile(fp); err != nil {
 		return err
 	}
 	dst = filepath.Join(paths.Deploy, "conf", "datasource.yml")
