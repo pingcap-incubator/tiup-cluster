@@ -68,6 +68,16 @@ func Prompt(prompt string) string {
 	return strings.TrimSuffix(input, "\n")
 }
 
+func Confirm(prompt string) (string, bool) {
+	ans := Prompt(prompt)
+	switch strings.ToLower(ans) {
+	case "y", "yes":
+		return ans, true
+	default:
+		return ans, false
+	}
+}
+
 // GetPasswd reads a password input from console
 func GetPasswd(prompt string) string {
 	if prompt != "" {
