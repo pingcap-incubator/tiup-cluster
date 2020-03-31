@@ -22,6 +22,7 @@ import (
 	"github.com/pingcap-incubator/tiops/pkg/task"
 	"github.com/pingcap-incubator/tiops/pkg/utils"
 	"github.com/pingcap-incubator/tiup/pkg/set"
+	tiuputils "github.com/pingcap-incubator/tiup/pkg/utils"
 	"github.com/pingcap/errors"
 	"github.com/spf13/cobra"
 )
@@ -63,6 +64,10 @@ func newScaleOutCmd() *cobra.Command {
 }
 
 func scaleOut(clusterName, topoFile string, opt scaleOutOptions) error {
+	if tiuputils.IsNotExist(meta.ClusterPath(clusterName, meta.MetaFileName)) {
+		return errors.Errorf("cannot start non-exists cluster %s", clusterName)
+	}
+
 	var newPart meta.TopologySpecification
 	if err := utils.ParseYaml(topoFile, &newPart); err != nil {
 		return err
