@@ -42,7 +42,7 @@ func newExecCmd() *cobra.Command {
 
 			clusterName := os.Args[0]
 			if tiuputils.IsNotExist(meta.ClusterPath(clusterName, meta.MetaFileName)) {
-				return errors.Errorf("cannot display non-exists cluster %s", clusterName)
+				return errors.Errorf("cannot execute command on non-exists cluster %s", clusterName)
 			}
 
 			auditConfig.enable = true
