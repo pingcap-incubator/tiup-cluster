@@ -17,7 +17,6 @@ import (
 	"bufio"
 	"fmt"
 	"os"
-	"sort"
 	"strings"
 	"syscall"
 
@@ -25,29 +24,14 @@ import (
 	"golang.org/x/crypto/ssh/terminal"
 )
 
-type table [][]string
-
-func (p table) Len() int {
-	return len(p)
-}
-
-func (p table) Less(i, j int) bool {
-	return p[i][1] > p[j][1]
-}
-
-func (p table) Swap(i, j int) {
-	p[i], p[j] = p[j], p[i]
-}
-
 // PrintTable accepts a matrix of strings and print them as ASCII table to terminal
-func PrintTable(rows table, header bool) {
+func PrintTable(rows [][]string, header bool) {
 	// Print the table
 	t := tabby.New()
 	if header {
 		addRow(t, rows[0], header)
 		rows = rows[1:]
 	}
-	sort.Sort(rows)
 	for _, row := range rows {
 		addRow(t, row, false)
 	}
