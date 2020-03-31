@@ -43,10 +43,10 @@ func newScaleInCmd() *cobra.Command {
 
 			clusterName := args[0]
 			if !skipConfirm {
-				promptMsg := fmt.Sprintf("This operation will delete the %s nodes: `%s` and delete those data, do you want to continue?\n[Y]es/[N]o:",
+				promptMsg := fmt.Sprintf("This operation will delete the %s cluster nodes`%s` and delete those data, do you want to continue?\n[Y]es/[N]o:",
 					strings.Join(options.Nodes, ","), color.HiYellowString(clusterName))
 				if input, confirm := utils.Confirm(promptMsg); confirm {
-					log.Infof("Scale-in cluster...")
+					log.Infof("Scale-in nodes...")
 				} else {
 					return errors.Errorf("operation cancelled by user (input: %s)", input)
 				}
