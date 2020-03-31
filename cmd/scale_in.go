@@ -68,6 +68,10 @@ func scaleIn(cluster string, options operator.Options) error {
 			if !strings.HasPrefix(deployDir, "/") {
 				deployDir = filepath.Join("/home/", metadata.User, deployDir)
 			}
+			dataDir := instance.DataDir()
+			if dataDir != "" && !strings.HasPrefix(dataDir, "/") {
+				dataDir = filepath.Join("/home/", metadata.User, dataDir)
+			}
 			logDir := instance.LogDir()
 			if !strings.HasPrefix(logDir, "/") {
 				logDir = filepath.Join("/home/", metadata.User, logDir)
@@ -77,6 +81,7 @@ func scaleIn(cluster string, options operator.Options) error {
 				metadata.User,
 				meta.DirPaths{
 					Deploy: deployDir,
+					Data:   dataDir,
 					Log:    logDir,
 				},
 			).Build()

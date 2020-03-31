@@ -181,6 +181,14 @@ func buildScaleOutTask(
 		if !strings.HasPrefix(deployDir, "/") {
 			deployDir = filepath.Join("/home/", metadata.User, deployDir)
 		}
+		dataDir := inst.DataDir()
+		if dataDir != "" && !strings.HasPrefix(dataDir, "/") {
+			dataDir = filepath.Join("/home/", metadata.User, dataDir)
+		}
+		logDir := inst.LogDir()
+		if !strings.HasPrefix(logDir, "/") {
+			logDir = filepath.Join("/home/", metadata.User, logDir)
+		}
 		// Refresh all configuration
 		t := task.NewBuilder().
 			UserSSH(inst.GetHost(), metadata.User).
