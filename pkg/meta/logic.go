@@ -34,6 +34,7 @@ const (
 	ComponentTiDB             = "tidb"
 	ComponentTiKV             = "tikv"
 	ComponentPD               = "pd"
+	ComponentTiFlash          = "tiflash"
 	ComponentGrafana          = "grafana"
 	ComponentDrainer          = "drainer"
 	ComponentPump             = "pump"
@@ -471,6 +472,96 @@ func (i *PDInstance) ScaleConfig(e executor.TiOpsExecutor, b *Specification, use
 		return err
 	}
 	return nil
+}
+
+// TiFlashComponent represents TiFlash component.
+type TiFlashComponent struct{ *Specification }
+
+// Name implements Component interface.
+func (c *TiFlashComponent) Name() string {
+	return ComponentTiFlash
+}
+
+// Instances implements Component interface.
+func (c *TiFlashComponent) Instances() []Instance {
+	ins := make([]Instance, 0, len(c.TiFlashServers))
+	for _, s := range c.TiFlashServers {
+		ins = append(ins, &TiFlashInstance{instance{
+			InstanceSpec: s,
+			name:         c.Name(),
+			host:         s.Host,
+			port:         s.TCPPort,
+			sshp:         s.SSHPort,
+			topo:         c.Specification,
+
+			usedPorts: []int{
+				s.TCPPort,
+				s.HTTPPort,
+				s.FlashServicePort,
+				s.FlashProxyPort,
+				s.FlashProxyStatusPort,
+			},
+			usedDirs: []string{
+				s.DeployDir,
+				s.DataDir,
+			},
+			statusFn: s.Status,
+		}})
+	}
+	return ins
+}
+
+// TiFlashInstance represent the TiFlash instance
+type TiFlashInstance struct {
+	instance
+}
+
+// InitConfig implement Instance interface
+func (i *TiFlashInstance) InitConfig(e executor.TiOpsExecutor, user, cacheDir, deployDir string) error {
+	if err := i.instance.InitConfig(e, user, cacheDir, deployDir); err != nil {
+		return err
+	}
+
+	// transfer run script
+	ends := []*scripts.PDScript{}
+	for _, spec := range i.instance.topo.PDServers {
+		ends = append(ends, scripts.NewPDScript(spec.Name, spec.Host, spec.DeployDir, spec.DataDir))
+	}
+	cfg := scripts.NewTiFlashScript(i.GetHost(), deployDir, i.instance.DataDir()).AppendEndpoints(ends...)
+	fp := filepath.Join(cacheDir, fmt.Sprintf("run_tiflash_%s_%d.sh", i.GetHost(), i.GetPort()))
+	if err := cfg.ConfigToFile(fp); err != nil {
+		return err
+	}
+	dst := filepath.Join(deployDir, "scripts", "run_tiflash.sh")
+	if err := e.Transfer(fp, dst, false); err != nil {
+		return err
+	}
+
+	if _, _, err := e.Execute("chmod +x "+dst, false); err != nil {
+		return err
+	}
+
+	// transfer config
+	fp = filepath.Join(cacheDir, fmt.Sprintf("tiflash_%s.toml", i.GetHost()))
+	if err := config.NewTiFlashConfig().ConfigToFile(fp); err != nil {
+		return err
+	}
+	dst = filepath.Join(deployDir, "conf", "tiflash.toml")
+	if err := e.Transfer(fp, dst, false); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// ScaleConfig deploy temporary config on scaling
+func (i *TiFlashInstance) ScaleConfig(e executor.TiOpsExecutor, b *Specification, user, cacheDir, deployDir string) error {
+	s := i.instance.topo
+	defer func() {
+		i.instance.topo = s
+	}()
+	i.instance.topo = b
+	return i.InitConfig(e, user, cacheDir, deployDir)
 }
 
 // MonitorComponent represents Monitor component.
