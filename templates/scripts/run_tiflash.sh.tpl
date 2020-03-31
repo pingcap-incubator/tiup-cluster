@@ -10,7 +10,7 @@ cd "${DEPLOY_DIR}" || exit 1
 
 export RUST_BACKTRACE=1
 
-export LD_LIBRARY_PATH=/usr/local/lib::/usr/local/lib::/usr/local/lib64:/usr/local/lib:/usr/lib64:/usr/lib:{{.DeployDir}}:{{.DeployDir}}/tiflash_lib:$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH={{.DeployDir}}/bin/tiflash:$LD_LIBRARY_PATH
 
 echo -n 'sync ... '
 stat=$(time sync || sync)
@@ -18,8 +18,8 @@ echo ok
 echo $stat
 
 {{- if .NumaNode}}
-exec numactl --cpunodebind={{.NumaNode}} --membind={{.NumaNode}} bin/tiflash/tiflash \
+exec numactl --cpunodebind={{.NumaNode}} --membind={{.NumaNode}}  \
 {{- else}}
-exec bin/tiflash/tiflash \
+exec \
 {{- end}}
-    --config-file conf/tiflash.toml
+    bin/tiflash/tiflash server --config-file conf/tiflash-main.toml

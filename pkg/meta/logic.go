@@ -546,6 +546,7 @@ func (c *TiFlashComponent) Instances() []Instance {
 				s.FlashServicePort,
 				s.FlashProxyPort,
 				s.FlashProxyStatusPort,
+				s.MetricsPort,
 			},
 			usedDirs: []string{
 				s.DeployDir,
@@ -569,12 +570,28 @@ func (i *TiFlashInstance) InitConfig(e executor.TiOpsExecutor, cluster, user str
 	}
 
 	spec := i.InstanceSpec.(TiFlashSpec)
+
+	tidbStatusAddrs := []string{}
+	for _, tidb := range i.topo.TiDBServers {
+		tidbStatusAddrs = append(tidbStatusAddrs, fmt.Sprintf("%s:%d", tidb.Host, uint64(tidb.StatusPort)))
+	}
+	tidbStatusStr := strings.Join(tidbStatusAddrs, ",")
+
+	pdAddrs := []string{}
+	for _, pd := range i.topo.PDServers {
+		pdAddrs = append(pdAddrs, fmt.Sprintf("%s:%d", pd.Host, uint64(pd.ClientPort)))
+	}
+	pdStr := strings.Join(pdAddrs, ",")
+
 	cfg := scripts.NewTiFlashScript(
 		i.GetHost(),
 		paths.Deploy,
 		paths.Data,
 		paths.Log,
-	).WithTCPPort(spec.TCPPort).WithHTTPPort(spec.HTTPPort).AppendEndpoints(i.instance.topo.Endpoints(user)...)
+		tidbStatusStr,
+		pdStr,
+	).WithTCPPort(spec.TCPPort).WithHTTPPort(spec.HTTPPort).WithFlashServicePort(spec.FlashServicePort).WithFlashProxyPort(spec.FlashProxyPort).WithFlashProxyStatusPort(spec.FlashProxyStatusPort).WithFlashProxyStatusPort(spec.MetricsPort).AppendEndpoints(i.instance.topo.Endpoints(user)...)
+
 	fp := filepath.Join(paths.Cache, fmt.Sprintf("run_tiflash_%s_%d.sh", i.GetHost(), i.GetPort()))
 	if err := cfg.ConfigToFile(fp); err != nil {
 		return err
@@ -586,6 +603,24 @@ func (i *TiFlashInstance) InitConfig(e executor.TiOpsExecutor, cluster, user str
 	}
 
 	if _, _, err := e.Execute("chmod +x "+dst, false); err != nil {
+		return err
+	}
+
+	fp2 := filepath.Join(paths.Cache, fmt.Sprintf("tiflash-learner_%s_%d.toml", i.GetHost(), i.GetPort()))
+	if err := cfg.ConfigTiFlashLearnerToFile(fp2); err != nil {
+		return err
+	}
+	dst2 := filepath.Join(paths.Deploy, "conf", "tiflash-learner.toml")
+	if err := e.Transfer(fp2, dst2, false); err != nil {
+		return err
+	}
+
+	fp3 := filepath.Join(paths.Cache, fmt.Sprintf("tiflash_%s_%d.toml", i.GetHost(), i.GetPort()))
+	if err := cfg.ConfigTiFlashToFile(fp3); err != nil {
+		return err
+	}
+	dst3 := filepath.Join(paths.Deploy, "conf", "tiflash-main.toml")
+	if err := e.Transfer(fp3, dst3, false); err != nil {
 		return err
 	}
 

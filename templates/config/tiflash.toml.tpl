@@ -9,7 +9,7 @@ http_port = {{.HTTPPort}}
 
 [flash]
 tidb_status_addr = "{{.TiDBStatusAddrs}}"
-service_addr = "{{.IP}}:{.FlashServicePort}"
+service_addr = "{{.IP}}:{{.FlashServicePort}}"
 
 [flash.flash_cluster]
 cluster_manager_path = "{{.DeployDir}}/bin/tiflash/flash_cluster_manager"
@@ -25,8 +25,8 @@ config = "{{.DeployDir}}/conf/tiflash-learner.toml"
 metrics_port = {{.MetricsPort}}
 
 [logger]
-errorlog = "/{{.DeployDir}}/log/tiflash_error.log"
-log = "/{{.DeployDir}}/log/tiflash.log"
+errorlog = "{{.DeployDir}}/log/tiflash_error.log"
+log = "{{.DeployDir}}/log/tiflash.log"
 count = 20
 level = "debug"
 size = "1000M"

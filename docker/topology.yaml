@@ -1,16 +1,15 @@
-tidb_servers:
-  - host: 172.19.0.101
-  - host: 172.19.0.102
+pd:
+  replication:
+    enable-placement-rules: true
 
 pd_servers:
-  - host: 172.19.0.103
-  - host: 172.19.0.104
-  - host: 172.19.0.105
+  - host: 172.19.0.101
+
+tidb_servers:
+  - host: 172.19.0.101
 
 tikv_servers:
-  - host: 172.19.0.103
-  - host: 172.19.0.104
-  - host: 172.19.0.105
+  - host: 172.19.0.101
 
 tiflash_servers:
   - host: 172.19.0.101

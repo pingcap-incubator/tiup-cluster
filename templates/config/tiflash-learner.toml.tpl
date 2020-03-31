@@ -13,7 +13,7 @@ advertise-addr = "{{.IP}}:{{.FlashProxyPort}}"
 status-addr = "{{.IP}}:{{.FlashProxyStatusPort}}"
 
 [storage]
-data-dir = "/{{.DeployDir}}/tiflash/data/flash"
+data-dir = "{{.DeployDir}}/tiflash/data/flash"
 
 [pd]
 

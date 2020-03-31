@@ -28,22 +28,34 @@ type TiFlashScript struct {
 	IP         string
 	TCPPort    int
 	HTTPPort   int
+	FlashServicePort int
+	FlashProxyPort int
+	FlashProxyStatusPort int
+	MetricsPort int
 	DeployDir  string
 	DataDir    string
 	LogDir     string
 	NumaNode   string
 	Endpoints  []*PDScript
+	TiDBStatusAddrs      string
+	PDAddrs             string
 }
 
 // NewTiFlashScript returns a TiFlashScript with given arguments
-func NewTiFlashScript(ip, deployDir, dataDir string, logDir string) *TiFlashScript {
+func NewTiFlashScript(ip, deployDir, dataDir string, logDir string, tidbStatusAddrs string, pdAddrs string) *TiFlashScript {
 	return &TiFlashScript{
 		IP:         ip,
 		TCPPort:	9000,
 		HTTPPort:	8123,
+		FlashServicePort: 3930,
+		FlashProxyPort: 20170,
+		FlashProxyStatusPort: 20292,
+		MetricsPort: 8234,
 		DeployDir:  deployDir,
 		DataDir:    dataDir,
 		LogDir:     logDir,
+		TiDBStatusAddrs:      tidbStatusAddrs,
+		PDAddrs:               pdAddrs,
 	}
 }
 
@@ -56,6 +68,30 @@ func (c *TiFlashScript) WithTCPPort(port int) *TiFlashScript {
 // WithHTTPPort set HTTPPort field of TiFlashScript
 func (c *TiFlashScript) WithHTTPPort(port int) *TiFlashScript {
 	c.HTTPPort = port
+	return c
+}
+
+// WithFlashServicePort set FlashServicePort field of TiFlashScript
+func (c *TiFlashScript) WithFlashServicePort(port int) *TiFlashScript {
+	c.FlashServicePort = port
+	return c
+}
+
+// WithFlashProxyPort set FlashProxyPort field of TiFlashScript
+func (c *TiFlashScript) WithFlashProxyPort(port int) *TiFlashScript {
+	c.FlashProxyPort = port
+	return c
+}
+
+// WithFlashProxyStatusPort set FlashProxyStatusPort field of TiFlashScript
+func (c *TiFlashScript) WithFlashProxyStatusPort(port int) *TiFlashScript {
+	c.FlashProxyStatusPort = port
+	return c
+}
+
+// WithMetricsPort set FlashProxyStatusPort field of TiFlashScript
+func (c *TiFlashScript) WithMetricsPort(port int) *TiFlashScript {
+	c.MetricsPort = port
 	return c
 }
 
@@ -85,6 +121,46 @@ func (c *TiFlashScript) Config() ([]byte, error) {
 // ConfigToFile write config content to specific path
 func (c *TiFlashScript) ConfigToFile(file string) error {
 	config, err := c.Config()
+	if err != nil {
+		return err
+	}
+	return ioutil.WriteFile(file, config, 0755)
+}
+
+// Config read ${localdata.EnvNameComponentInstallDir}/templates/conf/tiflash-learner.toml.tpl as template
+// and generate the config by ConfigWithTemplate
+func (c *TiFlashScript) ConfigTiFlashLearner() ([]byte, error) {
+	fp := path.Join(os.Getenv(localdata.EnvNameComponentInstallDir), "templates", "config", "tiflash-learner.toml.tpl")
+	tpl, err := ioutil.ReadFile(fp)
+	if err != nil {
+		return nil, err
+	}
+	return c.ConfigWithTemplate(string(tpl))
+}
+
+// ConfigToFile write config content to specific path
+func (c *TiFlashScript) ConfigTiFlashLearnerToFile(file string) error {
+	config, err := c.ConfigTiFlashLearner()
+	if err != nil {
+		return err
+	}
+	return ioutil.WriteFile(file, config, 0755)
+}
+
+// Config read ${localdata.EnvNameComponentInstallDir}/templates/conf/tiflash.toml.tpl as template
+// and generate the config by ConfigWithTemplate
+func (c *TiFlashScript) ConfigTiFlash() ([]byte, error) {
+	fp := path.Join(os.Getenv(localdata.EnvNameComponentInstallDir), "templates", "config", "tiflash.toml.tpl")
+	tpl, err := ioutil.ReadFile(fp)
+	if err != nil {
+		return nil, err
+	}
+	return c.ConfigWithTemplate(string(tpl))
+}
+
+// ConfigToFile write config content to specific path
+func (c *TiFlashScript) ConfigTiFlashToFile(file string) error {
+	config, err := c.ConfigTiFlash()
 	if err != nil {
 		return err
 	}
