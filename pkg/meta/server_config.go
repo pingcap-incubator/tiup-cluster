@@ -19,6 +19,8 @@ import (
 	"strings"
 
 	"github.com/BurntSushi/toml"
+	"github.com/pingcap/errors"
+	"gopkg.in/yaml.v2"
 )
 
 func flattenKey(key string, val interface{}) (string, interface{}) {
@@ -50,21 +52,25 @@ func patch(origin map[string]interface{}, key string, val interface{}) {
 	}
 }
 
-func flattenMap(ms map[string]interface{}) (map[string]interface{}, error) {
+func toMap(ms yaml.MapSlice) (map[string]interface{}, error) {
 	result := map[string]interface{}{}
-	for key, value := range ms {
-		newKey, val := flattenKey(key, value)
-		patch(result, newKey, val)
+	for _, item := range ms {
+		s, ok := item.Key.(string)
+		if !ok {
+			return nil, errors.Errorf("unrecognized key type: %T(%+v)", item.Key, item.Key)
+		}
+		key, val := flattenKey(s, item.Value)
+		patch(result, key, val)
 	}
 	return result, nil
 }
 
-func merge2Toml(comp string, global, overwrite map[string]interface{}) ([]byte, error) {
-	lhs, err := flattenMap(global)
+func merge2Toml(comp string, global, overwrite yaml.MapSlice) ([]byte, error) {
+	lhs, err := toMap(global)
 	if err != nil {
 		return nil, err
 	}
-	rhs, err := flattenMap(overwrite)
+	rhs, err := toMap(overwrite)
 	if err != nil {
 		return nil, err
 	}

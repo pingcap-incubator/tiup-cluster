@@ -162,7 +162,14 @@ tidb_servers:
       log.file.rotate: "55555.xxx"
 `), &topo)
 	c.Assert(err, IsNil)
-	c.Assert(topo.ServerConfigs.TiDB, DeepEquals, map[string]interface{}{
+	equal := func(ms yaml.MapSlice, expected map[string]interface{}) {
+		got := map[string]interface{}{}
+		for _, item := range ms {
+			got[item.Key.(string)] = item.Value
+		}
+		c.Assert(got, DeepEquals, expected)
+	}
+	equal(topo.ServerConfigs.TiDB, map[string]interface{}{
 		"status.address":  10,
 		"port":            1230,
 		"latch.capacity":  20480,
@@ -182,7 +189,7 @@ tidb_servers:
 			},
 		},
 	}
-	got, err := flattenMap(topo.ServerConfigs.TiDB)
+	got, err := toMap(topo.ServerConfigs.TiDB)
 	c.Assert(err, IsNil)
 	c.Assert(got, DeepEquals, expected)
 	buf := &bytes.Buffer{}
@@ -211,7 +218,7 @@ tidb_servers:
 			},
 		},
 	}
-	got, err = flattenMap(topo.TiDBServers[0].Config)
+	got, err = toMap(topo.TiDBServers[0].Config)
 	c.Assert(err, IsNil)
 	c.Assert(got, DeepEquals, expected)
 
@@ -225,7 +232,7 @@ tidb_servers:
 			},
 		},
 	}
-	got, err = flattenMap(topo.TiDBServers[1].Config)
+	got, err = toMap(topo.TiDBServers[1].Config)
 	c.Assert(err, IsNil)
 	c.Assert(got, DeepEquals, expected)
 }
@@ -235,7 +242,6 @@ func (s *metaSuite) TestGlobalConfigPatch(c *C) {
 	err := yaml.Unmarshal([]byte(`
 tikv_sata_config: &tikv_sata_config
   config.item1: 100
-  config.item3.item4: 400
   config.item2: 300
   config.item3.item5: 500
   config.item3.item6: 600
@@ -251,13 +257,12 @@ tikv_servers:
 			"item1": 100,
 			"item2": 300,
 			"item3": map[string]interface{}{
-				"item4": 400,
 				"item5": 500,
 				"item6": 600,
 			},
 		},
 	}
-	got, err := flattenMap(topo.TiKVServers[0].Config)
+	got, err := toMap(topo.TiKVServers[0].Config)
 	c.Assert(err, IsNil)
 	c.Assert(got, DeepEquals, expected)
 }
