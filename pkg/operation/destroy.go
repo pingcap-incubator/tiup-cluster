@@ -121,7 +121,6 @@ func DestroyComponent(getter ExecutorGetter, instances []meta.Instance) error {
 			delPaths = append(delPaths, ins.DataDir())
 			fallthrough
 		default:
-			delPaths = append(delPaths, ins.LogDir())
 		}
 
 		// In TiDB-Ansible, deploy dir are shared by all components on the same
@@ -138,6 +137,7 @@ func DestroyComponent(getter ExecutorGetter, instances []meta.Instance) error {
 				ins.DeployDir(), ins.InstanceName())
 		}
 		delPaths = append(delPaths, fmt.Sprintf("/etc/systemd/system/%s", ins.ServiceName()))
+		log.Debugf("Deleting paths on %s: %s", ins.GetHost(), strings.Join(delPaths, " "))
 		c := module.ShellModuleConfig{
 			Command:  fmt.Sprintf("rm -rf %s;", strings.Join(delPaths, " ")),
 			Sudo:     true, // the .service files are in a directory owned by root
