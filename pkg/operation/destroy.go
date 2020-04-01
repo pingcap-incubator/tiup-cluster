@@ -61,7 +61,7 @@ func DeleteGlobalDirs(getter ExecutorGetter, host string, options meta.GlobalOpt
 		log.Infof("\tClean directory %s on instance %s", dir, host)
 
 		c := module.ShellModuleConfig{
-			Command:  fmt.Sprintf("test $(ls -A %[1]s) || rm -rf test %[1]s;", dir),
+			Command:  fmt.Sprintf("test $(ls -A %[1]s) || rm -rf %[1]s;", dir),
 			Sudo:     true, // the .service files are in a directory owned by root
 			Chdir:    "",
 			UseShell: false,
