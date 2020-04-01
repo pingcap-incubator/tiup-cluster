@@ -21,6 +21,7 @@ server_configs:
     schedule.merge-schedule-limit: 8
     schedule.hot-region-schedule-limit: 4
     replication.enable-placement-rules: true
+    replication.max-replicas: 1
 
 pd_servers:
   - host: 172.19.0.101
