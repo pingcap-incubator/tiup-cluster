@@ -290,8 +290,8 @@ type TiFlashSpec struct {
 
 // Status queries current status of the instance
 func (s TiFlashSpec) Status(flashList ...string) string {
-	// temporary
-	return "Up"
+	url := fmt.Sprintf("http://%s:%d/?query=select%%20version()", s.Host, s.HTTPPort)
+	return statusByURL(url)
 }
 
 // Role returns the component role of the instance
