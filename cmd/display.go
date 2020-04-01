@@ -19,6 +19,7 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/pingcap-incubator/tiops/pkg/cliutil"
+	"github.com/pingcap-incubator/tiops/pkg/log"
 	"github.com/pingcap-incubator/tiops/pkg/meta"
 	operator "github.com/pingcap-incubator/tiops/pkg/operation"
 	"github.com/pingcap-incubator/tiops/pkg/task"
@@ -54,7 +55,11 @@ func newDisplayCmd() *cobra.Command {
 				return err
 			}
 
-			return destroyTombsome(opt.clusterName)
+			metadata, err := meta.ClusterMetadata(opt.clusterName)
+			if err != nil {
+				return errors.AddStack(err)
+			}
+			return destroyTombsomeIfNeed(opt.clusterName, metadata)
 		},
 	}
 
@@ -82,12 +87,7 @@ func displayClusterMeta(opt *displayOption) error {
 	return nil
 }
 
-func destroyTombsome(clusterName string) error {
-	metadata, err := meta.ClusterMetadata(clusterName)
-	if err != nil {
-		return errors.AddStack(err)
-	}
-
+func destroyTombsomeIfNeed(clusterName string, metadata *meta.ClusterMeta) error {
 	topo := metadata.Topology
 
 	if !operator.NeedCheckTomebsome(topo) {
@@ -95,11 +95,24 @@ func destroyTombsome(clusterName string) error {
 	}
 
 	ctx := task.NewContext()
+
+	err := task.NewBuilder().SSHKeySet(
+		meta.ClusterPath(clusterName, "ssh", "id_rsa"),
+		meta.ClusterPath(clusterName, "ssh", "id_rsa.pub")).
+		ClusterSSH(topo, metadata.User).Build().Execute(ctx)
+
+	nodes, err := operator.DestroyTombstone(ctx, topo, true /* returnNodesOnly */)
+	if err != nil {
+		return errors.AddStack(err)
+	}
+
+	if len(nodes) == 0 {
+		return nil
+	}
+
+	log.Warnf("Destroy Tombstone nodes: %v", nodes)
+
 	t := task.NewBuilder().
-		SSHKeySet(
-			meta.ClusterPath(clusterName, "ssh", "id_rsa"),
-			meta.ClusterPath(clusterName, "ssh", "id_rsa.pub")).
-		ClusterSSH(topo, metadata.User).
 		ClusterOperate(metadata.Topology, operator.DestroyTombsomeOperation, operator.Options{}).Build()
 
 	err = t.Execute(ctx)
