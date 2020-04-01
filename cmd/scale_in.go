@@ -59,7 +59,7 @@ func newScaleInCmd() *cobra.Command {
 	}
 
 	cmd.Flags().StringSliceVarP(&options.Nodes, "node", "N", nil, "Specify the nodes")
-	cmd.Flags().BoolVar(&skipConfirm, "noconfirm", false, "Skip the confirmation of destroying")
+	cmd.Flags().BoolVarP(&skipConfirm, "yes", "y", false, "Skip the confirmation of destroying")
 	_ = cmd.MarkFlagRequired("node")
 
 	return cmd

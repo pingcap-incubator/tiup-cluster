@@ -103,7 +103,7 @@ To SSH connect using password:
 	cmd.Flags().StringVarP(&opt.keyFile, "identity_file", "i", "", "Specify the path of the SSH identity file")
 	// FIXME: We should prompt for passphrase automatically
 	cmd.Flags().StringVar(&opt.passphrase, "passphrase", "", "Specify the passphrase of the SSH identity file")
-	cmd.Flags().BoolVar(&opt.skipConfirm, "y", false, "Skip the confirmation of topology")
+	cmd.Flags().BoolVarP(&opt.skipConfirm, "yes", "y", false, "Skip the confirmation of topology")
 
 	return cmd
 }
