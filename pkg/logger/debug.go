@@ -21,10 +21,9 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/pingcap-incubator/tiops/pkg/colorutil"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
-
-	"github.com/pingcap-incubator/tiops/pkg/colorutil"
 )
 
 var debugBuffer *bytes.Buffer
@@ -38,7 +37,7 @@ func newDebugLogCore() zapcore.Core {
 // OutputDebugLog outputs debug log in the current working directory.
 func OutputDebugLog() {
 	// FIXME: Stupid go does not allow writing fraction seconds without a leading dot.
-	fileName := time.Now().Format("./tiops-debug-2006-01-02-15-04-05.log")
+	fileName := time.Now().Format("./tiup-cluster-debug-2006-01-02-15-04-05.log")
 	filePath, err := filepath.Abs(fileName)
 	if err != nil {
 		filePath = fileName

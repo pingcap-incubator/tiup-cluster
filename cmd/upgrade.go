@@ -18,17 +18,16 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/pingcap-incubator/tiup/pkg/repository"
-	"github.com/pingcap-incubator/tiup/pkg/utils"
-	"github.com/pingcap/errors"
-	"github.com/spf13/cobra"
-	"golang.org/x/mod/semver"
-
 	"github.com/pingcap-incubator/tiops/pkg/bindversion"
 	"github.com/pingcap-incubator/tiops/pkg/logger"
 	"github.com/pingcap-incubator/tiops/pkg/meta"
 	operator "github.com/pingcap-incubator/tiops/pkg/operation"
 	"github.com/pingcap-incubator/tiops/pkg/task"
+	"github.com/pingcap-incubator/tiup/pkg/repository"
+	"github.com/pingcap-incubator/tiup/pkg/utils"
+	"github.com/pingcap/errors"
+	"github.com/spf13/cobra"
+	"golang.org/x/mod/semver"
 )
 
 type upgradeOptions struct {

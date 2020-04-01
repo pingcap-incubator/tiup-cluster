@@ -18,17 +18,16 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/pingcap-incubator/tiup/pkg/set"
-	tiuputils "github.com/pingcap-incubator/tiup/pkg/utils"
-	"github.com/pingcap/errors"
-	"github.com/spf13/cobra"
-
 	"github.com/pingcap-incubator/tiops/pkg/bindversion"
 	"github.com/pingcap-incubator/tiops/pkg/logger"
 	"github.com/pingcap-incubator/tiops/pkg/meta"
 	operator "github.com/pingcap-incubator/tiops/pkg/operation"
 	"github.com/pingcap-incubator/tiops/pkg/task"
 	"github.com/pingcap-incubator/tiops/pkg/utils"
+	"github.com/pingcap-incubator/tiup/pkg/set"
+	tiuputils "github.com/pingcap-incubator/tiup/pkg/utils"
+	"github.com/pingcap/errors"
+	"github.com/spf13/cobra"
 )
 
 var errPasswordKeyAtLeastOne = errors.New("--password and --key need to specify at least one")
@@ -66,7 +65,7 @@ func newScaleOutCmd() *cobra.Command {
 
 	cmd.Flags().StringVar(&opt.user, "user", "root", "Specify the system user name")
 	cmd.Flags().BoolVar(&opt.usePasswd, "password", false, "Specify the password of system user")
-	cmd.Flags().StringVar(&opt.keyFile, "key", "", "Specify the key path of system user")
+	cmd.Flags().StringVarP(&opt.keyFile, "identity_file", "i", "", "Specify the key path of system user")
 	cmd.Flags().StringVar(&opt.passphrase, "passphrase", "", "Specify the passphrase of the key")
 
 	return cmd

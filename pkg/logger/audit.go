@@ -20,13 +20,12 @@ import (
 	"strings"
 	"time"
 
-	"go.uber.org/atomic"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
-
 	"github.com/pingcap-incubator/tiops/pkg/base52"
 	"github.com/pingcap-incubator/tiops/pkg/meta"
 	"github.com/pingcap-incubator/tiops/pkg/utils"
+	"go.uber.org/atomic"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 var auditEnabled atomic.Bool

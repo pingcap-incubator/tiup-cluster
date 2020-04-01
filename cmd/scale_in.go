@@ -19,17 +19,16 @@ import (
 	"strings"
 
 	"github.com/fatih/color"
-	"github.com/pingcap-incubator/tiup/pkg/set"
-	tiuputils "github.com/pingcap-incubator/tiup/pkg/utils"
-	"github.com/pingcap/errors"
-	"github.com/spf13/cobra"
-
 	"github.com/pingcap-incubator/tiops/pkg/log"
 	"github.com/pingcap-incubator/tiops/pkg/logger"
 	"github.com/pingcap-incubator/tiops/pkg/meta"
 	operator "github.com/pingcap-incubator/tiops/pkg/operation"
 	"github.com/pingcap-incubator/tiops/pkg/task"
 	"github.com/pingcap-incubator/tiops/pkg/utils"
+	"github.com/pingcap-incubator/tiup/pkg/set"
+	tiuputils "github.com/pingcap-incubator/tiup/pkg/utils"
+	"github.com/pingcap/errors"
+	"github.com/spf13/cobra"
 )
 
 func newScaleInCmd() *cobra.Command {

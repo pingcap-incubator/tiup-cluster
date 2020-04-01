@@ -21,10 +21,10 @@ import (
 	"text/template"
 
 	"github.com/joomcode/errorx"
-	"github.com/spf13/cobra"
-
 	"github.com/pingcap-incubator/tiops/pkg/colorutil"
 	"github.com/pingcap-incubator/tiops/pkg/errutil"
+	"github.com/pingcap-incubator/tiup/pkg/localdata"
+	"github.com/spf13/cobra"
 )
 
 var (
@@ -33,16 +33,26 @@ var (
 )
 
 var templateFuncs = template.FuncMap{
-	"OsArgs":  osArgs,
-	"OsArgs0": osArgs0,
+	"OsArgs":  OsArgs,
+	"OsArgs0": OsArgs0,
 }
 
-func osArgs() string {
-	return strings.Join(os.Args, " ")
+func args() []string {
+	if wd := os.Getenv(localdata.EnvNameWorkDir); wd != "" {
+		// FIXME: We should use TiUp's arg0 instead of hardcode
+		return append([]string{"tiup cluster"}, os.Args[1:]...)
+	}
+	return os.Args
 }
 
-func osArgs0() string {
-	return os.Args[0]
+// OsArgs return the whole command line that user inputs, e.g. tiops deploy --xxx, or tiup cluster deploy --xxx
+func OsArgs() string {
+	return strings.Join(args(), " ")
+}
+
+// OsArgs0 return the command name that user inputs, e.g. tiops, or tiup cluster.
+func OsArgs0() string {
+	return args()[0]
 }
 
 func init() {

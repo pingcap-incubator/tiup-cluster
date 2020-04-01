@@ -21,18 +21,18 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/joomcode/errorx"
-	"github.com/pingcap-incubator/tiup/pkg/localdata"
-	tiupmeta "github.com/pingcap-incubator/tiup/pkg/meta"
-	"github.com/pingcap-incubator/tiup/pkg/repository"
-	"github.com/spf13/cobra"
-	"go.uber.org/zap"
-
+	"github.com/pingcap-incubator/tiops/pkg/cliutil"
 	"github.com/pingcap-incubator/tiops/pkg/colorutil"
 	"github.com/pingcap-incubator/tiops/pkg/errutil"
 	"github.com/pingcap-incubator/tiops/pkg/flags"
 	"github.com/pingcap-incubator/tiops/pkg/logger"
 	"github.com/pingcap-incubator/tiops/pkg/meta"
 	"github.com/pingcap-incubator/tiops/pkg/version"
+	"github.com/pingcap-incubator/tiup/pkg/localdata"
+	tiupmeta "github.com/pingcap-incubator/tiup/pkg/meta"
+	"github.com/pingcap-incubator/tiup/pkg/repository"
+	"github.com/spf13/cobra"
+	"go.uber.org/zap"
 )
 
 var rootCmd *cobra.Command
@@ -123,7 +123,8 @@ func printErrorMessageForErrorX(err *errorx.Error) {
 
 // Execute executes the root command
 func Execute() {
-	zap.L().Info("Execute command", zap.Strings("args", os.Args))
+	zap.L().Info("Execute command", zap.String("command", cliutil.OsArgs()))
+	zap.L().Debug("Environment variables", zap.Strings("env", os.Environ()))
 
 	// Switch current work directory if running in TiUP component mode
 	if wd := os.Getenv(localdata.EnvNameWorkDir); wd != "" {

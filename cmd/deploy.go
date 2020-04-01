@@ -85,7 +85,7 @@ func newDeploy() *cobra.Command {
 You should specify either SSH identity file or password.
 
 To SSH connect using identity file:
-  {{ColorCommand}}{{OsArgs}} --identity_file <file>{{ColorReset}}
+  {{ColorCommand}}{{OsArgs}} -i <file>{{ColorReset}}
 
 To SSH connect using password:
   {{ColorCommand}}{{OsArgs}} --password{{ColorReset}}
@@ -100,7 +100,7 @@ To SSH connect using password:
 
 	cmd.Flags().StringVar(&opt.user, "user", "root", "Specify the system user name")
 	cmd.Flags().BoolVar(&opt.usePasswd, "password", false, "Specify the password of system user")
-	cmd.Flags().StringVar(&opt.keyFile, "identity_file", "", "Specify the path of the SSH identity file")
+	cmd.Flags().StringVarP(&opt.keyFile, "identity_file", "i", "", "Specify the path of the SSH identity file")
 	// FIXME: We should prompt for passphrase automatically
 	cmd.Flags().StringVar(&opt.passphrase, "passphrase", "", "Specify the passphrase of the SSH identity file")
 	cmd.Flags().BoolVar(&opt.skipConfirm, "y", false, "Skip the confirmation of topology")

@@ -1,4 +1,4 @@
-tiops-debug-*.log
+tiup-cluster-debug-*.log
 
 bin/
 *.tar
