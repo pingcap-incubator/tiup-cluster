@@ -374,7 +374,7 @@ func StartComponent(getter ExecutorGetter, instances []meta.Instance) error {
 		if len(stdout) > 0 {
 			fmt.Println(string(stdout))
 		}
-		if len(stderr) > 0 {
+		if len(stderr) > 0 && !bytes.Contains(stderr, []byte("Created symlink ")) {
 			log.Errorf(string(stderr))
 		}
 
