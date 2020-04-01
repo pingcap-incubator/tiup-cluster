@@ -34,13 +34,13 @@ func (m *Mkdir) Execute(ctx *Context) error {
 	}
 
 	cmd := fmt.Sprintf(`mkdir -p {%s}`, strings.Join(m.dirs, ","))
-	_, _, err := exec.Execute(cmd, true)
+	_, _, err := exec.Execute(cmd, false)
 	if err != nil {
 		return errors.Trace(err)
 	}
 
 	cmd = fmt.Sprintf("chown -R $(whoami):$(whoami) {%s}", strings.Join(m.dirs, ","))
-	_, _, err = exec.Execute(cmd, true)
+	_, _, err = exec.Execute(cmd, false)
 	if err != nil {
 		return errors.Trace(err)
 	}
