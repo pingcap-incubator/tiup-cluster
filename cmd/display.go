@@ -95,11 +95,16 @@ func destroyTombsomeIfNeed(clusterName string, metadata *meta.ClusterMeta) error
 	}
 
 	ctx := task.NewContext()
+	err := ctx.SetSSHKeySet(meta.ClusterPath(clusterName, "ssh", "id_rsa"),
+		meta.ClusterPath(clusterName, "ssh", "id_rsa.pub"))
+	if err != nil {
+		return errors.AddStack(err)
+	}
 
-	err := task.NewBuilder().SSHKeySet(
-		meta.ClusterPath(clusterName, "ssh", "id_rsa"),
-		meta.ClusterPath(clusterName, "ssh", "id_rsa.pub")).
-		ClusterSSH(topo, metadata.User).Build().Execute(ctx)
+	err = ctx.SetClusterSSH(topo, metadata.User)
+	if err != nil {
+		return errors.AddStack(err)
+	}
 
 	nodes, err := operator.DestroyTombstone(ctx, topo, true /* returnNodesOnly */)
 	if err != nil {
@@ -110,15 +115,14 @@ func destroyTombsomeIfNeed(clusterName string, metadata *meta.ClusterMeta) error
 		return nil
 	}
 
-	log.Warnf("Destroy Tombstone nodes: %v", nodes)
+	log.Infof("Start destroy Tombstone nodes: %v ...", nodes)
 
-	t := task.NewBuilder().
-		ClusterOperate(metadata.Topology, operator.DestroyTombsomeOperation, operator.Options{}).Build()
-
-	err = t.Execute(ctx)
+	nodes, err = operator.DestroyTombstone(ctx, topo, false /* returnNodesOnly */)
 	if err != nil {
-		return err
+		return errors.AddStack(err)
 	}
+
+	log.Infof("Destroy success")
 
 	return meta.SaveClusterMeta(clusterName, metadata)
 }
