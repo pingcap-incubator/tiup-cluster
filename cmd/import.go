@@ -39,9 +39,6 @@ func newImportCmd() *cobra.Command {
 				return err
 			}
 
-			// TODO: check cluster name with other clusters managed by us for conflicts
-			// TODO: prompt user for a chance to set a new cluster name
-
 			// copy SSH key to TiOps profile directory
 			if err = utils.CreateDir(meta.ClusterPath(clsName, "ssh")); err != nil {
 				return err
@@ -69,7 +66,7 @@ func newImportCmd() *cobra.Command {
 			// TODO: move original TiDB-Ansible directory to a staged location
 
 			log.Infof("Cluster %s imported.", clsName)
-			log.Output(fmt.Sprintf("Try `%s` to see the cluster.",
+			fmt.Println(fmt.Sprintf("Try `%s` to see the cluster.",
 				color.HiYellowString("tiops display %s", clsName)))
 			return nil
 		},

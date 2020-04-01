@@ -18,6 +18,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/pingcap-incubator/tiops/pkg/bindversion"
+	"github.com/pingcap-incubator/tiops/pkg/logger"
 	"github.com/pingcap-incubator/tiops/pkg/meta"
 	operator "github.com/pingcap-incubator/tiops/pkg/operation"
 	"github.com/pingcap-incubator/tiops/pkg/task"
@@ -42,16 +44,18 @@ func newUpgradeCmd() *cobra.Command {
 				return cmd.Help()
 			}
 
-			auditConfig.enable = true
+			logger.EnableAuditLog()
 			return upgrade(args[0], args[1], opt)
 		},
 	}
 	cmd.Flags().BoolVar(&opt.options.Force, "force", false, "Force upgrade won't transfer leader")
+	cmd.Flags().StringSliceVarP(&opt.options.Roles, "role", "R", nil, "Only restart specified roles")
+	cmd.Flags().StringSliceVarP(&opt.options.Nodes, "node", "N", nil, "Only restart specified nodes")
+
 	return cmd
 }
 
 func versionCompare(curVersion, newVersion string) error {
-
 	switch semver.Compare(curVersion, newVersion) {
 	case -1:
 		return nil
@@ -88,7 +92,7 @@ func upgrade(name, version string, opt upgradeOptions) error {
 
 	for _, comp := range metadata.Topology.ComponentsByStartOrder() {
 		for _, inst := range comp.Instances() {
-			version := getComponentVersion(inst.ComponentName(), version)
+			version := bindversion.ComponentVersion(inst.ComponentName(), version)
 			if version == "" {
 				return errors.Errorf("unsupported component: %v", inst.ComponentName())
 			}

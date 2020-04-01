@@ -14,6 +14,7 @@
 package operator
 
 import (
+	"bytes"
 	"fmt"
 	"strconv"
 	"strings"
@@ -277,7 +278,7 @@ func StartMonitored(getter ExecutorGetter, instance meta.Instance, options meta.
 		stdout, stderr, err := systemd.Execute(e)
 
 		if len(stdout) > 0 {
-			log.Output(string(stdout))
+			fmt.Println(string(stdout))
 		}
 		if len(stderr) > 0 {
 			log.Errorf(string(stderr))
@@ -295,6 +296,53 @@ func StartMonitored(getter ExecutorGetter, instance meta.Instance, options meta.
 		}
 
 		log.Infof("\tStart %s success", instance.GetHost())
+	}
+
+	return nil
+}
+
+// RestartComponent restarts the component.
+func RestartComponent(getter ExecutorGetter, instances []meta.Instance) error {
+	if len(instances) <= 0 {
+		return nil
+	}
+
+	name := instances[0].ComponentName()
+	log.Infof("Restarting component %s", name)
+
+	for _, ins := range instances {
+		e := getter.Get(ins.GetHost())
+		log.Infof("\tRestarting instance %s", ins.GetHost())
+
+		// Restart by systemd.
+		c := module.SystemdModuleConfig{
+			Unit:         ins.ServiceName(),
+			ReloadDaemon: true,
+			Action:       "restart",
+		}
+		systemd := module.NewSystemdModule(c)
+		stdout, stderr, err := systemd.Execute(e)
+
+		if len(stdout) > 0 {
+			fmt.Println(string(stdout))
+		}
+		if len(stderr) > 0 {
+			log.Errorf(string(stderr))
+		}
+
+		if err != nil {
+			return errors.Annotatef(err, "failed to restart: %s", ins.GetHost())
+		}
+
+		// Check ready.
+		err = ins.Ready(e)
+		if err != nil {
+			str := fmt.Sprintf("\t%s failed to restart: %s", ins.GetHost(), err)
+			log.Errorf(str)
+			return errors.Annotatef(err, str)
+		}
+
+		log.Infof("\tRestart %s success", ins.GetHost())
 	}
 
 	return nil
@@ -323,7 +371,7 @@ func StartComponent(getter ExecutorGetter, instances []meta.Instance) error {
 		stdout, stderr, err := systemd.Execute(e)
 
 		if len(stdout) > 0 {
-			log.Output(string(stdout))
+			fmt.Println(string(stdout))
 		}
 		if len(stderr) > 0 {
 			log.Errorf(string(stderr))
@@ -365,7 +413,7 @@ func StopMonitored(getter ExecutorGetter, instance meta.Instance, options meta.M
 		stdout, stderr, err := systemd.Execute(e)
 
 		if len(stdout) > 0 {
-			log.Output(string(stdout))
+			fmt.Println(string(stdout))
 		}
 		if len(stderr) > 0 {
 			log.Errorf(string(stderr))
@@ -408,10 +456,19 @@ func StopComponent(getter ExecutorGetter, instances []meta.Instance) error {
 		stdout, stderr, err := systemd.Execute(e)
 
 		if len(stdout) > 0 {
-			log.Output(string(stdout))
+			fmt.Println(string(stdout))
 		}
 		if len(stderr) > 0 {
-			log.Errorf(string(stderr))
+			// ignore "unit not loaded" error, as this means the unit is not
+			// exist, and that's exactly what we want
+			// NOTE: there will be a potential bug if the unit name is set
+			// wrong and the real unit still remains started.
+			if bytes.Contains(stderr, []byte(" not loaded.")) {
+				log.Warnf(string(stderr))
+				err = nil // reset the error to avoid exiting
+			} else {
+				log.Errorf(string(stderr))
+			}
 		}
 
 		if err != nil {

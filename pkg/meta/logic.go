@@ -151,7 +151,7 @@ func (i *instance) InitConfig(e executor.TiOpsExecutor, cluster, user string, pa
 // mergeServerConfig merges the server configuration and overwrite the global configuration
 func (i *instance) mergeServerConfig(e executor.TiOpsExecutor, globalConf, instanceConf yaml.MapSlice, paths DirPaths) error {
 	fp := filepath.Join(paths.Cache, fmt.Sprintf("%s_%s-%d.toml", i.ComponentName(), i.GetHost(), i.GetPort()))
-	conf, err := merge2Toml(globalConf, instanceConf)
+	conf, err := merge2Toml(i.ComponentName(), globalConf, instanceConf)
 	if err != nil {
 		return err
 	}
@@ -218,7 +218,13 @@ func (i *instance) DataDir() string {
 }
 
 func (i *instance) LogDir() string {
-	logDir := reflect.ValueOf(i.InstanceSpec).FieldByName("LogDir").Interface().(string)
+	logDir := ""
+
+	field := reflect.ValueOf(i.InstanceSpec).FieldByName("LogDir")
+	if field.IsValid() {
+		logDir = field.Interface().(string)
+	}
+
 	if logDir == "" {
 		logDir = "log"
 	}
@@ -259,6 +265,7 @@ func (c *TiDBComponent) Name() string {
 func (c *TiDBComponent) Instances() []Instance {
 	ins := make([]Instance, 0, len(c.TiDBServers))
 	for _, s := range c.TiDBServers {
+		s := s
 		ins = append(ins, &TiDBInstance{instance{
 			InstanceSpec: s,
 			name:         c.Name(),
@@ -335,6 +342,7 @@ func (c *TiKVComponent) Name() string {
 func (c *TiKVComponent) Instances() []Instance {
 	ins := make([]Instance, 0, len(c.TiKVServers))
 	for _, s := range c.TiKVServers {
+		s := s
 		ins = append(ins, &TiKVInstance{instance{
 			InstanceSpec: s,
 			name:         c.Name(),
@@ -415,6 +423,7 @@ func (c *PDComponent) Name() string {
 func (c *PDComponent) Instances() []Instance {
 	ins := make([]Instance, 0, len(c.PDServers))
 	for _, s := range c.PDServers {
+		s := s
 		ins = append(ins, &PDInstance{
 			Name: s.Name,
 			instance: instance{
@@ -823,7 +832,7 @@ func (i *GrafanaInstance) InitConfig(e executor.TiOpsExecutor, cluster, user str
 
 	// transfer config
 	fp = filepath.Join(paths.Cache, fmt.Sprintf("grafana_%s.ini", i.GetHost()))
-	if err := config.NewGrafanaConfig(i.GetHost(), paths.Deploy).ConfigToFile(fp); err != nil {
+	if err := config.NewGrafanaConfig(i.GetHost(), paths.Deploy).WithPort(uint64(i.GetPort())).ConfigToFile(fp); err != nil {
 		return err
 	}
 	dst = filepath.Join(paths.Deploy, "conf", "grafana.ini")
@@ -903,8 +912,9 @@ func (i *AlertManagerInstance) InitConfig(e executor.TiOpsExecutor, cluster, use
 		return err
 	}
 
+	// Transfer start script
 	spec := i.InstanceSpec.(AlertManagerSpec)
-	cfg := scripts.NewAlertManagerScript(i.GetHost(), paths.Deploy, paths.Log).
+	cfg := scripts.NewAlertManagerScript(paths.Deploy, paths.Data, paths.Log).
 		WithWebPort(spec.WebPort).WithClusterPort(spec.ClusterPort)
 
 	fp := filepath.Join(paths.Cache, fmt.Sprintf("run_alertmanager_%s-%d.sh", i.GetHost(), i.GetPort()))
@@ -917,6 +927,16 @@ func (i *AlertManagerInstance) InitConfig(e executor.TiOpsExecutor, cluster, use
 		return err
 	}
 	if _, _, err := e.Execute("chmod +x "+dst, false); err != nil {
+		return err
+	}
+
+	// transfer config
+	fp = filepath.Join(paths.Cache, fmt.Sprintf("alertmanager_%s.yml", i.GetHost()))
+	if err := config.NewAlertManagerConfig().ConfigToFile(fp); err != nil {
+		return err
+	}
+	dst = filepath.Join(paths.Deploy, "conf", "alertmanager.yml")
+	if err := e.Transfer(fp, dst, false); err != nil {
 		return err
 	}
 	return nil

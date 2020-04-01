@@ -16,10 +16,10 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/fatih/color"
 	"github.com/pingcap-incubator/tiops/pkg/log"
+	"github.com/pingcap-incubator/tiops/pkg/logger"
 	"github.com/pingcap-incubator/tiops/pkg/meta"
 	operator "github.com/pingcap-incubator/tiops/pkg/operation"
 	"github.com/pingcap-incubator/tiops/pkg/task"
@@ -30,6 +30,7 @@ import (
 )
 
 func newDestroyCmd() *cobra.Command {
+	var skipConfirm bool
 	cmd := &cobra.Command{
 		Use:   "destroy <cluster-name>",
 		Short: "Destroy a specified cluster",
@@ -43,22 +44,20 @@ func newDestroyCmd() *cobra.Command {
 				return errors.Errorf("cannot destroy non-exists cluster %s", clusterName)
 			}
 
-			auditConfig.enable = true
+			logger.EnableAuditLog()
 			metadata, err := meta.ClusterMetadata(clusterName)
 			if err != nil {
 				return err
 			}
 
-			promptMsg := fmt.Sprintf("This operation will destroy TiDB %s cluster %s and its data, do you want to continue?\n[Y]es/[N]o:",
-				color.HiYellowString(metadata.Version), color.HiYellowString(clusterName))
-			ans := utils.Prompt(promptMsg)
-			switch strings.ToLower(ans) {
-			case "y", "yes":
-				log.Infof("Destrying cluster...")
-			case "n", "no":
-				return errors.New("operation cancelled by user")
-			default:
-				return errors.New("unknown input, abort")
+			if !skipConfirm {
+				promptMsg := fmt.Sprintf("This operation will destroy TiDB %s cluster %s and its data, do you want to continue?\n[Y]es/[N]o:",
+					color.HiYellowString(metadata.Version), color.HiYellowString(clusterName))
+				if input, confirm := utils.Confirm(promptMsg); confirm {
+					log.Infof("Destroying cluster...")
+				} else {
+					return errors.Errorf("operation cancelled by user (input: %s)", input)
+				}
 			}
 
 			t := task.NewBuilder().
@@ -80,5 +79,8 @@ func newDestroyCmd() *cobra.Command {
 			return nil
 		},
 	}
+
+	cmd.Flags().BoolVarP(&skipConfirm, "yes", "y", false, "Skip the confirmation of destroying")
+
 	return cmd
 }

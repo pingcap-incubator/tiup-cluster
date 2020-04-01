@@ -14,10 +14,20 @@
 package cmd
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
+	"github.com/fatih/color"
+	"github.com/joomcode/errorx"
+	"github.com/pingcap-incubator/tiops/pkg/bindversion"
+	"github.com/pingcap-incubator/tiops/pkg/cliutil"
+	"github.com/pingcap-incubator/tiops/pkg/errutil"
+	"github.com/pingcap-incubator/tiops/pkg/executor"
+	"github.com/pingcap-incubator/tiops/pkg/log"
+	"github.com/pingcap-incubator/tiops/pkg/logger"
 	"github.com/pingcap-incubator/tiops/pkg/meta"
 	"github.com/pingcap-incubator/tiops/pkg/task"
 	"github.com/pingcap-incubator/tiops/pkg/utils"
@@ -28,17 +38,23 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var (
+	errNS            = errorx.NewNamespace("cmd.deploy")
+	errNameDuplicate = errNS.NewType("name_dup", errutil.ErrTraitPreCheck)
+)
+
 type componentInfo struct {
 	component string
 	version   repository.Version
 }
 
 type deployOptions struct {
-	user       string // username to login to the SSH server
-	usePasswd  bool   // use password for authentication
-	password   string // password of the user
-	keyFile    string // path to the private key file
-	passphrase string // passphrase of the private key file
+	user        string // username to login to the SSH server
+	usePasswd   bool   // use password for authentication
+	password    string // password of the user
+	keyFile     string // path to the private key file
+	passphrase  string // passphrase of the private key file
+	skipConfirm bool   // skip the confirmation of topology
 }
 
 func newDeploy() *cobra.Command {
@@ -48,58 +64,108 @@ func newDeploy() *cobra.Command {
 		Short:        "Deploy a cluster for production",
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if len(args) != 3 {
-				return cmd.Help()
+			shouldContinue, err := cliutil.CheckCommandArgsAndMayPrintHelp(cmd, args, 3)
+			if err != nil {
+				return err
 			}
-			if opt.usePasswd {
-				opt.password = utils.GetPasswd("Password:")
-			}
-			if len(opt.keyFile) == 0 && len(opt.password) == 0 {
-				return errPasswordKeyAtLeastOne
+			if !shouldContinue {
+				return nil
 			}
 
-			auditConfig.enable = true
+			if opt.usePasswd {
+				// FIXME: We should prompt for password when necessary automatically.
+				opt.password = utils.GetPasswd("Password:")
+				fmt.Println("")
+			}
+
+			if len(opt.keyFile) == 0 && !opt.usePasswd {
+				// FIXME: We should lookup identity key automatically.
+				return executor.ErrSSHRequireCredential.
+					New("Identity file and password is unspecified").
+					WithProperty(cliutil.SuggestionFromTemplate(`
+You should specify either SSH identity file or password.
+
+To SSH connect using identity file:
+  {{ColorCommand}}{{OsArgs}} -i <file>{{ColorReset}}
+
+To SSH connect using password:
+  {{ColorCommand}}{{OsArgs}} --password{{ColorReset}}
+
+`, nil))
+			}
+
+			logger.EnableAuditLog()
 			return deploy(args[0], args[1], args[2], opt)
 		},
 	}
 
 	cmd.Flags().StringVar(&opt.user, "user", "root", "Specify the system user name")
 	cmd.Flags().BoolVar(&opt.usePasswd, "password", false, "Specify the password of system user")
-	cmd.Flags().StringVar(&opt.keyFile, "key", "", "Specify the key path of system user")
-	cmd.Flags().StringVar(&opt.passphrase, "passphrase", "", "Specify the passphrase of the key")
+	cmd.Flags().StringVarP(&opt.keyFile, "identity_file", "i", "", "Specify the path of the SSH identity file")
+	// FIXME: We should prompt for passphrase automatically
+	cmd.Flags().StringVar(&opt.passphrase, "passphrase", "", "Specify the passphrase of the SSH identity file")
+	cmd.Flags().BoolVarP(&opt.skipConfirm, "yes", "y", false, "Skip the confirmation of topology")
 
 	return cmd
 }
 
-// getComponentVersion maps the TiDB version to the third components binding version
-func getComponentVersion(comp, version string) repository.Version {
-	switch comp {
-	case meta.ComponentPrometheus:
-		return "v2.16.0"
-	case meta.ComponentGrafana:
-		return "v6.1.6"
-	case meta.ComponentAlertManager:
-		return "v0.20.0"
-	case meta.ComponentBlackboxExporter:
-		return "v0.16.0"
-	case meta.ComponentNodeExporter:
-		return "v0.18.1"
-	case meta.ComponentPushwaygate:
-		return "v1.2.0"
-	default:
-		return repository.Version(version)
+func confirmTopology(clusterName, version string, topo *meta.Specification) error {
+	log.Infof("Please confirm your topology:")
+
+	cyan := color.New(color.FgCyan, color.Bold)
+	fmt.Println(fmt.Sprintf("TiDB Cluster: %s", cyan.Sprint(clusterName)))
+	fmt.Println(fmt.Sprintf("TiDB Version: %s", cyan.Sprint(version)))
+
+	clusterTable := [][]string{
+		// Header
+		{"Type", "Host", "Ports", "Directories"},
 	}
+
+	topo.IterInstance(func(instance meta.Instance) {
+		clusterTable = append(clusterTable, []string{
+			instance.ComponentName(),
+			instance.GetHost(),
+			utils.JoinInt(instance.UsedPorts(), "/"),
+			strings.Join(instance.UsedDirs(), ","),
+		})
+	})
+
+	utils.PrintTable(clusterTable, true)
+
+	log.Warnf("Attention:")
+	log.Warnf("    1. If the topology is not what you expected, check your yaml file.")
+	log.Warnf("    1. Please confirm there is no port/directory conflicts in same host.")
+
+	input, confirmed := utils.Confirm(fmt.Sprintf("Do you want to continue?[Y]es/[N]o:"))
+	if !confirmed {
+		return errors.Errorf("operation cancelled by user (input: %s)", input)
+	}
+	return nil
 }
 
 func deploy(clusterName, version, topoFile string, opt deployOptions) error {
+	isValid := regexp.MustCompile(`^[a-zA-Z0-9\-]+$`).MatchString
+	if !isValid(clusterName) {
+		return errors.Errorf("cluster name should only contains alphabet and numbers and -")
+	}
 	if tiuputils.IsExist(meta.ClusterPath(clusterName, meta.MetaFileName)) {
-		return errors.Errorf("cluster name '%s' exists, please choose another cluster name", clusterName)
+		// FIXME: When change to use args, the suggestion text need to be updated.
+		return errNameDuplicate.
+			New("Cluster name '%s' is duplicated", clusterName).
+			WithProperty(cliutil.SuggestionFromFormat("Please specify another cluster name"))
 	}
 
 	var topo meta.TopologySpecification
-	if err := utils.ParseYaml(topoFile, &topo); err != nil {
+	if err := utils.ParseTopologyYaml(topoFile, &topo); err != nil {
 		return err
 	}
+
+	if !opt.skipConfirm {
+		if err := confirmTopology(clusterName, version, &topo); err != nil {
+			return err
+		}
+	}
+
 	if err := os.MkdirAll(meta.ClusterPath(clusterName), 0755); err != nil {
 		return err
 	}
@@ -129,7 +195,7 @@ func deploy(clusterName, version, topoFile string, opt deployOptions) error {
 
 	// Deploy components to remote
 	topo.IterInstance(func(inst meta.Instance) {
-		version := getComponentVersion(inst.ComponentName(), version)
+		version := bindversion.ComponentVersion(inst.ComponentName(), version)
 		deployDir := inst.DeployDir()
 		if !strings.HasPrefix(deployDir, "/") {
 			deployDir = filepath.Join("/home/", topo.GlobalOptions.User, deployDir)
@@ -196,7 +262,7 @@ func buildDownloadCompTasks(version string, topo *meta.Specification) []task.Tas
 		if len(comp.Instances()) < 1 {
 			return
 		}
-		version := getComponentVersion(comp.Name(), version)
+		version := bindversion.ComponentVersion(comp.Name(), version)
 		t := task.NewBuilder().Download(comp.Name(), version).Build()
 		tasks = append(tasks, t)
 	})
@@ -210,7 +276,7 @@ func buildMonitoredDeployTask(
 	monitoredOptions meta.MonitoredOptions,
 	version string) (downloadCompTasks, deployCompTasks []task.Task) {
 	for _, comp := range []string{meta.ComponentNodeExporter, meta.ComponentBlackboxExporter} {
-		version := getComponentVersion(comp, version)
+		version := bindversion.ComponentVersion(comp, version)
 		t := task.NewBuilder().
 			Download(comp, version).
 			Build()

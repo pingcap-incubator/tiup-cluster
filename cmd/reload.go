@@ -14,6 +14,9 @@
 package cmd
 
 import (
+	"path/filepath"
+	"strings"
+
 	"github.com/pingcap-incubator/tiops/pkg/logger"
 	"github.com/pingcap-incubator/tiops/pkg/meta"
 	operator "github.com/pingcap-incubator/tiops/pkg/operation"
@@ -23,12 +26,12 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newStartCmd() *cobra.Command {
+func newReloadCmd() *cobra.Command {
 	var options operator.Options
 
 	cmd := &cobra.Command{
-		Use:   "start <cluster-name>",
-		Short: "Start a TiDB cluster",
+		Use:   "reload <cluster-name>",
+		Short: "Reload a TiDB cluster's config and restart if needed",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) != 1 {
 				return cmd.Help()
@@ -45,20 +48,63 @@ func newStartCmd() *cobra.Command {
 				return err
 			}
 
-			t := task.NewBuilder().
-				SSHKeySet(
-					meta.ClusterPath(clusterName, "ssh", "id_rsa"),
-					meta.ClusterPath(clusterName, "ssh", "id_rsa.pub")).
-				ClusterSSH(metadata.Topology, metadata.User).
-				ClusterOperate(metadata.Topology, operator.StartOperation, options).
-				Build()
+			t, err := buildReloadTask(clusterName, metadata, options)
+			if err != nil {
+				return err
+			}
 
 			return t.Execute(task.NewContext())
-
 		},
 	}
 
 	cmd.Flags().StringSliceVarP(&options.Roles, "role", "R", nil, "Only start specified roles")
 	cmd.Flags().StringSliceVarP(&options.Nodes, "node", "N", nil, "Only start specified nodes")
 	return cmd
+}
+
+func buildReloadTask(
+	clusterName string,
+	metadata *meta.ClusterMeta,
+	options operator.Options,
+) (task.Task, error) {
+
+	var refreshConfigTasks []task.Task
+
+	topo := metadata.Topology
+
+	topo.IterInstance(func(inst meta.Instance) {
+		deployDir := inst.DeployDir()
+		if !strings.HasPrefix(deployDir, "/") {
+			deployDir = filepath.Join("/home/", metadata.User, deployDir)
+		}
+		dataDir := inst.DataDir()
+		if dataDir != "" && !strings.HasPrefix(dataDir, "/") {
+			dataDir = filepath.Join("/home/", metadata.User, dataDir)
+		}
+		logDir := inst.LogDir()
+		if !strings.HasPrefix(logDir, "/") {
+			logDir = filepath.Join("/home/", metadata.User, logDir)
+		}
+		// Refresh all configuration
+		t := task.NewBuilder().
+			UserSSH(inst.GetHost(), metadata.User).
+			InitConfig(clusterName, inst, metadata.User, meta.DirPaths{
+				Deploy: deployDir,
+				Data:   dataDir,
+				Log:    logDir,
+			}).
+			Build()
+		refreshConfigTasks = append(refreshConfigTasks, t)
+	})
+
+	task := task.NewBuilder().
+		SSHKeySet(
+			meta.ClusterPath(clusterName, "ssh", "id_rsa"),
+			meta.ClusterPath(clusterName, "ssh", "id_rsa.pub")).
+		ClusterSSH(metadata.Topology, metadata.User).
+		Parallel(refreshConfigTasks...).
+		ClusterOperate(metadata.Topology, operator.UpgradeOperation, options).
+		Build()
+
+	return task, nil
 }

@@ -18,7 +18,6 @@ import (
 	"strings"
 
 	"github.com/fatih/color"
-	"github.com/pingcap-incubator/tiops/pkg/log"
 	"github.com/pingcap-incubator/tiops/pkg/meta"
 	operator "github.com/pingcap-incubator/tiops/pkg/operation"
 	"github.com/pingcap-incubator/tiops/pkg/task"
@@ -41,14 +40,12 @@ func newDisplayCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "display <cluster-name>",
 		Short: "Display information of a TiDB cluster",
-		Args: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) != 1 {
 				return cmd.Help()
 			}
+
 			opt.clusterName = args[0]
-			return nil
-		},
-		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := displayClusterMeta(&opt); err != nil {
 				return err
 			}
@@ -78,8 +75,8 @@ func displayClusterMeta(opt *displayOption) error {
 
 	cyan := color.New(color.FgCyan, color.Bold)
 
-	log.Output(fmt.Sprintf("TiDB Cluster: %s", cyan.Sprint(opt.clusterName)))
-	log.Output(fmt.Sprintf("TiDB Version: %s", cyan.Sprint(clsMeta.Version)))
+	fmt.Println(fmt.Sprintf("TiDB Cluster: %s", cyan.Sprint(opt.clusterName)))
+	fmt.Println(fmt.Sprintf("TiDB Version: %s", cyan.Sprint(clsMeta.Version)))
 
 	return nil
 }
