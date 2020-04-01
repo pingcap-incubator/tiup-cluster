@@ -501,7 +501,7 @@ func StopComponent(getter ExecutorGetter, instances []meta.Instance) error {
 
 		err = ins.WaitForDown(e)
 		if err != nil {
-			str := fmt.Sprintf("\t%s failed to stop: %s %s:%d",
+			str := fmt.Sprintf("\t%s %s:%d failed to stop: %s",
 				ins.ComponentName(),
 				ins.GetHost(),
 				ins.GetPort(),
