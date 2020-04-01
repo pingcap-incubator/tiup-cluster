@@ -130,6 +130,9 @@ func DestroyComponent(getter ExecutorGetter, instances []meta.Instance) error {
 		// that later.
 		if !ins.IsImported() {
 			delPaths = append(delPaths, ins.DeployDir())
+			if logDir := ins.LogDir(); !strings.HasPrefix(ins.DeployDir(), logDir) {
+				delPaths = append(delPaths, logDir)
+			}
 		} else {
 			log.Warnf("Deploy dir %s not deleted for TiDB-Ansible imported instance %s.",
 				ins.DeployDir(), ins.InstanceName())
