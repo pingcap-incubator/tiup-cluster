@@ -1,12 +1,14 @@
 FROM golang:1.14
 
+ARG http_proxy
+ARG https_proxy
+ARG MIRROR
 
 # Use mirrors for poor network...
-RUN sed -i 's/archive.ubuntu.com/mirrors.aliyun.com/g' /etc/apt/sources.list
-RUN sed -i 's/security.ubuntu.com/mirrors.aliyun.com/g' /etc/apt/sources.list
-RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list
+RUN if [ ! -z "$MIRROR" ]; then sed -i "s/archive.ubuntu.com/$MIRROR/g" /etc/apt/sources.list; fi
+RUN if [ ! -z "$MIRROR" ]; then sed -i "s/security.ubuntu.com/$MIRROR/g" /etc/apt/sources.list; fi
+RUN if [ ! -z "$MIRROR" ]; then sed -i "s/deb.debian.org/$MIRROR/g" /etc/apt/sources.list; fi
 # RUN sed -i 's/security.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list
-
 
 # tiops dependencies
  RUN apt-get -y -q update && \

@@ -146,7 +146,7 @@ exists docker-compose ||
 
 INFO "Running \`docker-compose build\`"
 # shellcheck disable=SC2086
-docker-compose -f docker-compose.yml ${COMPOSE} ${DEV} build
+docker-compose -f docker-compose.yml ${COMPOSE} ${DEV} build --build-arg http_proxy=${http_proxy:-} --build-arg https_proxy=${https_proxy:-} --build-arg MIRROR=${MIRROR:-}
 
 docker network create --gateway 172.19.0.1 --subnet 172.19.0.0/16 tiops > /dev/null 2>&1 || echo "Skip create tiops network"
 

@@ -1,6 +1,9 @@
 # Based on the deprecated `https://github.com/tutumcloud/tutum-debian`
 FROM debian:stretch
 
+ARG http_proxy
+ARG https_proxy
+
 # Install packages
 RUN apt-get update && \
     apt-get -y install \
