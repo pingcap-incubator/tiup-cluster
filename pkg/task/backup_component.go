@@ -18,6 +18,7 @@ import (
 	"path/filepath"
 
 	"github.com/pingcap-incubator/tiops/pkg/bindversion"
+	tiopsmeta "github.com/pingcap-incubator/tiops/pkg/meta"
 	"github.com/pingcap-incubator/tiup/pkg/meta"
 	"github.com/pingcap-incubator/tiup/pkg/repository"
 	"github.com/pingcap/errors"
@@ -37,6 +38,10 @@ type BackupComponent struct {
 
 // Execute implements the Task interface
 func (c *BackupComponent) Execute(ctx *Context) error {
+	switch c.component {
+	case tiopsmeta.ComponentPrometheus, tiopsmeta.ComponentGrafana:
+		return nil
+	}
 	m, found := ctx.GetManifest(c.component)
 	if !found {
 		manifest, err := meta.Repository().ComponentVersions(c.component)
