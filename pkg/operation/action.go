@@ -366,6 +366,7 @@ func StartComponent(getter ExecutorGetter, instances []meta.Instance) error {
 			Unit:         ins.ServiceName(),
 			ReloadDaemon: true,
 			Action:       "start",
+			Enabled:      true,
 		}
 		systemd := module.NewSystemdModule(c)
 		stdout, stderr, err := systemd.Execute(e)
@@ -448,8 +449,9 @@ func StopComponent(getter ExecutorGetter, instances []meta.Instance) error {
 
 		// Stop by systemd.
 		c := module.SystemdModuleConfig{
-			Unit:   ins.ServiceName(),
-			Action: "stop",
+			Unit:         ins.ServiceName(),
+			Action:       "stop",
+			ReloadDaemon: true, // always reload before operate
 			// Scope: "",
 		}
 		systemd := module.NewSystemdModule(c)
