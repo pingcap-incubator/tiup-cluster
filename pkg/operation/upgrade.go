@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/pingcap-incubator/tiops/pkg/api"
+	"github.com/pingcap-incubator/tiops/pkg/log"
 	"github.com/pingcap-incubator/tiops/pkg/meta"
 	"github.com/pingcap-incubator/tiup/pkg/set"
 	"github.com/pingcap/errors"
@@ -54,6 +55,8 @@ func Upgrade(
 		if !options.Force && leaderAware.Exist(component.Name()) {
 			switch component.Name() {
 			case meta.ComponentPD:
+				log.Infof("Restarting component %s", component.Name())
+
 				for _, instance := range instances {
 					pdClient := api.NewPDClient(addr(instance), 5*time.Second, nil)
 					leader, err := pdClient.GetLeader()
@@ -65,15 +68,18 @@ func Upgrade(
 							return errors.Annotatef(err, "failed to evict PD leader %s", instance.GetHost())
 						}
 					}
-					if err := StopComponent(getter, []meta.Instance{instance}); err != nil {
-						return errors.Annotatef(err, "failed to stop %s", component.Name())
+
+					if err := stopInstance(getter, instance); err != nil {
+						return errors.Annotatef(err, "failed to stop %s", instance.GetHost())
 					}
-					if err := StartComponent(getter, []meta.Instance{instance}); err != nil {
-						return errors.Annotatef(err, "failed to start %s", component.Name())
+					if err := startInstance(getter, instance); err != nil {
+						return errors.Annotatef(err, "failed to start %s", instance.GetHost())
 					}
 				}
 
 			case meta.ComponentTiKV:
+				log.Infof("Restarting component %s", component.Name())
+
 				if pdAddrs == nil || len(pdAddrs) <= 0 {
 					return errors.New("cannot find pd addr")
 				}
@@ -83,11 +89,12 @@ func Upgrade(
 					if err := pdClient.EvictStoreLeader(addr(instance)); err != nil {
 						return errors.Annotatef(err, "failed to evict store leader %s", instance.GetHost())
 					}
-					if err := StopComponent(getter, []meta.Instance{instance}); err != nil {
-						return errors.Annotatef(err, "failed to stop %s", component.Name())
+
+					if err := stopInstance(getter, instance); err != nil {
+						return errors.Annotatef(err, "failed to stop %s", instance.GetHost())
 					}
-					if err := StartComponent(getter, []meta.Instance{instance}); err != nil {
-						return errors.Annotatef(err, "failed to start %s", component.Name())
+					if err := startInstance(getter, instance); err != nil {
+						return errors.Annotatef(err, "failed to start %s", instance.GetHost())
 					}
 					// remove store leader evict scheduler after restart
 					if err := pdClient.RemoveStoreEvict(addr(instance)); err != nil {
