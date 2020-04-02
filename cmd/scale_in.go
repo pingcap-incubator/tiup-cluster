@@ -14,11 +14,11 @@
 package cmd
 
 import (
-	"github.com/pingcap-incubator/tiops/pkg/bindversion"
 	"path/filepath"
 	"strings"
 
 	"github.com/fatih/color"
+	"github.com/pingcap-incubator/tiops/pkg/bindversion"
 	"github.com/pingcap-incubator/tiops/pkg/cliutil"
 	"github.com/pingcap-incubator/tiops/pkg/log"
 	"github.com/pingcap-incubator/tiops/pkg/logger"

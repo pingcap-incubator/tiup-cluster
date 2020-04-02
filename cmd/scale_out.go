@@ -209,15 +209,6 @@ func buildScaleOutTask(
 			logDir = filepath.Join("/home/", metadata.User, logDir)
 		}
 		// Refresh all configuration
-		//t := task.NewBuilder().
-		//	UserSSH(inst.GetHost(), metadata.User).
-		//	InitConfig(clusterName, inst, metadata.User, meta.DirPaths{
-		//		Deploy: deployDir,
-		//		Data:   dataDir,
-		//		Log:    logDir,
-		//		Cache:  meta.ClusterPath(clusterName, "config"),
-		//	}).
-		//	Build()
 		t := task.NewBuilder()
 		switch inst.ComponentName() {
 		case meta.ComponentGrafana,
