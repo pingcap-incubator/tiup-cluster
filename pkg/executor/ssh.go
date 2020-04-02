@@ -118,8 +118,9 @@ func (e *SSHExecutor) Execute(cmd string, sudo bool, timeout ...time.Duration) (
 			WithProperty(ErrPropSSHStdout, stdout).
 			WithProperty(ErrPropSSHStderr, stderr)
 		if len(stdout) > 0 || len(stderr) > 0 {
+			output := strings.TrimSpace(strings.Join([]string{stdout, stderr}, "\n"))
 			baseErr = baseErr.
-				WithProperty(errutil.ErrPropSuggestion, fmt.Sprintf("Command output on remote host:\n%s", strings.Join([]string{stdout, stderr}, " ")))
+				WithProperty(errutil.ErrPropSuggestion, fmt.Sprintf("Command output on remote host:\n%s", output))
 		}
 		return []byte(stdout), []byte(stderr), baseErr
 	}
