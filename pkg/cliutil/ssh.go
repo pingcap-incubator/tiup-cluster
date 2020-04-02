@@ -24,7 +24,7 @@ type SSHConnectionProps struct {
 func ReadIdentityFileOrPassword(identityFilePath string) (*SSHConnectionProps, error) {
 	// If identity file is not specified, prompt to read password
 	if len(identityFilePath) == 0 {
-		password := PromptForPassword("The SSH password of the remote host: ")
+		password := PromptForPassword("Input SSH password: ")
 		return &SSHConnectionProps{
 			Password: password,
 		}, nil
