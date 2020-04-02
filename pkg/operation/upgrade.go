@@ -37,15 +37,9 @@ func Upgrade(
 
 	leaderAware := set.NewStringSet(meta.ComponentPD, meta.ComponentTiKV)
 
-	var pdAddrs []string
+	pdAddrs := spec.GetPDList()
 
 	for _, component := range components {
-		if component.Name() == meta.ComponentPD {
-			for _, instance := range component.Instances() {
-				pdAddrs = append(pdAddrs, addr(instance))
-			}
-		}
-
 		instances := filterInstance(component.Instances(), nodeFilter)
 		if len(instances) < 1 {
 			continue
