@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 function run_test() {
   docker exec -i tiops-control bash -c "/tmp/test.sh $1"
