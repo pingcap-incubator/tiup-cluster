@@ -167,7 +167,7 @@ func checkClusterDirConflict(topo *meta.Specification) error {
 	for _, d1 := range currentEntries {
 		for _, d2 := range existingEntries {
 			if d1.instance.GetHost() != d2.instance.GetHost() {
-				return nil
+				continue
 			}
 
 			if strings.HasPrefix(d1.dir, d2.dir) || strings.HasPrefix(d2.dir, d1.dir) {
@@ -250,7 +250,7 @@ func checkClusterPortConflict(topo *meta.Specification) error {
 	for _, p1 := range currentEntries {
 		for _, p2 := range existingEntries {
 			if p1.instance.GetHost() != p2.instance.GetHost() {
-				return nil
+				continue
 			}
 
 			if p1.port == p2.port {
