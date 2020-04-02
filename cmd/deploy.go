@@ -226,9 +226,10 @@ The directory you specified in the topology file is:
   Directory: {{ColorKeyword}}{{.ThisDirKind}} {{.ThisDir}}{{ColorReset}}
   Component: {{ColorKeyword}}{{.ThisComponent}} {{.ThisHost}}{{ColorReset}}
 
-It conflicts to a directory in the existing cluster {{ColorKeyword}}{{.ExistCluster}}{{ColorReset}}:
-  Existing Directory: {{ColorKeyword}}{{.ExistDirKind}} {{.ExistDir}}{{ColorReset}}
-  Existing Component: {{ColorKeyword}}{{.ExistComponent}} {{.ExistHost}}{{ColorReset}}
+It conflicts to a directory in the existing cluster:
+  Existing Cluster Name: {{ColorKeyword}}{{.ExistCluster}}{{ColorReset}}
+  Existing Directory:    {{ColorKeyword}}{{.ExistDirKind}} {{.ExistDir}}{{ColorReset}}
+  Existing Component:    {{ColorKeyword}}{{.ExistComponent}} {{.ExistHost}}{{ColorReset}}
 
 Please change to use another directory or another host.
 `, properties))
