@@ -235,16 +235,15 @@ func DestroyTombstone(
 		instances := (&meta.DrainerComponent{Specification: spec}).Instances()
 		instances = filterID(instances, id)
 
-		err = StopComponent(getter, (&meta.DrainerComponent{Specification: spec}).Instances())
+		err = StopComponent(getter, instances)
 		if err != nil {
 			return nil, errors.AddStack(err)
 		}
 
-		err = DestroyComponent(getter, (&meta.DrainerComponent{Specification: spec}).Instances())
+		err = DestroyComponent(getter, instances)
 		if err != nil {
 			return nil, errors.AddStack(err)
 		}
-
 	}
 
 	if returNodesOnly {
@@ -456,8 +455,18 @@ func StopMonitored(getter ExecutorGetter, instance meta.Instance, options meta.M
 		if len(stdout) > 0 {
 			fmt.Println(string(stdout))
 		}
+
 		if len(stderr) > 0 {
-			log.Errorf(string(stderr))
+			// ignore "unit not loaded" error, as this means the unit is not
+			// exist, and that's exactly what we want
+			// NOTE: there will be a potential bug if the unit name is set
+			// wrong and the real unit still remains started.
+			if bytes.Contains(stderr, []byte(" not loaded.")) {
+				log.Warnf(string(stderr))
+				err = nil // reset the error to avoid exiting
+			} else {
+				log.Errorf(string(stderr))
+			}
 		}
 
 		if err != nil {
