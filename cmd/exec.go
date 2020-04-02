@@ -14,6 +14,7 @@
 package cmd
 
 import (
+	"github.com/joomcode/errorx"
 	"github.com/pingcap-incubator/tiops/pkg/logger"
 	"github.com/pingcap-incubator/tiops/pkg/meta"
 	"github.com/pingcap-incubator/tiops/pkg/task"
@@ -51,19 +52,30 @@ func newExecCmd() *cobra.Command {
 			}
 
 			var shellTasks []task.Task
-			for _, comp := range metadata.Topology.ComponentsByStartOrder() {
-				for _, inst := range comp.Instances() {
-					t := task.NewBuilder().
-						UserSSH(inst.GetHost(), metadata.User).
-						Shell(inst.GetHost(), opt.command, opt.sudo).
-						Build()
-					shellTasks = append(shellTasks, t)
-				}
-			}
+			metadata.Topology.IterInstance(func(inst meta.Instance) {
+				t := task.NewBuilder().
+					UserSSH(inst.GetHost(), metadata.User).
+					Shell(inst.GetHost(), opt.command, opt.sudo).
+					Build()
+				shellTasks = append(shellTasks, t)
+			})
+
 			t := task.NewBuilder().
+				SSHKeySet(
+					meta.ClusterPath(clusterName, "ssh", "id_rsa"),
+					meta.ClusterPath(clusterName, "ssh", "id_rsa.pub")).
+				ClusterSSH(metadata.Topology, metadata.User).
 				Parallel(shellTasks...).
 				Build()
-			return t.Execute(task.NewContext())
+
+			if err := t.Execute(task.NewContext()); err != nil {
+				if errorx.Cast(err) != nil {
+					// FIXME: Map possible task errors and give suggestions.
+					return err
+				}
+				return errors.Trace(err)
+			}
+			return nil
 		},
 	}
 
