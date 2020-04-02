@@ -14,9 +14,15 @@
 package cmd
 
 import (
+	"fmt"
 	"path/filepath"
 	"strings"
 
+	"github.com/joomcode/errorx"
+	"github.com/pingcap-incubator/tiops/pkg/bindversion"
+	"github.com/pingcap-incubator/tiops/pkg/cliutil"
+	"github.com/pingcap-incubator/tiops/pkg/executor"
+	"github.com/pingcap-incubator/tiops/pkg/logger"
 	"github.com/pingcap-incubator/tiops/pkg/meta"
 	operator "github.com/pingcap-incubator/tiops/pkg/operation"
 	"github.com/pingcap-incubator/tiops/pkg/task"
@@ -30,10 +36,12 @@ import (
 var errPasswordKeyAtLeastOne = errors.New("--password and --key need to specify at least one")
 
 type scaleOutOptions struct {
-	user       string // username to login to the SSH server
-	password   string // password of the user
-	keyFile    string // path to the private key file
-	passphrase string // passphrase of the private key file
+	user        string // username to login to the SSH server
+	usePasswd   bool   // use password for authentication
+	password    string // password of the user
+	keyFile     string // path to the private key file
+	passphrase  string // passphrase of the private key file
+	skipConfirm bool   // skip the confirmation of topology
 }
 
 func newScaleOutCmd() *cobra.Command {
@@ -46,19 +54,36 @@ func newScaleOutCmd() *cobra.Command {
 			if len(args) != 2 {
 				return cmd.Help()
 			}
+			if opt.usePasswd {
+				opt.password = cliutil.PromptForPassword("Password: ")
+				fmt.Println("")
+			}
 			if len(opt.keyFile) == 0 && len(opt.password) == 0 {
-				return errPasswordKeyAtLeastOne
+				// FIXME: We should lookup identity key automatically.
+				return executor.ErrSSHRequireCredential.
+					New("Identity file and password is unspecified").
+					WithProperty(cliutil.SuggestionFromTemplate(`
+You should specify either SSH identity file or password.
+
+To SSH connect using identity file:
+  {{ColorCommand}}{{OsArgs}} -i <file>{{ColorReset}}
+
+To SSH connect using password:
+  {{ColorCommand}}{{OsArgs}} --password{{ColorReset}}
+
+`, nil))
 			}
 
-			auditConfig.enable = true
+			logger.EnableAuditLog()
 			return scaleOut(args[0], args[1], opt)
 		},
 	}
 
 	cmd.Flags().StringVar(&opt.user, "user", "root", "Specify the system user name")
-	cmd.Flags().StringVar(&opt.password, "password", "", "Specify the password of system user")
-	cmd.Flags().StringVar(&opt.keyFile, "key", "", "Specify the key path of system user")
+	cmd.Flags().BoolVar(&opt.usePasswd, "password", false, "Specify the password of system user")
+	cmd.Flags().StringVarP(&opt.keyFile, "identity_file", "i", "", "Specify the key path of system user")
 	cmd.Flags().StringVar(&opt.passphrase, "passphrase", "", "Specify the passphrase of the key")
+	cmd.Flags().BoolVarP(&opt.skipConfirm, "yes", "y", false, "Skip the confirmation of topology")
 
 	return cmd
 }
@@ -69,13 +94,24 @@ func scaleOut(clusterName, topoFile string, opt scaleOutOptions) error {
 	}
 
 	var newPart meta.TopologySpecification
-	if err := utils.ParseYaml(topoFile, &newPart); err != nil {
+	if err := utils.ParseTopologyYaml(topoFile, &newPart); err != nil {
 		return err
 	}
 
 	metadata, err := meta.ClusterMetadata(clusterName)
 	if err != nil {
 		return err
+	}
+
+	// TODO: check port conflict cross cluster
+	if err := checkClusterDirConflict(&newPart); err != nil {
+		return err
+	}
+
+	if !opt.skipConfirm {
+		if err := confirmTopology(clusterName, metadata.Version, &newPart); err != nil {
+			return err
+		}
 	}
 
 	// Abort scale out operation if the merged topology is invalid
@@ -94,12 +130,16 @@ func scaleOut(clusterName, topoFile string, opt scaleOutOptions) error {
 	if err != nil {
 		return err
 	}
+
 	if err := t.Execute(task.NewContext()); err != nil {
-		return err
+		if errorx.Cast(err) != nil {
+			// FIXME: Map possible task errors and give suggestions.
+			return err
+		}
+		return errors.Trace(err)
 	}
 
-	metadata.Topology = mergedTopo
-	return meta.SaveClusterMeta(clusterName, metadata)
+	return nil
 }
 
 func buildScaleOutTask(
@@ -120,6 +160,7 @@ func buildScaleOutTask(
 	metadata.Topology.IterInstance(func(instance meta.Instance) {
 		initializedHosts.Insert(instance.GetHost())
 	})
+	// uninitializedHosts are hosts which haven't been initialized yet
 	uninitializedHosts := set.NewStringSet()
 	newPart.IterInstance(func(instance meta.Instance) {
 		if host := instance.GetHost(); !initializedHosts.Exist(host) {
@@ -137,7 +178,7 @@ func buildScaleOutTask(
 
 	// Deploy the new topology and refresh the configuration
 	newPart.IterInstance(func(inst meta.Instance) {
-		version := getComponentVersion(inst.ComponentName(), metadata.Version)
+		version := bindversion.ComponentVersion(inst.ComponentName(), metadata.Version)
 		deployDir := inst.DeployDir()
 		if !strings.HasPrefix(deployDir, "/") {
 			deployDir = filepath.Join("/home/", metadata.User, deployDir)
@@ -156,7 +197,7 @@ func buildScaleOutTask(
 		// Deploy component
 		t := task.NewBuilder().
 			UserSSH(inst.GetHost(), metadata.User).
-			Mkdir(inst.GetHost(),
+			Mkdir(metadata.User, inst.GetHost(),
 				filepath.Join(deployDir, "bin"),
 				filepath.Join(deployDir, "conf"),
 				filepath.Join(deployDir, "scripts"),
@@ -196,6 +237,7 @@ func buildScaleOutTask(
 				Deploy: deployDir,
 				Data:   dataDir,
 				Log:    logDir,
+				Cache:  meta.ClusterPath(clusterName, "config"),
 			}).
 			Build()
 		refreshConfigTasks = append(refreshConfigTasks, t)
@@ -222,7 +264,12 @@ func buildScaleOutTask(
 		ClusterSSH(metadata.Topology, metadata.User).
 		ClusterOperate(metadata.Topology, operator.StartOperation, operator.Options{}).
 		ClusterSSH(newPart, metadata.User).
+		Func("save meta", func() error {
+			metadata.Topology = mergedTopo
+			return meta.SaveClusterMeta(clusterName, metadata)
+		}).
 		ClusterOperate(newPart, operator.StartOperation, operator.Options{}).
 		Parallel(refreshConfigTasks...).
 		Build(), nil
+
 }

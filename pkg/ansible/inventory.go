@@ -15,15 +15,14 @@ package ansible
 
 import (
 	"errors"
-	"fmt"
 	"io/ioutil"
 	"path/filepath"
 	"strconv"
-	"strings"
 
+	"github.com/pingcap-incubator/tiops/pkg/cliutil"
 	"github.com/pingcap-incubator/tiops/pkg/log"
 	"github.com/pingcap-incubator/tiops/pkg/meta"
-	"github.com/pingcap-incubator/tiops/pkg/utils"
+	tiuputils "github.com/pingcap-incubator/tiup/pkg/utils"
 	"github.com/relex/aini"
 	"gopkg.in/yaml.v2"
 )
@@ -83,17 +82,26 @@ func parseInventory(dir string, inv *aini.InventoryData) (string, *meta.ClusterM
 		return "", nil, errors.New("no available host in the inventory file")
 	}
 
-	promptMsg := fmt.Sprintf("Prepared to import TiDB %s cluster %s, do you want to continue?\n[Y]es/[N]o:",
-		clsMeta.Version, clsName)
-	ans := utils.Prompt(promptMsg)
-	switch strings.ToLower(ans) {
-	case "y", "yes":
-		log.Infof("Importing cluster...")
-	case "n", "no":
-		return "", nil, errors.New("operation cancelled by user")
-	default:
-		return "", nil, errors.New("unknown input, abort")
+	// check cluster name with other clusters managed by us for conflicts
+	if tiuputils.IsExist(meta.ClusterPath(clsName, meta.MetaFileName)) {
+		log.Errorf("Cluster name '%s' already exists.", clsName)
+		log.Warnf("Note that if you import the same cluster multiple times, there might be conflicts when managing.")
+		log.Warnf("If you want to continue importing, you'll have to set a new name for the cluster.")
+
+		// prompt user for a chance to set a new cluster name
+		if err := cliutil.PromptForConfirmOrAbortError("Do you want to continue? [y/N]: "); err != nil {
+			return "", nil, err
+		}
+		clsName = cliutil.Prompt("New cluster name:")
 	}
+
+	if err := cliutil.PromptForConfirmOrAbortError(
+		"Prepared to import TiDB %s cluster %s.\nDo you want to continue? [y/N]:",
+		clsMeta.Version,
+		clsName); err != nil {
+		return "", nil, err
+	}
+	log.Infof("Importing cluster...")
 
 	// set global vars in group_vars/all.yml
 	grpVarsAll, err := readGroupVars(dir, groupVarsGlobal)

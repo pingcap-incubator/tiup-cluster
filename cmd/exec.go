@@ -14,8 +14,8 @@
 package cmd
 
 import (
-	"os"
-
+	"github.com/joomcode/errorx"
+	"github.com/pingcap-incubator/tiops/pkg/logger"
 	"github.com/pingcap-incubator/tiops/pkg/meta"
 	"github.com/pingcap-incubator/tiops/pkg/task"
 	tiuputils "github.com/pingcap-incubator/tiup/pkg/utils"
@@ -40,31 +40,42 @@ func newExecCmd() *cobra.Command {
 				return cmd.Help()
 			}
 
-			clusterName := os.Args[0]
+			clusterName := args[0]
 			if tiuputils.IsNotExist(meta.ClusterPath(clusterName, meta.MetaFileName)) {
 				return errors.Errorf("cannot execute command on non-exists cluster %s", clusterName)
 			}
 
-			auditConfig.enable = true
+			logger.EnableAuditLog()
 			metadata, err := meta.ClusterMetadata(clusterName)
 			if err != nil {
 				return err
 			}
 
 			var shellTasks []task.Task
-			for _, comp := range metadata.Topology.ComponentsByStartOrder() {
-				for _, inst := range comp.Instances() {
-					t := task.NewBuilder().
-						UserSSH(inst.GetHost(), metadata.User).
-						Shell(inst.GetHost(), opt.command, opt.sudo).
-						Build()
-					shellTasks = append(shellTasks, t)
-				}
-			}
+			metadata.Topology.IterInstance(func(inst meta.Instance) {
+				t := task.NewBuilder().
+					UserSSH(inst.GetHost(), metadata.User).
+					Shell(inst.GetHost(), opt.command, opt.sudo).
+					Build()
+				shellTasks = append(shellTasks, t)
+			})
+
 			t := task.NewBuilder().
+				SSHKeySet(
+					meta.ClusterPath(clusterName, "ssh", "id_rsa"),
+					meta.ClusterPath(clusterName, "ssh", "id_rsa.pub")).
+				ClusterSSH(metadata.Topology, metadata.User).
 				Parallel(shellTasks...).
 				Build()
-			return t.Execute(task.NewContext())
+
+			if err := t.Execute(task.NewContext()); err != nil {
+				if errorx.Cast(err) != nil {
+					// FIXME: Map possible task errors and give suggestions.
+					return err
+				}
+				return errors.Trace(err)
+			}
+			return nil
 		},
 	}
 

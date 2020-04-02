@@ -14,22 +14,23 @@
 package cmd
 
 import (
-	"fmt"
 	"os"
-	"strings"
 
 	"github.com/fatih/color"
+	"github.com/joomcode/errorx"
+	"github.com/pingcap-incubator/tiops/pkg/cliutil"
 	"github.com/pingcap-incubator/tiops/pkg/log"
+	"github.com/pingcap-incubator/tiops/pkg/logger"
 	"github.com/pingcap-incubator/tiops/pkg/meta"
 	operator "github.com/pingcap-incubator/tiops/pkg/operation"
 	"github.com/pingcap-incubator/tiops/pkg/task"
-	"github.com/pingcap-incubator/tiops/pkg/utils"
 	tiuputils "github.com/pingcap-incubator/tiup/pkg/utils"
 	"github.com/pingcap/errors"
 	"github.com/spf13/cobra"
 )
 
 func newDestroyCmd() *cobra.Command {
+	var skipConfirm bool
 	cmd := &cobra.Command{
 		Use:   "destroy <cluster-name>",
 		Short: "Destroy a specified cluster",
@@ -43,22 +44,20 @@ func newDestroyCmd() *cobra.Command {
 				return errors.Errorf("cannot destroy non-exists cluster %s", clusterName)
 			}
 
-			auditConfig.enable = true
+			logger.EnableAuditLog()
 			metadata, err := meta.ClusterMetadata(clusterName)
 			if err != nil {
 				return err
 			}
 
-			promptMsg := fmt.Sprintf("This operation will destroy TiDB %s cluster %s and its data, do you want to continue?\n[Y]es/[N]o:",
-				color.HiYellowString(metadata.Version), color.HiYellowString(clusterName))
-			ans := utils.Prompt(promptMsg)
-			switch strings.ToLower(ans) {
-			case "y", "yes":
-				log.Infof("Destrying cluster...")
-			case "n", "no":
-				return errors.New("operation cancelled by user")
-			default:
-				return errors.New("unknown input, abort")
+			if !skipConfirm {
+				if err := cliutil.PromptForConfirmOrAbortError(
+					"This operation will destroy TiDB %s cluster %s and its data.\nDo you want to continue? [y/N]:",
+					color.HiYellowString(metadata.Version),
+					color.HiYellowString(clusterName)); err != nil {
+					return err
+				}
+				log.Infof("Destroying cluster...")
 			}
 
 			t := task.NewBuilder().
@@ -71,8 +70,13 @@ func newDestroyCmd() *cobra.Command {
 				Build()
 
 			if err := t.Execute(task.NewContext()); err != nil {
-				return err
+				if errorx.Cast(err) != nil {
+					// FIXME: Map possible task errors and give suggestions.
+					return err
+				}
+				return errors.Trace(err)
 			}
+
 			if err := os.RemoveAll(meta.ClusterPath(clusterName)); err != nil {
 				return errors.Trace(err)
 			}
@@ -80,5 +84,8 @@ func newDestroyCmd() *cobra.Command {
 			return nil
 		},
 	}
+
+	cmd.Flags().BoolVarP(&skipConfirm, "yes", "y", false, "Skip the confirmation of destroying")
+
 	return cmd
 }

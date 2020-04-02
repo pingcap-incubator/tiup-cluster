@@ -17,6 +17,11 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/fatih/color"
+	"github.com/joomcode/errorx"
+	"github.com/pingcap-incubator/tiops/pkg/cliutil"
+	"github.com/pingcap-incubator/tiops/pkg/log"
+	"github.com/pingcap-incubator/tiops/pkg/logger"
 	"github.com/pingcap-incubator/tiops/pkg/meta"
 	operator "github.com/pingcap-incubator/tiops/pkg/operation"
 	"github.com/pingcap-incubator/tiops/pkg/task"
@@ -28,6 +33,7 @@ import (
 
 func newScaleInCmd() *cobra.Command {
 	var options operator.Options
+	var skipConfirm bool
 	cmd := &cobra.Command{
 		Use:   "scale-in <cluster-name>",
 		Short: "Scale in a TiDB cluster",
@@ -36,22 +42,35 @@ func newScaleInCmd() *cobra.Command {
 				return cmd.Help()
 			}
 
-			auditConfig.enable = true
-			return scaleIn(args[0], options)
+			clusterName := args[0]
+			if !skipConfirm {
+				if err := cliutil.PromptForConfirmOrAbortError(
+					"This operation will delete the %s nodes in `%s` and all their data.\nDo you want to continue? [y/N]:",
+					strings.Join(options.Nodes, ","),
+					color.HiYellowString(clusterName)); err != nil {
+					return err
+				}
+				log.Infof("Scale-in nodes...")
+			}
+
+			logger.EnableAuditLog()
+			return scaleIn(clusterName, options)
 		},
 	}
+
 	cmd.Flags().StringSliceVarP(&options.Nodes, "node", "N", nil, "Specify the nodes")
+	cmd.Flags().BoolVarP(&skipConfirm, "yes", "y", false, "Skip the confirmation of destroying")
 	_ = cmd.MarkFlagRequired("node")
 
 	return cmd
 }
 
-func scaleIn(cluster string, options operator.Options) error {
-	if tiuputils.IsNotExist(meta.ClusterPath(cluster, meta.MetaFileName)) {
-		return errors.Errorf("cannot scale-in non-exists cluster %s", cluster)
+func scaleIn(clusterName string, options operator.Options) error {
+	if tiuputils.IsNotExist(meta.ClusterPath(clusterName, meta.MetaFileName)) {
+		return errors.Errorf("cannot scale-in non-exists cluster %s", clusterName)
 	}
 
-	metadata, err := meta.ClusterMetadata(cluster)
+	metadata, err := meta.ClusterMetadata(clusterName)
 	if err != nil {
 		return err
 	}
@@ -76,13 +95,14 @@ func scaleIn(cluster string, options operator.Options) error {
 			if !strings.HasPrefix(logDir, "/") {
 				logDir = filepath.Join("/home/", metadata.User, logDir)
 			}
-			t := task.NewBuilder().InitConfig(cluster,
+			t := task.NewBuilder().InitConfig(clusterName,
 				instance,
 				metadata.User,
 				meta.DirPaths{
 					Deploy: deployDir,
 					Data:   dataDir,
 					Log:    logDir,
+					Cache:  meta.ClusterPath(clusterName, "config"),
 				},
 			).Build()
 			regenConfigTasks = append(regenConfigTasks, t)
@@ -91,13 +111,21 @@ func scaleIn(cluster string, options operator.Options) error {
 
 	t := task.NewBuilder().
 		SSHKeySet(
-			meta.ClusterPath(cluster, "ssh", "id_rsa"),
-			meta.ClusterPath(cluster, "ssh", "id_rsa.pub")).
+			meta.ClusterPath(clusterName, "ssh", "id_rsa"),
+			meta.ClusterPath(clusterName, "ssh", "id_rsa.pub")).
 		ClusterSSH(metadata.Topology, metadata.User).
 		ClusterOperate(metadata.Topology, operator.ScaleInOperation, options).
-		UpdateMeta(cluster, metadata, operator.AsyncNodes(metadata.Topology, options.Nodes, false)).
+		UpdateMeta(clusterName, metadata, operator.AsyncNodes(metadata.Topology, options.Nodes, false)).
 		Parallel(regenConfigTasks...).
 		Build()
 
-	return t.Execute(task.NewContext())
+	if err := t.Execute(task.NewContext()); err != nil {
+		if errorx.Cast(err) != nil {
+			// FIXME: Map possible task errors and give suggestions.
+			return err
+		}
+		return errors.Trace(err)
+	}
+
+	return nil
 }
