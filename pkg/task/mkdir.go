@@ -22,6 +22,7 @@ import (
 
 // Mkdir is used to create directory on the target host
 type Mkdir struct {
+	user string
 	host string
 	dirs []string
 }
@@ -34,10 +35,17 @@ func (m *Mkdir) Execute(ctx *Context) error {
 	}
 
 	cmd := fmt.Sprintf(`mkdir -p {%s}`, strings.Join(m.dirs, ","))
-	_, _, err := exec.Execute(cmd, false)
+	_, _, err := exec.Execute(cmd, true)
 	if err != nil {
 		return errors.Trace(err)
 	}
+
+	cmd = fmt.Sprintf("chown -R %s:%s {%s}", m.user, m.user, strings.Join(m.dirs, ","))
+	_, _, err = exec.Execute(cmd, true)
+	if err != nil {
+		return errors.Trace(err)
+	}
+
 	return nil
 }
 

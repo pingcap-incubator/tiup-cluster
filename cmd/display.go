@@ -18,6 +18,7 @@ import (
 	"strings"
 
 	"github.com/fatih/color"
+	"github.com/pingcap-incubator/tiops/pkg/cliutil"
 	"github.com/pingcap-incubator/tiops/pkg/log"
 	"github.com/pingcap-incubator/tiops/pkg/meta"
 	operator "github.com/pingcap-incubator/tiops/pkg/operation"
@@ -41,14 +42,12 @@ func newDisplayCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "display <cluster-name>",
 		Short: "Display information of a TiDB cluster",
-		Args: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) != 1 {
 				return cmd.Help()
 			}
+
 			opt.clusterName = args[0]
-			return nil
-		},
-		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := displayClusterMeta(&opt); err != nil {
 				return err
 			}
@@ -56,7 +55,11 @@ func newDisplayCmd() *cobra.Command {
 				return err
 			}
 
-			return destroyTombsome(opt.clusterName)
+			metadata, err := meta.ClusterMetadata(opt.clusterName)
+			if err != nil {
+				return errors.AddStack(err)
+			}
+			return destroyTombsomeIfNeed(opt.clusterName, metadata)
 		},
 	}
 
@@ -78,18 +81,13 @@ func displayClusterMeta(opt *displayOption) error {
 
 	cyan := color.New(color.FgCyan, color.Bold)
 
-	log.Output(fmt.Sprintf("TiDB Cluster: %s", cyan.Sprint(opt.clusterName)))
-	log.Output(fmt.Sprintf("TiDB Version: %s", cyan.Sprint(clsMeta.Version)))
+	fmt.Printf("TiDB Cluster: %s\n", cyan.Sprint(opt.clusterName))
+	fmt.Printf("TiDB Version: %s\n", cyan.Sprint(clsMeta.Version))
 
 	return nil
 }
 
-func destroyTombsome(clusterName string) error {
-	metadata, err := meta.ClusterMetadata(clusterName)
-	if err != nil {
-		return errors.AddStack(err)
-	}
-
+func destroyTombsomeIfNeed(clusterName string, metadata *meta.ClusterMeta) error {
 	topo := metadata.Topology
 
 	if !operator.NeedCheckTomebsome(topo) {
@@ -97,17 +95,34 @@ func destroyTombsome(clusterName string) error {
 	}
 
 	ctx := task.NewContext()
-	t := task.NewBuilder().
-		SSHKeySet(
-			meta.ClusterPath(clusterName, "ssh", "id_rsa"),
-			meta.ClusterPath(clusterName, "ssh", "id_rsa.pub")).
-		ClusterSSH(topo, metadata.User).
-		ClusterOperate(metadata.Topology, operator.DestroyTombsomeOperation, operator.Options{}).Build()
-
-	err = t.Execute(ctx)
+	err := ctx.SetSSHKeySet(meta.ClusterPath(clusterName, "ssh", "id_rsa"),
+		meta.ClusterPath(clusterName, "ssh", "id_rsa.pub"))
 	if err != nil {
-		return err
+		return errors.AddStack(err)
 	}
+
+	err = ctx.SetClusterSSH(topo, metadata.User)
+	if err != nil {
+		return errors.AddStack(err)
+	}
+
+	nodes, err := operator.DestroyTombstone(ctx, topo, true /* returnNodesOnly */)
+	if err != nil {
+		return errors.AddStack(err)
+	}
+
+	if len(nodes) == 0 {
+		return nil
+	}
+
+	log.Infof("Start destroy Tombstone nodes: %v ...", nodes)
+
+	_, err = operator.DestroyTombstone(ctx, topo, false /* returnNodesOnly */)
+	if err != nil {
+		return errors.AddStack(err)
+	}
+
+	log.Infof("Destroy success")
 
 	return meta.SaveClusterMeta(clusterName, metadata)
 }
@@ -159,7 +174,7 @@ func displayClusterTopology(opt *displayOption) error {
 		}
 	}
 
-	utils.PrintTable(clusterTable, true)
+	cliutil.PrintTable(clusterTable, true)
 
 	return nil
 }

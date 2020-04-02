@@ -51,6 +51,15 @@ func (b *Builder) UserSSH(host, deployUser string) *Builder {
 	return b
 }
 
+// Func append a func task.
+func (b *Builder) Func(name string, fn func() error) *Builder {
+	b.tasks = append(b.tasks, &Func{
+		name: name,
+		fn:   fn,
+	})
+	return b
+}
+
 // ClusterSSH init all UserSSH need for the cluster.
 func (b *Builder) ClusterSSH(spec *meta.Specification, deployUser string) *Builder {
 	var tasks []Task
@@ -199,8 +208,9 @@ func (b *Builder) ClusterOperate(
 }
 
 // Mkdir appends a Mkdir task to the current task collection
-func (b *Builder) Mkdir(host string, dirs ...string) *Builder {
+func (b *Builder) Mkdir(user, host string, dirs ...string) *Builder {
 	b.tasks = append(b.tasks, &Mkdir{
+		user: user,
 		host: host,
 		dirs: dirs,
 	})

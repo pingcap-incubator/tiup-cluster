@@ -18,6 +18,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/joomcode/errorx"
+	"github.com/pingcap-incubator/tiops/pkg/bindversion"
+	"github.com/pingcap-incubator/tiops/pkg/logger"
 	"github.com/pingcap-incubator/tiops/pkg/meta"
 	operator "github.com/pingcap-incubator/tiops/pkg/operation"
 	"github.com/pingcap-incubator/tiops/pkg/task"
@@ -42,16 +45,18 @@ func newUpgradeCmd() *cobra.Command {
 				return cmd.Help()
 			}
 
-			auditConfig.enable = true
+			logger.EnableAuditLog()
 			return upgrade(args[0], args[1], opt)
 		},
 	}
 	cmd.Flags().BoolVar(&opt.options.Force, "force", false, "Force upgrade won't transfer leader")
+	cmd.Flags().StringSliceVarP(&opt.options.Roles, "role", "R", nil, "Only restart specified roles")
+	cmd.Flags().StringSliceVarP(&opt.options.Nodes, "node", "N", nil, "Only restart specified nodes")
+
 	return cmd
 }
 
 func versionCompare(curVersion, newVersion string) error {
-
 	switch semver.Compare(curVersion, newVersion) {
 	case -1:
 		return nil
@@ -88,7 +93,7 @@ func upgrade(name, version string, opt upgradeOptions) error {
 
 	for _, comp := range metadata.Topology.ComponentsByStartOrder() {
 		for _, inst := range comp.Instances() {
-			version := getComponentVersion(inst.ComponentName(), version)
+			version := bindversion.ComponentVersion(inst.ComponentName(), version)
 			if version == "" {
 				return errors.Errorf("unsupported component: %v", inst.ComponentName())
 			}
@@ -110,12 +115,43 @@ func upgrade(name, version string, opt upgradeOptions) error {
 			if !strings.HasPrefix(deployDir, "/") {
 				deployDir = filepath.Join("/home/", metadata.User, deployDir)
 			}
+			// data dir would be empty for components which don't need it
+			dataDir := inst.DataDir()
+			if dataDir != "" && !strings.HasPrefix(dataDir, "/") {
+				dataDir = filepath.Join("/home/", metadata.User, dataDir)
+			}
+			// log dir will always be with values, but might not used by the component
+			logDir := inst.LogDir()
+			if !strings.HasPrefix(logDir, "/") {
+				logDir = filepath.Join("/home/", metadata.User, logDir)
+			}
 			// Deploy component
-			t := task.NewBuilder().
-				BackupComponent(inst.ComponentName(), metadata.Version, inst.GetHost(), deployDir).
-				CopyComponent(inst.ComponentName(), version, inst.GetHost(), deployDir).
-				Build()
-			copyCompTasks = append(copyCompTasks, t)
+			t := task.NewBuilder()
+
+			if inst.IsImported() {
+				switch inst.ComponentName() {
+				case meta.ComponentPrometheus, meta.ComponentGrafana:
+					t.CopyComponent(inst.ComponentName(), version, inst.GetHost(), deployDir)
+				default:
+					t.BackupComponent(inst.ComponentName(), metadata.Version, inst.GetHost(), deployDir).
+						CopyComponent(inst.ComponentName(), version, inst.GetHost(), deployDir)
+				}
+				t.InitConfig(
+					name,
+					inst,
+					metadata.User,
+					meta.DirPaths{
+						Deploy: deployDir,
+						Data:   dataDir,
+						Log:    logDir,
+						Cache:  meta.ClusterPath(name, "config"),
+					},
+				)
+			} else {
+				t.BackupComponent(inst.ComponentName(), metadata.Version, inst.GetHost(), deployDir).
+					CopyComponent(inst.ComponentName(), version, inst.GetHost(), deployDir)
+			}
+			copyCompTasks = append(copyCompTasks, t.Build())
 		}
 	}
 
@@ -129,9 +165,12 @@ func upgrade(name, version string, opt upgradeOptions) error {
 		ClusterOperate(metadata.Topology, operator.UpgradeOperation, opt.options).
 		Build()
 
-	err = t.Execute(task.NewContext())
-	if err != nil {
-		return err
+	if err := t.Execute(task.NewContext()); err != nil {
+		if errorx.Cast(err) != nil {
+			// FIXME: Map possible task errors and give suggestions.
+			return err
+		}
+		return errors.Trace(err)
 	}
 
 	metadata.Version = version

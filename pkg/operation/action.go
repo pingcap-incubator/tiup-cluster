@@ -14,6 +14,7 @@
 package operator
 
 import (
+	"bytes"
 	"fmt"
 	"strconv"
 	"strings"
@@ -110,15 +111,17 @@ func NeedCheckTomebsome(spec *meta.Specification) bool {
 }
 
 // DestroyTombstone remove the tombstone node in spec and destroy them.
+// If returNodesOnly is true, it will only return the node id that can be destroy.
 func DestroyTombstone(
 	getter ExecutorGetter,
 	spec *meta.Specification,
-) error {
+	returNodesOnly bool,
+) (nodes []string, err error) {
 	var pdClient = api.NewPDClient(spec.GetPDList()[0], 10*time.Second, nil)
 
 	binlogClient, err := api.NewBinlogClient(spec.GetPDList(), nil)
 	if err != nil {
-		return errors.AddStack(err)
+		return nil, errors.AddStack(err)
 	}
 
 	filterID := func(instance []meta.Instance, id string) (res []meta.Instance) {
@@ -141,7 +144,7 @@ func DestroyTombstone(
 
 		tombstone, err := pdClient.IsTombStone(id)
 		if err != nil {
-			return errors.AddStack(err)
+			return nil, errors.AddStack(err)
 		}
 
 		if !tombstone {
@@ -149,20 +152,24 @@ func DestroyTombstone(
 			continue
 		}
 
-		if tombstone {
-			instances := (&meta.TiKVComponent{Specification: spec}).Instances()
-			instances = filterID(instances, id)
-
-			err = StopComponent(getter, instances)
-			if err != nil {
-				return errors.AddStack(err)
-			}
-
-			err = DestroyComponent(getter, instances)
-			if err != nil {
-				return errors.AddStack(err)
-			}
+		nodes = append(nodes, id)
+		if returNodesOnly {
+			continue
 		}
+
+		instances := (&meta.TiKVComponent{Specification: spec}).Instances()
+		instances = filterID(instances, id)
+
+		err = StopComponent(getter, instances)
+		if err != nil {
+			return nil, errors.AddStack(err)
+		}
+
+		err = DestroyComponent(getter, instances)
+		if err != nil {
+			return nil, errors.AddStack(err)
+		}
+
 	}
 
 	var pumpServers []meta.PumpSpec
@@ -176,26 +183,30 @@ func DestroyTombstone(
 
 		tombstone, err := binlogClient.IsPumpTombstone(id)
 		if err != nil {
-			return errors.AddStack(err)
+			return nil, errors.AddStack(err)
 		}
 
 		if !tombstone {
 			pumpServers = append(pumpServers, s)
 		}
 
-		if tombstone {
-			instances := (&meta.PumpComponent{Specification: spec}).Instances()
-			instances = filterID(instances, id)
-			err = StopComponent(getter, instances)
-			if err != nil {
-				return errors.AddStack(err)
-			}
-
-			err = DestroyComponent(getter, instances)
-			if err != nil {
-				return errors.AddStack(err)
-			}
+		nodes = append(nodes, id)
+		if returNodesOnly {
+			continue
 		}
+
+		instances := (&meta.PumpComponent{Specification: spec}).Instances()
+		instances = filterID(instances, id)
+		err = StopComponent(getter, instances)
+		if err != nil {
+			return nil, errors.AddStack(err)
+		}
+
+		err = DestroyComponent(getter, instances)
+		if err != nil {
+			return nil, errors.AddStack(err)
+		}
+
 	}
 
 	var drainerServers []meta.DrainerSpec
@@ -209,34 +220,41 @@ func DestroyTombstone(
 
 		tombstone, err := binlogClient.IsDrainerTombstone(id)
 		if err != nil {
-			return errors.AddStack(err)
+			return nil, errors.AddStack(err)
 		}
 
 		if !tombstone {
 			drainerServers = append(drainerServers, s)
 		}
 
-		if tombstone {
-			instances := (&meta.DrainerComponent{Specification: spec}).Instances()
-			instances = filterID(instances, id)
-
-			err = StopComponent(getter, (&meta.DrainerComponent{Specification: spec}).Instances())
-			if err != nil {
-				return errors.AddStack(err)
-			}
-
-			err = DestroyComponent(getter, (&meta.DrainerComponent{Specification: spec}).Instances())
-			if err != nil {
-				return errors.AddStack(err)
-			}
+		nodes = append(nodes, id)
+		if returNodesOnly {
+			continue
 		}
+
+		instances := (&meta.DrainerComponent{Specification: spec}).Instances()
+		instances = filterID(instances, id)
+
+		err = StopComponent(getter, instances)
+		if err != nil {
+			return nil, errors.AddStack(err)
+		}
+
+		err = DestroyComponent(getter, instances)
+		if err != nil {
+			return nil, errors.AddStack(err)
+		}
+	}
+
+	if returNodesOnly {
+		return
 	}
 
 	spec.TiKVServers = kvServers
 	spec.PumpServers = pumpServers
 	spec.Drainers = drainerServers
 
-	return nil
+	return
 }
 
 // Restart the cluster.
@@ -277,7 +295,7 @@ func StartMonitored(getter ExecutorGetter, instance meta.Instance, options meta.
 		stdout, stderr, err := systemd.Execute(e)
 
 		if len(stdout) > 0 {
-			log.Output(string(stdout))
+			fmt.Println(string(stdout))
 		}
 		if len(stderr) > 0 {
 			log.Errorf(string(stderr))
@@ -300,6 +318,103 @@ func StartMonitored(getter ExecutorGetter, instance meta.Instance, options meta.
 	return nil
 }
 
+// RestartComponent restarts the component.
+func RestartComponent(getter ExecutorGetter, instances []meta.Instance) error {
+	if len(instances) <= 0 {
+		return nil
+	}
+
+	name := instances[0].ComponentName()
+	log.Infof("Restarting component %s", name)
+
+	for _, ins := range instances {
+		e := getter.Get(ins.GetHost())
+		log.Infof("\tRestarting instance %s", ins.GetHost())
+
+		// Restart by systemd.
+		c := module.SystemdModuleConfig{
+			Unit:         ins.ServiceName(),
+			ReloadDaemon: true,
+			Action:       "restart",
+		}
+		systemd := module.NewSystemdModule(c)
+		stdout, stderr, err := systemd.Execute(e)
+
+		if len(stdout) > 0 {
+			fmt.Println(string(stdout))
+		}
+		if len(stderr) > 0 {
+			log.Errorf(string(stderr))
+		}
+
+		if err != nil {
+			return errors.Annotatef(err, "failed to restart: %s", ins.GetHost())
+		}
+
+		// Check ready.
+		err = ins.Ready(e)
+		if err != nil {
+			str := fmt.Sprintf("\t%s failed to restart: %s", ins.GetHost(), err)
+			log.Errorf(str)
+			return errors.Annotatef(err, str)
+		}
+
+		log.Infof("\tRestart %s success", ins.GetHost())
+	}
+
+	return nil
+}
+
+func startInstance(getter ExecutorGetter, ins meta.Instance) error {
+	e := getter.Get(ins.GetHost())
+	log.Infof("\tStarting instance %s %s:%d",
+		ins.ComponentName(),
+		ins.GetHost(),
+		ins.GetPort())
+
+	// Start by systemd.
+	c := module.SystemdModuleConfig{
+		Unit:         ins.ServiceName(),
+		ReloadDaemon: true,
+		Action:       "start",
+		Enabled:      true,
+	}
+	systemd := module.NewSystemdModule(c)
+	stdout, stderr, err := systemd.Execute(e)
+
+	if len(stdout) > 0 {
+		fmt.Println(string(stdout))
+	}
+	if len(stderr) > 0 && !bytes.Contains(stderr, []byte("Created symlink ")) {
+		log.Errorf(string(stderr))
+	}
+
+	if err != nil {
+		return errors.Annotatef(err, "failed to start: %s %s:%d",
+			ins.ComponentName(),
+			ins.GetHost(),
+			ins.GetPort())
+	}
+
+	// Check ready.
+	err = ins.Ready(e)
+	if err != nil {
+		str := fmt.Sprintf("\t%s %s:%d failed to start: %s",
+			ins.ComponentName(),
+			ins.GetHost(),
+			ins.GetPort(), err)
+		log.Errorf(str)
+		return errors.Annotatef(err, str)
+	}
+
+	log.Infof("\tStart %s %s:%d success",
+		ins.ComponentName(),
+		ins.GetHost(),
+		ins.GetPort())
+
+	return nil
+}
+
 // StartComponent start the instances.
 func StartComponent(getter ExecutorGetter, instances []meta.Instance) error {
 	if len(instances) <= 0 {
@@ -310,38 +425,10 @@ func StartComponent(getter ExecutorGetter, instances []meta.Instance) error {
 	log.Infof("Starting component %s", name)
 
 	for _, ins := range instances {
-		e := getter.Get(ins.GetHost())
-		log.Infof("\tStarting instance %s", ins.GetHost())
-
-		// Start by systemd.
-		c := module.SystemdModuleConfig{
-			Unit:         ins.ServiceName(),
-			ReloadDaemon: true,
-			Action:       "start",
-		}
-		systemd := module.NewSystemdModule(c)
-		stdout, stderr, err := systemd.Execute(e)
-
-		if len(stdout) > 0 {
-			log.Output(string(stdout))
-		}
-		if len(stderr) > 0 {
-			log.Errorf(string(stderr))
-		}
-
+		err := startInstance(getter, ins)
 		if err != nil {
-			return errors.Annotatef(err, "failed to start: %s", ins.GetHost())
+			return errors.AddStack(err)
 		}
-
-		// Check ready.
-		err = ins.Ready(e)
-		if err != nil {
-			str := fmt.Sprintf("\t%s failed to start: %s", ins.GetHost(), err)
-			log.Errorf(str)
-			return errors.Annotatef(err, str)
-		}
-
-		log.Infof("\tStart %s success", ins.GetHost())
 	}
 
 	return nil
@@ -358,29 +445,102 @@ func StopMonitored(getter ExecutorGetter, instance meta.Instance, options meta.M
 		log.Infof("Stopping component %s", comp)
 
 		c := module.SystemdModuleConfig{
-			Unit:   fmt.Sprintf("%s-%d.service", comp, ports[comp]),
-			Action: "stop",
+			Unit:         fmt.Sprintf("%s-%d.service", comp, ports[comp]),
+			Action:       "stop",
+			ReloadDaemon: true,
 		}
 		systemd := module.NewSystemdModule(c)
 		stdout, stderr, err := systemd.Execute(e)
 
 		if len(stdout) > 0 {
-			log.Output(string(stdout))
+			fmt.Println(string(stdout))
 		}
+
 		if len(stderr) > 0 {
-			log.Errorf(string(stderr))
+			// ignore "unit not loaded" error, as this means the unit is not
+			// exist, and that's exactly what we want
+			// NOTE: there will be a potential bug if the unit name is set
+			// wrong and the real unit still remains started.
+			if bytes.Contains(stderr, []byte(" not loaded.")) {
+				log.Warnf(string(stderr))
+				err = nil // reset the error to avoid exiting
+			} else {
+				log.Errorf(string(stderr))
+			}
 		}
 
 		if err != nil {
-			return errors.Annotatef(err, "failed to stop: %s", instance.GetHost())
+			return errors.Annotatef(err, "failed to stop: %s %s:%d",
+				instance.ComponentName(),
+				instance.GetHost(),
+				instance.GetPort())
 		}
 
 		if err := meta.PortStopped(e, ports[comp]); err != nil {
-			str := fmt.Sprintf("\t%s failed to stop: %s", instance.GetHost(), err)
+			str := fmt.Sprintf("\t%s %s:%d failed to stop: %s",
+				instance.ComponentName(),
+				instance.GetHost(),
+				instance.GetPort(), err)
 			log.Errorf(str)
 			return errors.Annotatef(err, str)
 		}
 	}
+
+	return nil
+}
+
+func stopInstance(getter ExecutorGetter, ins meta.Instance) error {
+	e := getter.Get(ins.GetHost())
+	log.Infof("\tStopping instance %s", ins.GetHost())
+
+	// Stop by systemd.
+	c := module.SystemdModuleConfig{
+		Unit:         ins.ServiceName(),
+		Action:       "stop",
+		ReloadDaemon: true, // always reload before operate
+		// Scope: "",
+	}
+	systemd := module.NewSystemdModule(c)
+	stdout, stderr, err := systemd.Execute(e)
+
+	if len(stdout) > 0 {
+		fmt.Println(string(stdout))
+	}
+	if len(stderr) > 0 {
+		// ignore "unit not loaded" error, as this means the unit is not
+		// exist, and that's exactly what we want
+		// NOTE: there will be a potential bug if the unit name is set
+		// wrong and the real unit still remains started.
+		if bytes.Contains(stderr, []byte(" not loaded.")) {
+			log.Warnf(string(stderr))
+			err = nil // reset the error to avoid exiting
+		} else {
+			log.Errorf(string(stderr))
+		}
+	}
+
+	if err != nil {
+		return errors.Annotatef(err, "failed to stop: %s %s:%d",
+			ins.ComponentName(),
+			ins.GetHost(),
+			ins.GetPort())
+	}
+
+	err = ins.WaitForDown(e)
+	if err != nil {
+		str := fmt.Sprintf("\t%s %s:%d failed to stop: %s",
+			ins.ComponentName(),
+			ins.GetHost(),
+			ins.GetPort(),
+			err)
+		log.Errorf(str)
+		return errors.Annotatef(err, str)
+	}
+
+	log.Infof("\tStop %s %s:%d success",
+		ins.ComponentName(),
+		ins.GetHost(),
+		ins.GetPort())
 
 	return nil
 }
@@ -395,37 +555,10 @@ func StopComponent(getter ExecutorGetter, instances []meta.Instance) error {
 	log.Infof("Stopping component %s", name)
 
 	for _, ins := range instances {
-		e := getter.Get(ins.GetHost())
-		log.Infof("\tStopping instance %s", ins.GetHost())
-
-		// Stop by systemd.
-		c := module.SystemdModuleConfig{
-			Unit:   ins.ServiceName(),
-			Action: "stop",
-			// Scope: "",
-		}
-		systemd := module.NewSystemdModule(c)
-		stdout, stderr, err := systemd.Execute(e)
-
-		if len(stdout) > 0 {
-			log.Output(string(stdout))
-		}
-		if len(stderr) > 0 {
-			log.Errorf(string(stderr))
-		}
-
+		err := stopInstance(getter, ins)
 		if err != nil {
-			return errors.Annotatef(err, "failed to stop: %s", ins.GetHost())
+			return errors.AddStack(err)
 		}
-
-		err = ins.WaitForDown(e)
-		if err != nil {
-			str := fmt.Sprintf("\t%s failed to stop: %s", ins.GetHost(), err)
-			log.Errorf(str)
-			return errors.Annotatef(err, str)
-		}
-
-		log.Infof("\tStop %s success", ins.GetHost())
 	}
 
 	return nil

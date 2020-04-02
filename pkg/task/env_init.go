@@ -16,9 +16,17 @@ package task
 import (
 	"fmt"
 	"io/ioutil"
+	"strings"
 
+	"github.com/joomcode/errorx"
 	"github.com/pingcap-incubator/tiops/pkg/module"
-	"github.com/pingcap/errors"
+)
+
+var (
+	errNSEnvInit               = errNS.NewSubNamespace("env_init")
+	errEnvInitSubCommandFailed = errNSEnvInit.NewType("sub_command_failed")
+	// ErrEnvInitFailed is ErrEnvInitFailed
+	ErrEnvInitFailed = errNSEnvInit.NewType("failed")
 )
 
 // EnvInit is used to initialize the remote environment, e.g:
@@ -31,9 +39,17 @@ type EnvInit struct {
 
 // Execute implements the Task interface
 func (e *EnvInit) Execute(ctx *Context) error {
+	return e.execute(ctx)
+}
+
+func (e *EnvInit) execute(ctx *Context) error {
+	wrapError := func(err error) *errorx.Error {
+		return ErrEnvInitFailed.Wrap(err, "Failed to initialize TiDB environment on remote host '%s'", e.host)
+	}
+
 	exec, found := ctx.GetExecutor(e.host)
 	if !found {
-		return ErrNoExecutor
+		panic(ErrNoExecutor)
 	}
 
 	um := module.NewUserModule(module.UserModuleConfig{
@@ -42,28 +58,31 @@ func (e *EnvInit) Execute(ctx *Context) error {
 		Sudoer: true,
 	})
 
-	_, _, err := um.Execute(exec)
-	if err != nil {
-		return errors.Trace(err)
+	_, _, errx := um.Execute(exec)
+	if errx != nil {
+		return wrapError(errx)
 	}
 
 	pubKey, err := ioutil.ReadFile(ctx.PublicKeyPath)
 	if err != nil {
-		return errors.Trace(err)
+		return wrapError(err)
 	}
 
 	// Authorize
 	cmd := `su - ` + e.deployUser + ` -c 'test -d ~/.ssh || mkdir -p ~/.ssh && chmod 700 ~/.ssh'`
-	_, _, err = exec.Execute(cmd, false)
+	_, _, err = exec.Execute(cmd, true)
 	if err != nil {
-		return errors.Annotatef(err, "cmd: %s", cmd)
+		return wrapError(errEnvInitSubCommandFailed.
+			Wrap(err, "Failed to create '~/.ssh' directory for user '%s'", e.deployUser))
 	}
 
-	// TODO: don't append pubkey if exists
-	cmd = `su - ` + e.deployUser + ` -c 'echo "` + string(pubKey) + `" >> .ssh/authorized_keys && chmod 700 ~/.ssh/authorized_keys'`
-	_, _, err = exec.Execute(cmd, false)
+	pk := strings.TrimSpace(string(pubKey))
+	cmd = fmt.Sprintf(`su - %[1]s -c 'grep $(echo %[2]s) %[3]s || echo %[2]s >> %[3]s && chmod 700 %[3]s'`,
+		e.deployUser, pk, "~/.ssh/authorized_keys")
+	_, _, err = exec.Execute(cmd, true)
 	if err != nil {
-		return errors.Trace(err)
+		return wrapError(errEnvInitSubCommandFailed.
+			Wrap(err, "Failed to write public keys to '~/.ssh/authorized_keys' for user '%s'", e.deployUser))
 	}
 
 	return nil

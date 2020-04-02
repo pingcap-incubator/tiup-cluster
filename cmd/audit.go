@@ -18,13 +18,14 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/fatih/color"
 	"github.com/pingcap-incubator/tiops/pkg/base52"
+	"github.com/pingcap-incubator/tiops/pkg/cliutil"
 	"github.com/pingcap-incubator/tiops/pkg/meta"
-	"github.com/pingcap-incubator/tiops/pkg/utils"
 	tiuputils "github.com/pingcap-incubator/tiup/pkg/utils"
 	"github.com/pingcap/errors"
 	"github.com/spf13/cobra"
@@ -90,7 +91,11 @@ func showAuditList() error {
 		})
 	}
 
-	utils.PrintTable(clusterTable, true)
+	sort.Slice(clusterTable[1:], func(i, j int) bool {
+		return clusterTable[i+1][1] > clusterTable[j+1][1]
+	})
+
+	cliutil.PrintTable(clusterTable, true)
 	return nil
 }
 

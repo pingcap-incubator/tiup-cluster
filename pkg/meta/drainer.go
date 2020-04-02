@@ -21,6 +21,7 @@ func (c *DrainerComponent) Name() string {
 func (c *DrainerComponent) Instances() []Instance {
 	ins := make([]Instance, 0, len(c.Drainers))
 	for _, s := range c.Drainers {
+		s := s
 		ins = append(ins, &DrainerInstance{instance{
 			InstanceSpec: s,
 			name:         c.Name(),
@@ -74,7 +75,7 @@ func (i *DrainerInstance) InitConfig(e executor.TiOpsExecutor, cluster, user str
 		paths.Deploy,
 		paths.Data,
 		paths.Log,
-	).WithPort(spec.Port).AppendEndpoints(i.instance.topo.Endpoints(user)...)
+	).WithPort(spec.Port).WithNumaNode(spec.NumaNode).AppendEndpoints(i.instance.topo.Endpoints(user)...)
 
 	cfg.WithCommitTs(spec.CommitTS)
 
