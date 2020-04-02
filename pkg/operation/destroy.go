@@ -62,7 +62,6 @@ func DeleteGlobalDirs(getter ExecutorGetter, host string, options meta.GlobalOpt
 
 		c := module.ShellModuleConfig{
 			Command:  fmt.Sprintf("rmdir %s > /dev/null 2>&1 || true", dir),
-			Sudo:     true, // the .service files are in a directory owned by root
 			Chdir:    "",
 			UseShell: false,
 		}
