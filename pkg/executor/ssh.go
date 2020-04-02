@@ -18,22 +18,34 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/appleboy/easyssh-proxy"
 	"github.com/joomcode/errorx"
-	"github.com/pingcap/errors"
-
 	"github.com/pingcap-incubator/tiops/pkg/errutil"
 	"github.com/pingcap-incubator/tiops/pkg/utils"
 )
 
 var (
-	errSSHNS = errorx.NewNamespace("executor.ssh")
+	errNSSSH = errNS.NewSubNamespace("ssh")
+
+	// ErrPropSSHAddr is ErrPropSSHAddr
+	ErrPropSSHAddr = errorx.RegisterPrintableProperty("ssh_address")
+	// ErrPropSSHCommand is ErrPropSSHCommand
+	ErrPropSSHCommand = errorx.RegisterPrintableProperty("ssh_command")
+	// ErrPropSSHStdout is ErrPropSSHStdout
+	ErrPropSSHStdout = errorx.RegisterPrintableProperty("ssh_stdout")
+	// ErrPropSSHStderr is ErrPropSSHStderr
+	ErrPropSSHStderr = errorx.RegisterPrintableProperty("ssh_stderr")
 
 	// ErrSSHRequireCredential is ErrSSHRequireCredential.
 	// FIXME: This error should be removed since we should prompt for error if necessary.
-	ErrSSHRequireCredential = errSSHNS.NewType("credential_required", errutil.ErrTraitPreCheck)
+	ErrSSHRequireCredential = errNSSSH.NewType("credential_required", errutil.ErrTraitPreCheck)
+	// ErrSSHExecuteFailed is ErrSSHExecuteFailed
+	ErrSSHExecuteFailed = errNSSSH.NewType("execute_failed")
+	// ErrSSHExecuteTimedout is ErrSSHExecuteTimedout
+	ErrSSHExecuteTimedout = errNSSSH.NewType("execute_timedout")
 )
 
 type (
@@ -56,18 +68,14 @@ type (
 var _ TiOpsExecutor = &SSHExecutor{}
 
 // NewSSHExecutor create a ssh executor.
-func NewSSHExecutor(c SSHConfig) (e *SSHExecutor, err error) {
-	e = new(SSHExecutor)
-	err = e.Initialize(c)
-	if err != nil {
-		return nil, errors.Trace(err)
-	}
-
-	return
+func NewSSHExecutor(c SSHConfig) *SSHExecutor {
+	e := new(SSHExecutor)
+	e.Initialize(c)
+	return e
 }
 
 // Initialize builds and initializes a SSHExecutor
-func (sshExec *SSHExecutor) Initialize(config SSHConfig) error {
+func (sshExec *SSHExecutor) Initialize(config SSHConfig) {
 	// set default values
 	if config.Port <= 0 {
 		config.Port = 22
@@ -89,11 +97,10 @@ func (sshExec *SSHExecutor) Initialize(config SSHConfig) error {
 	} else {
 		sshExec.Config.Password = config.Password
 	}
-
-	return nil
 }
 
 // Execute run the command via SSH, it's not invoking any specific shell by default.
+// Return errors: ErrSSHExecuteFailed, ErrSSHExecuteTimedout
 func (sshExec *SSHExecutor) Execute(cmd string, sudo bool, timeout ...time.Duration) ([]byte, []byte, error) {
 	// try to acquire root permission
 	if sudo {
@@ -106,21 +113,28 @@ func (sshExec *SSHExecutor) Execute(cmd string, sudo bool, timeout ...time.Durat
 	// run command on remote host
 	// default timeout is 60s in easyssh-proxy
 	stdout, stderr, done, err := sshExec.Config.Run(cmd, timeout...)
+
 	if err != nil {
-		if stderr != "" {
-			return []byte(stdout), []byte(stderr),
-				errors.Annotatef(err, "cmd: '%s' on %s:%s, stderr: %s", cmd, sshExec.Config.Server, sshExec.Config.Port, stderr)
+		baseErr := ErrSSHExecuteFailed.
+			Wrap(err, "Failed to execute command over SSH for '%s@%s:%s'", sshExec.Config.User, sshExec.Config.Server, sshExec.Config.Port).
+			WithProperty(ErrPropSSHAddr, fmt.Sprintf("%s@%s:%s", sshExec.Config.User, sshExec.Config.Server, sshExec.Config.Port)).
+			WithProperty(ErrPropSSHCommand, cmd).
+			WithProperty(ErrPropSSHStdout, stdout).
+			WithProperty(ErrPropSSHStderr, stderr)
+		if len(stdout) > 0 || len(stderr) > 0 {
+			baseErr = baseErr.
+				WithProperty(errutil.ErrPropSuggestion, fmt.Sprintf("Command output on remote host:\n%s", strings.Join([]string{stdout, stderr}, " ")))
 		}
-		return []byte(stdout), []byte(stderr),
-			errors.Annotatef(err, "cmd: '%s' on %s:%s", cmd, sshExec.Config.Server, sshExec.Config.Port)
+		return []byte(stdout), []byte(stderr), baseErr
 	}
 
 	if !done { // timeout case,
-		return []byte(stdout), []byte(stderr),
-			fmt.Errorf("timed out running \"%s\" on %s:%s",
-				cmd,
-				sshExec.Config.Server,
-				sshExec.Config.Port)
+		return []byte(stdout), []byte(stderr), ErrSSHExecuteTimedout.
+			Wrap(err, "Execute command over SSH timedout").
+			WithProperty(ErrPropSSHAddr, fmt.Sprintf("%s:%s", sshExec.Config.Server, sshExec.Config.Port)).
+			WithProperty(ErrPropSSHCommand, cmd).
+			WithProperty(ErrPropSSHStdout, stdout).
+			WithProperty(ErrPropSSHStderr, stderr)
 	}
 
 	return []byte(stdout), []byte(stderr), nil
