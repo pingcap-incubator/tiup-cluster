@@ -45,15 +45,11 @@ func newImportCmd() *cobra.Command {
 			}
 
 			// Rename the imported cluster
-			if tiuputils.IsExist(meta.ClusterPath(clsName, meta.MetaFileName)) && rename == "" {
+			if (tiuputils.IsExist(meta.ClusterPath(clsName, meta.MetaFileName)) && rename == "") ||
+				(rename != "" && tiuputils.IsExist(meta.ClusterPath(rename, meta.MetaFileName))) {
 				return errDeployNameDuplicate.
 					New("Cluster name '%s' is duplicated", clsName).
-					WithProperty(cliutil.SuggestionFromFormat("Please use --rename `NAME` to specify another name"))
-			}
-			if rename != "" && tiuputils.IsExist(meta.ClusterPath(rename, meta.MetaFileName)) {
-				return errDeployNameDuplicate.
-					New("Cluster name '%s' is duplicated", rename).
-					WithProperty(cliutil.SuggestionFromFormat("Please use --rename `NAME` to specify another name"))
+					WithProperty(cliutil.SuggestionFromFormat("Please use --rename `NAME` to specify another name (You can use `tiup cluster list` to see all clusters)"))
 			}
 			if rename != "" {
 				clsName = rename
