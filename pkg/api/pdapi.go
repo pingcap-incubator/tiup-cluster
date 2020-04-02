@@ -315,7 +315,7 @@ func (pc *PDClient) RemoveStoreEvict(host string) error {
 		return err
 	}
 
-	log.Debugf("Removed store evicting scheduler from %s.", latestStore.Store.Address)
+	log.Debugf("Removed store leader evicting scheduler from %s.", latestStore.Store.Address)
 	return nil
 }
 
