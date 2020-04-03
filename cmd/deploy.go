@@ -101,20 +101,20 @@ func checkClusterDirConflict(clusterName string, topo *meta.Specification) error
 		accessor func(meta.Instance, *meta.TopologySpecification) string
 	}
 
-	instanceDirAccessor := []DirAccessor {
+	instanceDirAccessor := []DirAccessor{
 		{dirKind: "deploy directory", accessor: func(instance meta.Instance, topo *meta.TopologySpecification) string { return instance.DeployDir() }},
 		{dirKind: "data directory", accessor: func(instance meta.Instance, topo *meta.TopologySpecification) string { return instance.DataDir() }},
 		{dirKind: "log directory", accessor: func(instance meta.Instance, topo *meta.TopologySpecification) string { return instance.LogDir() }},
 	}
-	hostDirAccessor := []DirAccessor {
+	hostDirAccessor := []DirAccessor{
 		{dirKind: "monitor deploy directory", accessor: func(instance meta.Instance, topo *meta.TopologySpecification) string {
-		return topo.MonitoredOptions.DeployDir
+			return topo.MonitoredOptions.DeployDir
 		}},
 		{dirKind: "monitor data directory", accessor: func(instance meta.Instance, topo *meta.TopologySpecification) string {
-		return topo.MonitoredOptions.DataDir
+			return topo.MonitoredOptions.DataDir
 		}},
 		{dirKind: "monitor log directory", accessor: func(instance meta.Instance, topo *meta.TopologySpecification) string {
-		return topo.MonitoredOptions.LogDir
+			return topo.MonitoredOptions.LogDir
 		}},
 	}
 
@@ -161,9 +161,9 @@ func checkClusterDirConflict(clusterName string, topo *meta.Specification) error
 			for _, dirAccessor := range hostDirAccessor {
 				existingEntries = append(existingEntries, Entry{
 					clusterName: fi.Name(),
-					dirKind:  dirAccessor.dirKind,
-					dir:      f(dirAccessor.accessor(inst, topo)),
-					instance: inst,
+					dirKind:     dirAccessor.dirKind,
+					dir:         f(dirAccessor.accessor(inst, topo)),
+					instance:    inst,
 				})
 			}
 		})
