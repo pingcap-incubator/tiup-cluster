@@ -37,7 +37,7 @@ func ImportConfig(name string, clsMeta *meta.ClusterMeta) error {
 		for idx, inst := range comp.Instances() {
 			log.Infof("Copying config file of %s...", inst.ComponentName())
 			switch inst.ComponentName() {
-			case meta.ComponentPD, meta.ComponentTiKV, meta.ComponentPump, meta.ComponentTiDB, meta.ComponentTiFlash:
+			case meta.ComponentPD, meta.ComponentTiKV, meta.ComponentPump, meta.ComponentTiDB:
 				if idx != 0 {
 					break
 				}
@@ -50,6 +50,25 @@ func ImportConfig(name string, clsMeta *meta.ClusterMeta) error {
 						meta.ClusterPath(name, "config", inst.ComponentName()+".toml"),
 						inst.GetHost(),
 						true).
+					Build()
+				copyFileTasks = append(copyFileTasks, t)
+			case meta.ComponentTiFlash:
+				if idx != 0 {
+					break
+				}
+				t := task.NewBuilder().
+					SSHKeySet(
+						meta.ClusterPath(name, "ssh", "id_rsa"),
+						meta.ClusterPath(name, "ssh", "id_rsa.pub")).
+					UserSSH(inst.GetHost(), clsMeta.User).
+					CopyFile(filepath.Join(inst.DeployDir(), "conf", inst.ComponentName()+".toml"),
+						meta.ClusterPath(name, "config", inst.ComponentName()+".toml"),
+						inst.GetHost(),
+						true).
+					//CopyFile(filepath.Join(inst.DeployDir(), "conf", inst.ComponentName()+"-learner.toml"),
+					//	meta.ClusterPath(name, "config", inst.ComponentName()+"-learner.toml"),
+					//	inst.GetHost(),
+					//	true).
 					Build()
 				copyFileTasks = append(copyFileTasks, t)
 			case meta.ComponentDrainer:

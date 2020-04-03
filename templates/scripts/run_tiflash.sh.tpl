@@ -22,4 +22,4 @@ exec numactl --cpunodebind={{.NumaNode}} --membind={{.NumaNode}}  \
 {{- else}}
 exec \
 {{- end}}
-    bin/tiflash/tiflash server --config-file conf/tiflash-main.toml
+    bin/tiflash/tiflash server --config-file conf/tiflash.toml

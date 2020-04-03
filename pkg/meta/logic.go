@@ -14,6 +14,7 @@
 package meta
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -572,6 +573,78 @@ type TiFlashInstance struct {
 	instance
 }
 
+// InitTiFlashConfig initializes TiFlash config file
+func (i *TiFlashInstance) InitTiFlashConfig(e executor.TiOpsExecutor, cfg *scripts.TiFlashScript, spec TiFlashSpec, paths DirPaths) (yaml.MapSlice, error) {
+	topo := TopologySpecification{}
+
+	err := yaml.Unmarshal([]byte(fmt.Sprintf(`
+server_configs:
+  tiflash:
+    default_profile: "default"
+    display_name: "TiFlash"
+    listen_host: "0.0.0.0"
+    mark_cache_size: 5368709120
+    tmp_path: "%s/tiflash/data/tmp"
+    path: "%s/tiflash/data/db"
+    tcp_port: %d
+    http_port: %d
+    flash.tidb_status_addr: "%s"
+    flash.service_addr: "%s:%d"
+    flash.flash_cluster.cluster_manager_path: "%s/bin/tiflash/flash_cluster_manager"
+    flash.flash_cluster.log: "%s/log/tiflash_cluster_manager.log"
+    flash.flash_cluster.master_ttl: 60
+    flash.flash_cluster.refresh_interval: 20
+    flash.flash_cluster.update_rule_interval: 5
+    flash.proxy.config: "%s/conf/tiflash-learner.toml"
+    status.metrics_port: %d
+    logger.errorlog: "%s/log/tiflash_error.log"
+    logger.log: "%s/log/tiflash.log"
+    logger.count: 20
+    logger.level: "debug"
+    logger.size: "1000M"
+    application.runAsDaemon: true
+    raft.pd_addr: "%s"
+    quotas.default.interval.duration: 3600
+    quotas.default.interval.errors: 0
+    quotas.default.interval.execution_time: 0
+    quotas.default.interval.queries: 0
+    quotas.default.interval.read_rows: 0
+    quotas.default.interval.result_rows: 0
+    users.default.password: ""
+    users.default.profile: "default"
+    users.default.quota: "default"
+    users.default.networks.ip: "::/0"
+    users.readonly.password: ""
+    users.readonly.profile: "readonly"
+    users.readonly.quota: "default"
+    users.readonly.networks.ip: "::/0"
+    profiles.default.load_balancing: "random"
+    profiles.default.max_memory_usage: 10000000000
+    profiles.default.use_uncompressed_cache: 0
+    profiles.readonly.readonly: 1
+`, cfg.DeployDir, cfg.DeployDir, cfg.TCPPort, cfg.HTTPPort,
+		cfg.TiDBStatusAddrs, cfg.IP, cfg.FlashServicePort, cfg.DeployDir,
+		cfg.DeployDir, cfg.DeployDir, cfg.MetricsPort, cfg.DeployDir,
+		cfg.DeployDir, cfg.PDAddrs)), &topo)
+
+	if err != nil {
+		return nil, err
+	}
+
+	fmt.Printf("T:\n%v\n", topo)
+
+	if conf, err1 := merge2Toml(i.ComponentName(), topo.ServerConfigs.TiFlash, spec.Config); err1 != nil {
+		return nil, err1
+	} else {
+		reader := bytes.NewReader(conf)
+		newConf := TopologySpecification{}
+		if err2 := yaml.NewDecoder(reader).Decode(newConf); err2 != nil {
+			return nil, err2
+		}
+		return newConf.ServerConfigs.TiFlash, nil
+	}
+}
+
 // InitConfig implement Instance interface
 func (i *TiFlashInstance) InitConfig(e executor.TiOpsExecutor, cluster, user string, paths DirPaths) error {
 	if err := i.instance.InitConfig(e, cluster, user, paths); err != nil {
@@ -624,16 +697,23 @@ func (i *TiFlashInstance) InitConfig(e executor.TiOpsExecutor, cluster, user str
 		return err
 	}
 
-	fp3 := filepath.Join(paths.Cache, fmt.Sprintf("tiflash_%s_%d.toml", i.GetHost(), i.GetPort()))
-	if err := cfg.ConfigTiFlashToFile(fp3); err != nil {
-		return err
-	}
-	dst3 := filepath.Join(paths.Deploy, "conf", "tiflash-main.toml")
-	if err := e.Transfer(fp3, dst3, false); err != nil {
+	//fp3 := filepath.Join(paths.Cache, fmt.Sprintf("tiflash_%s_%d.toml", i.GetHost(), i.GetPort()))
+	//if err := cfg.ConfigTiFlashToFile(fp3); err != nil {
+	//	return err
+	//}
+	//dst3 := filepath.Join(paths.Deploy, "conf", "tiflash.toml")
+	//if err := e.Transfer(fp3, dst3, false); err != nil {
+	//	return err
+	//}
+
+	conf, err := i.InitTiFlashConfig(e, cfg, spec, paths)
+	if err != nil {
 		return err
 	}
 
-	return i.mergeServerConfig(e, i.topo.ServerConfigs.TiFlash, spec.Config, paths)
+	fmt.Printf("C:\n%v\n", conf)
+
+	return i.mergeServerConfig(e, i.topo.ServerConfigs.TiFlash, conf, paths)
 }
 
 // ScaleConfig deploy temporary config on scaling

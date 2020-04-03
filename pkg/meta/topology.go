@@ -286,6 +286,7 @@ type TiFlashSpec struct {
 	LogDir     string `yaml:"log_dir,omitempty"`
 	NumaNode   bool   `yaml:"numa_node,omitempty"`
 	Config     yaml.MapSlice `yaml:"config,omitempty"`
+	LearnerConfig	yaml.MapSlice `yaml:"learner_config,omitempty"`
 }
 
 // Status queries current status of the instance
