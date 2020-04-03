@@ -730,7 +730,7 @@ func (i *TiFlashInstance) InitConfig(e executor.TiOpsExecutor, cluster, user str
 		return err
 	}
 
-	err = i.mergeTiFlashLearnerServerConfig(e, confLearner, spec.Config, paths)
+	err = i.mergeTiFlashLearnerServerConfig(e, confLearner, spec.LearnerConfig, paths)
 	if err != nil {
 		return err
 	}
