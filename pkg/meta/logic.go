@@ -123,8 +123,9 @@ func (i *instance) WaitForDown(e executor.TiOpsExecutor) error {
 
 func (i *instance) InitConfig(e executor.TiOpsExecutor, cluster, user string, paths DirPaths) error {
 	comp := i.ComponentName()
+	host := i.GetHost()
 	port := i.GetPort()
-	sysCfg := filepath.Join(paths.Cache, fmt.Sprintf("%s-%d.service", comp, port))
+	sysCfg := filepath.Join(paths.Cache, fmt.Sprintf("%s-%s-%d.service", comp, host, port))
 
 	systemCfg := system.NewConfig(comp, user, paths.Deploy)
 	// For not auto start if using binlogctl to offline.
@@ -149,8 +150,8 @@ func (i *instance) InitConfig(e executor.TiOpsExecutor, cluster, user string, pa
 }
 
 // mergeServerConfig merges the server configuration and overwrite the global configuration
-func (i *instance) mergeServerConfig(e executor.TiOpsExecutor, globalConf, instanceConf yaml.MapSlice, paths DirPaths) error {
-	fp := filepath.Join(paths.Cache, fmt.Sprintf("%s_%s-%d.toml", i.ComponentName(), i.GetHost(), i.GetPort()))
+func (i *instance) mergeServerConfig(e executor.TiOpsExecutor, globalConf, instanceConf map[string]interface{}, paths DirPaths) error {
+	fp := filepath.Join(paths.Cache, fmt.Sprintf("%s-%s-%d.toml", i.ComponentName(), i.GetHost(), i.GetPort()))
 	conf, err := merge2Toml(i.ComponentName(), globalConf, instanceConf)
 	if err != nil {
 		return err
@@ -165,7 +166,7 @@ func (i *instance) mergeServerConfig(e executor.TiOpsExecutor, globalConf, insta
 }
 
 // mergeServerConfig merges the server configuration and overwrite the global configuration
-func (i *instance) mergeTiFlashServerConfig(e executor.TiOpsExecutor, globalConf, instanceConf yaml.MapSlice, paths DirPaths) error {
+func (i *instance) mergeTiFlashLearnerServerConfig(e executor.TiOpsExecutor, globalConf, instanceConf map[string]interface{}, paths DirPaths) error {
 	fp := filepath.Join(paths.Cache, fmt.Sprintf("%s-learner_%s-%d.toml", i.ComponentName(), i.GetHost(), i.GetPort()))
 	conf, err := merge2Toml(i.ComponentName() + "-learner", globalConf, instanceConf)
 	if err != nil {
@@ -319,9 +320,8 @@ func (i *TiDBInstance) InitConfig(e executor.TiOpsExecutor, cluster, user string
 		i.GetHost(),
 		paths.Deploy,
 		paths.Log,
-	).WithPort(spec.Port).
-		WithStatusPort(spec.StatusPort).AppendEndpoints(i.instance.topo.Endpoints(user)...)
-	fp := filepath.Join(paths.Cache, fmt.Sprintf("run_tidb_%s.sh", i.GetHost()))
+	).WithPort(spec.Port).WithNumaNode(spec.NumaNode).WithStatusPort(spec.StatusPort).AppendEndpoints(i.instance.topo.Endpoints(user)...)
+	fp := filepath.Join(paths.Cache, fmt.Sprintf("run_tidb_%s_%d.sh", i.GetHost(), i.GetPort()))
 	if err := cfg.ConfigToFile(fp); err != nil {
 		return err
 	}
@@ -398,8 +398,7 @@ func (i *TiKVInstance) InitConfig(e executor.TiOpsExecutor, cluster, user string
 		paths.Deploy,
 		paths.Data,
 		paths.Log,
-	).WithPort(spec.Port).
-		WithStatusPort(spec.StatusPort).AppendEndpoints(i.instance.topo.Endpoints(user)...)
+	).WithPort(spec.Port).WithNumaNode(spec.NumaNode).WithStatusPort(spec.StatusPort).AppendEndpoints(i.instance.topo.Endpoints(user)...)
 	fp := filepath.Join(paths.Cache, fmt.Sprintf("run_tikv_%s_%d.sh", i.GetHost(), i.GetPort()))
 	if err := cfg.ConfigToFile(fp); err != nil {
 		return err
@@ -527,7 +526,7 @@ func (i *PDInstance) ScaleConfig(e executor.TiOpsExecutor, b *Specification, clu
 		paths.Deploy,
 		paths.Data,
 		paths.Log,
-	).WithPeerPort(spec.PeerPort).WithClientPort(spec.ClientPort).AppendEndpoints(b.Endpoints(user)...)
+	).WithPeerPort(spec.PeerPort).WithNumaNode(spec.NumaNode).WithClientPort(spec.ClientPort).AppendEndpoints(b.Endpoints(user)...)
 
 	fp := filepath.Join(paths.Cache, fmt.Sprintf("run_pd_%s_%d.sh", i.GetHost(), i.GetPort()))
 	log.Infof("script path: %s", fp)
@@ -589,7 +588,7 @@ type TiFlashInstance struct {
 }
 
 // InitTiFlashConfig initializes TiFlash config file
-func (i *TiFlashInstance) InitTiFlashConfig(cfg *scripts.TiFlashScript) (yaml.MapSlice, error) {
+func (i *TiFlashInstance) InitTiFlashConfig(cfg *scripts.TiFlashScript, src map[string]interface{}) (map[string]interface{}, error) {
 	topo := TopologySpecification{}
 
 	err := yaml.Unmarshal([]byte(fmt.Sprintf(`
@@ -646,11 +645,16 @@ server_configs:
 		return nil, err
 	}
 
-	return topo.ServerConfigs.TiFlash, nil
+	conf, err := merge(topo.ServerConfigs.TiFlash, src)
+	if err != nil {
+		return nil, err
+	}
+
+	return conf, nil
 }
 
 // InitTiFlashLearnerConfig initializes TiFlash learner config file
-func (i *TiFlashInstance) InitTiFlashLearnerConfig(cfg *scripts.TiFlashScript) (yaml.MapSlice, error) {
+func (i *TiFlashInstance) InitTiFlashLearnerConfig(cfg *scripts.TiFlashScript, src map[string]interface{}) (map[string]interface{}, error) {
 	topo := TopologySpecification{}
 
 	err := yaml.Unmarshal([]byte(fmt.Sprintf(`
@@ -674,7 +678,12 @@ server_configs:
 		return nil, err
 	}
 
-	return topo.ServerConfigs.TiFlashLearner, nil
+	conf, err := merge(topo.ServerConfigs.TiFlashLearner, src)
+	if err != nil {
+		return nil, err
+	}
+
+	return conf, nil
 }
 
 // InitConfig implement Instance interface
@@ -720,22 +729,22 @@ func (i *TiFlashInstance) InitConfig(e executor.TiOpsExecutor, cluster, user str
 		return err
 	}
 
-	confLearner, err := i.InitTiFlashLearnerConfig(cfg)
+	confLearner, err := i.InitTiFlashLearnerConfig(cfg, i.topo.ServerConfigs.TiFlashLearner)
 	if err != nil {
 		return err
 	}
 
-	err = i.mergeTiFlashServerConfig(e, confLearner, i.topo.ServerConfigs.TiFlash, paths)
+	err = i.mergeTiFlashLearnerServerConfig(e, confLearner, spec.Config, paths)
 	if err != nil {
 		return err
 	}
 
-	conf, err := i.InitTiFlashConfig(cfg)
+	conf, err := i.InitTiFlashConfig(cfg, i.topo.ServerConfigs.TiFlash)
 	if err != nil {
 		return err
 	}
 
-	return i.mergeServerConfig(e, conf, i.topo.ServerConfigs.TiFlash, paths)
+	return i.mergeServerConfig(e, conf, spec.Config, paths)
 }
 
 // ScaleConfig deploy temporary config on scaling
@@ -1019,7 +1028,7 @@ func (i *AlertManagerInstance) InitConfig(e executor.TiOpsExecutor, cluster, use
 	cfg := scripts.NewAlertManagerScript(paths.Deploy, paths.Data, paths.Log).
 		WithWebPort(spec.WebPort).WithClusterPort(spec.ClusterPort)
 
-	fp := filepath.Join(paths.Cache, fmt.Sprintf("run_alertmanager_%s-%d.sh", i.GetHost(), i.GetPort()))
+	fp := filepath.Join(paths.Cache, fmt.Sprintf("run_alertmanager_%s_%d.sh", i.GetHost(), i.GetPort()))
 	if err := cfg.ConfigToFile(fp); err != nil {
 		return err
 	}

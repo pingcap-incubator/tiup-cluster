@@ -15,18 +15,17 @@ package cmd
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
 	"strings"
 
 	"github.com/fatih/color"
+	"github.com/pingcap-incubator/tiops/pkg/cliutil"
 	"github.com/pingcap-incubator/tiops/pkg/edit"
 	"github.com/pingcap-incubator/tiops/pkg/log"
 	"github.com/pingcap-incubator/tiops/pkg/logger"
 	"github.com/pingcap-incubator/tiops/pkg/meta"
-	"github.com/pingcap-incubator/tiops/pkg/utils"
 	tiuputils "github.com/pingcap-incubator/tiup/pkg/utils"
 	"github.com/pingcap/errors"
 	"github.com/spf13/cobra"
@@ -112,9 +111,9 @@ func editTopo(clusterName string, metadata *meta.ClusterMeta) error {
 
 	edit.ShowDiff(string(data), string(newData), os.Stdout)
 
-	msg := fmt.Sprintf(color.HiYellowString("Please check change, do you want to apply the change?"))
+	msg := color.HiYellowString("Please check change, do you want to apply the change?")
 	msg = msg + "\n[Y]es/[N]o:"
-	ans := utils.Prompt(msg)
+	ans := cliutil.Prompt(msg)
 	switch strings.ToLower(ans) {
 	case "y", "yes":
 		log.Infof("Apply the change...")
@@ -125,7 +124,7 @@ func editTopo(clusterName string, metadata *meta.ClusterMeta) error {
 			return errors.Annotate(err, "failed to save")
 		}
 
-		log.Infof("Apply change success, please use `tiops reload` to reload config.")
+		log.Infof("Apply change success, please use `tiup cluster reload %s` to reload config.", clusterName)
 
 		return nil
 	case "n", "no":

@@ -25,7 +25,7 @@ import (
 	"github.com/pingcap-incubator/tiops/pkg/utils"
 	"github.com/pingcap-incubator/tiup/pkg/set"
 	"github.com/pingcap/errors"
-	"gopkg.in/yaml.v2"
+	pdserverapi "github.com/pingcap/pd/v4/server/api"
 )
 
 const (
@@ -68,13 +68,13 @@ type (
 
 	// ServerConfigs represents the server runtime configuration
 	ServerConfigs struct {
-		TiDB    yaml.MapSlice `yaml:"tidb"`
-		TiKV    yaml.MapSlice `yaml:"tikv"`
-		PD      yaml.MapSlice `yaml:"pd"`
-		TiFlash yaml.MapSlice `yaml:"tiflash"`
-		TiFlashLearner	yaml.MapSlice `yaml:"tiflash-learner"`
-		Pump    yaml.MapSlice `yaml:"pump"`
-		Drainer yaml.MapSlice `yaml:"drainer"`
+		TiDB    map[string]interface{} `yaml:"tidb"`
+		TiKV    map[string]interface{} `yaml:"tikv"`
+		PD      map[string]interface{} `yaml:"pd"`
+		TiFlash	map[string]interface{} `yaml:"tiflash"`
+		TiFlashLearner	map[string]interface{} `yaml:"tiflash-learner"`
+		Pump    map[string]interface{} `yaml:"pump"`
+		Drainer map[string]interface{} `yaml:"drainer"`
 	}
 
 	// TopologySpecification represents the specification of topology.yaml
@@ -96,15 +96,15 @@ type (
 
 // TiDBSpec represents the TiDB topology specification in topology.yaml
 type TiDBSpec struct {
-	Host       string        `yaml:"host"`
-	SSHPort    int           `yaml:"ssh_port,omitempty"`
-	Imported   bool          `yaml:"imported,omitempty"`
-	Port       int           `yaml:"port" default:"4000"`
-	StatusPort int           `yaml:"status_port" default:"10080"`
-	DeployDir  string        `yaml:"deploy_dir,omitempty"`
-	LogDir     string        `yaml:"log_dir,omitempty"`
-	NumaNode   bool          `yaml:"numa_node,omitempty"`
-	Config     yaml.MapSlice `yaml:"config,omitempty"`
+	Host       string                 `yaml:"host"`
+	SSHPort    int                    `yaml:"ssh_port,omitempty"`
+	Imported   bool                   `yaml:"imported,omitempty"`
+	Port       int                    `yaml:"port" default:"4000"`
+	StatusPort int                    `yaml:"status_port" default:"10080"`
+	DeployDir  string                 `yaml:"deploy_dir,omitempty"`
+	LogDir     string                 `yaml:"log_dir,omitempty"`
+	NumaNode   string                 `yaml:"numa_node,omitempty"`
+	Config     map[string]interface{} `yaml:"config,omitempty"`
 }
 
 // statusByURL queries current status of the instance by http status api.
@@ -151,17 +151,17 @@ func (s TiDBSpec) IsImported() bool {
 
 // TiKVSpec represents the TiKV topology specification in topology.yaml
 type TiKVSpec struct {
-	Host       string        `yaml:"host"`
-	SSHPort    int           `yaml:"ssh_port,omitempty"`
-	Imported   bool          `yaml:"imported,omitempty"`
-	Port       int           `yaml:"port" default:"20160"`
-	StatusPort int           `yaml:"status_port" default:"20180"`
-	DeployDir  string        `yaml:"deploy_dir,omitempty"`
-	DataDir    string        `yaml:"data_dir,omitempty"`
-	LogDir     string        `yaml:"log_dir,omitempty"`
-	Offline    bool          `yaml:"offline,omitempty"`
-	NumaNode   bool          `yaml:"numa_node,omitempty"`
-	Config     yaml.MapSlice `yaml:"config,omitempty"`
+	Host       string                 `yaml:"host"`
+	SSHPort    int                    `yaml:"ssh_port,omitempty"`
+	Imported   bool                   `yaml:"imported,omitempty"`
+	Port       int                    `yaml:"port" default:"20160"`
+	StatusPort int                    `yaml:"status_port" default:"20180"`
+	DeployDir  string                 `yaml:"deploy_dir,omitempty"`
+	DataDir    string                 `yaml:"data_dir,omitempty"`
+	LogDir     string                 `yaml:"log_dir,omitempty"`
+	Offline    bool                   `yaml:"offline,omitempty"`
+	NumaNode   string                 `yaml:"numa_node,omitempty"`
+	Config     map[string]interface{} `yaml:"config,omitempty"`
 }
 
 // Status queries current status of the instance
@@ -169,17 +169,30 @@ func (s TiKVSpec) Status(pdList ...string) string {
 	if len(pdList) < 1 {
 		return "N/A"
 	}
-	pdapi := api.NewPDClient(pdList[0], statusQueryTimeout, nil)
+	pdapi := api.NewPDClient(pdList, statusQueryTimeout, nil)
 	stores, err := pdapi.GetStores()
 	if err != nil {
 		return "Down"
 	}
 
 	name := fmt.Sprintf("%s:%d", s.Host, s.Port)
+
+	// only get status of the latest store, it is the store with lagest ID number
+	// older stores might be legacy ones that already offlined
+	var latestStore *pdserverapi.StoreInfo
 	for _, store := range stores.Stores {
 		if name == store.Store.Address {
-			return store.Store.StateName
+			if latestStore == nil {
+				latestStore = store
+				continue
+			}
+			if store.Store.Id > latestStore.Store.Id {
+				latestStore = store
+			}
 		}
+	}
+	if latestStore != nil {
+		return latestStore.Store.StateName
 	}
 	return "N/A"
 }
@@ -210,19 +223,19 @@ type PDSpec struct {
 	SSHPort  int    `yaml:"ssh_port,omitempty"`
 	Imported bool   `yaml:"imported,omitempty"`
 	// Use Name to get the name with a default value if it's empty.
-	Name       string        `yaml:"name"`
-	ClientPort int           `yaml:"client_port" default:"2379"`
-	PeerPort   int           `yaml:"peer_port" default:"2380"`
-	DeployDir  string        `yaml:"deploy_dir,omitempty"`
-	DataDir    string        `yaml:"data_dir,omitempty"`
-	LogDir     string        `yaml:"log_dir,omitempty"`
-	NumaNode   bool          `yaml:"numa_node,omitempty"`
-	Config     yaml.MapSlice `yaml:"config,omitempty"`
+	Name       string                 `yaml:"name"`
+	ClientPort int                    `yaml:"client_port" default:"2379"`
+	PeerPort   int                    `yaml:"peer_port" default:"2380"`
+	DeployDir  string                 `yaml:"deploy_dir,omitempty"`
+	DataDir    string                 `yaml:"data_dir,omitempty"`
+	LogDir     string                 `yaml:"log_dir,omitempty"`
+	NumaNode   string                 `yaml:"numa_node,omitempty"`
+	Config     map[string]interface{} `yaml:"config,omitempty"`
 }
 
 // Status queries current status of the instance
 func (s PDSpec) Status(pdList ...string) string {
-	pdapi := api.NewPDClient(fmt.Sprintf("%s:%d", s.Host, s.ClientPort),
+	pdapi := api.NewPDClient([]string{fmt.Sprintf("%s:%d", s.Host, s.ClientPort)},
 		statusQueryTimeout, nil)
 	healths, err := pdapi.GetHealth()
 	if err != nil {
@@ -286,8 +299,8 @@ type TiFlashSpec struct {
 	DataDir    string `yaml:"data_dir,omitempty"`
 	LogDir     string `yaml:"log_dir,omitempty"`
 	NumaNode   bool   `yaml:"numa_node,omitempty"`
-	Config     yaml.MapSlice `yaml:"config,omitempty"`
-	LearnerConfig	yaml.MapSlice `yaml:"learner_config,omitempty"`
+	Config     map[string]interface{} `yaml:"config,omitempty"`
+	LearnerConfig	map[string]interface{} `yaml:"learner_config,omitempty"`
 }
 
 // Status queries current status of the instance
@@ -318,16 +331,16 @@ func (s TiFlashSpec) IsImported() bool {
 
 // PumpSpec represents the Pump topology specification in topology.yaml
 type PumpSpec struct {
-	Host      string        `yaml:"host"`
-	SSHPort   int           `yaml:"ssh_port,omitempty"`
-	Imported  bool          `yaml:"imported,omitempty"`
-	Port      int           `yaml:"port" default:"8250"`
-	DeployDir string        `yaml:"deploy_dir,omitempty"`
-	DataDir   string        `yaml:"data_dir,omitempty"`
-	LogDir    string        `yaml:"log_dir,omitempty"`
-	Offline   bool          `yaml:"offline,omitempty"`
-	NumaNode  bool          `yaml:"numa_node,omitempty"`
-	Config    yaml.MapSlice `yaml:"config,omitempty"`
+	Host      string                 `yaml:"host"`
+	SSHPort   int                    `yaml:"ssh_port,omitempty"`
+	Imported  bool                   `yaml:"imported,omitempty"`
+	Port      int                    `yaml:"port" default:"8250"`
+	DeployDir string                 `yaml:"deploy_dir,omitempty"`
+	DataDir   string                 `yaml:"data_dir,omitempty"`
+	LogDir    string                 `yaml:"log_dir,omitempty"`
+	Offline   bool                   `yaml:"offline,omitempty"`
+	NumaNode  string                 `yaml:"numa_node,omitempty"`
+	Config    map[string]interface{} `yaml:"config,omitempty"`
 }
 
 // Role returns the component role of the instance
@@ -352,17 +365,17 @@ func (s PumpSpec) IsImported() bool {
 
 // DrainerSpec represents the Drainer topology specification in topology.yaml
 type DrainerSpec struct {
-	Host      string        `yaml:"host"`
-	SSHPort   int           `yaml:"ssh_port,omitempty"`
-	Imported  bool          `yaml:"imported,omitempty"`
-	Port      int           `yaml:"port" default:"8249"`
-	DeployDir string        `yaml:"deploy_dir,omitempty"`
-	DataDir   string        `yaml:"data_dir,omitempty"`
-	LogDir    string        `yaml:"log_dir,omitempty"`
-	CommitTS  int64         `yaml:"commit_ts,omitempty"`
-	Offline   bool          `yaml:"offline,omitempty"`
-	NumaNode  bool          `yaml:"numa_node,omitempty"`
-	Config    yaml.MapSlice `yaml:"config,omitempty"`
+	Host      string                 `yaml:"host"`
+	SSHPort   int                    `yaml:"ssh_port,omitempty"`
+	Imported  bool                   `yaml:"imported,omitempty"`
+	Port      int                    `yaml:"port" default:"8249"`
+	DeployDir string                 `yaml:"deploy_dir,omitempty"`
+	DataDir   string                 `yaml:"data_dir,omitempty"`
+	LogDir    string                 `yaml:"log_dir,omitempty"`
+	CommitTS  int64                  `yaml:"commit_ts,omitempty"`
+	Offline   bool                   `yaml:"offline,omitempty"`
+	NumaNode  string                 `yaml:"numa_node,omitempty"`
+	Config    map[string]interface{} `yaml:"config,omitempty"`
 }
 
 // Role returns the component role of the instance
@@ -506,26 +519,20 @@ func (topo *TopologySpecification) UnmarshalYAML(unmarshal func(interface{}) err
 	return topo.Validate()
 }
 
-// Validate validates the topology specification and produce error if the
-// specification invalid (e.g: port conflicts or directory conflicts)
-func (topo *TopologySpecification) Validate() error {
-	findField := func(v reflect.Value, fieldName string) (int, bool) {
-		for i := 0; i < v.NumField(); i++ {
-			if v.Type().Field(i).Name == fieldName {
-				return i, true
-			}
+func findField(v reflect.Value, fieldName string) (int, bool) {
+	for i := 0; i < v.NumField(); i++ {
+		if v.Type().Field(i).Name == fieldName {
+			return i, true
 		}
-		return -1, false
 	}
+	return -1, false
+}
 
+func (topo *TopologySpecification) portConflictsDetect() error {
 	type (
 		usedPort struct {
 			host string
 			port int
-		}
-		usedDir struct {
-			host string
-			dir  string
 		}
 		conflict struct {
 			tp  string
@@ -544,20 +551,11 @@ func (topo *TopologySpecification) Validate() error {
 		"ClusterPort",
 	}
 
-	dirTypes := []string{
-		"DataDir",
-		"DeployDir",
-	}
-
-	// usedInfo => type
-	var (
-		portStats   = map[usedPort]conflict{}
-		dirStats    = map[usedDir]conflict{}
-		uniqueHosts = set.NewStringSet()
-	)
-
+	portStats := map[usedPort]conflict{}
+	uniqueHosts := set.NewStringSet()
 	topoSpec := reflect.ValueOf(topo).Elem()
 	topoType := reflect.TypeOf(topo).Elem()
+
 	for i := 0; i < topoSpec.NumField(); i++ {
 		if isSkipField(topoSpec.Field(i)) {
 			continue
@@ -577,27 +575,6 @@ func (topo *TopologySpecification) Validate() error {
 				return errors.Errorf("`%s` contains empty host field", cfg)
 			}
 			uniqueHosts.Insert(host)
-
-			// Directory conflicts
-			for _, dirType := range dirTypes {
-				if j, found := findField(compSpec, dirType); found {
-					item := usedDir{
-						host: host,
-						dir:  compSpec.Field(j).String(),
-					}
-					// `yaml:"data_dir,omitempty"`
-					tp := strings.Split(compSpec.Type().Field(j).Tag.Get("yaml"), ",")[0]
-					prev, exist := dirStats[item]
-					if exist {
-						return errors.Errorf("directory '%s' conflicts between '%s:%s.%s' and '%s:%s.%s'",
-							item.dir, prev.cfg, item.host, prev.tp, cfg, item.host, tp)
-					}
-					dirStats[item] = conflict{
-						tp:  tp,
-						cfg: cfg,
-					}
-				}
-			}
 
 			// Ports conflicts
 			for _, portType := range portTypes {
@@ -654,6 +631,88 @@ func (topo *TopologySpecification) Validate() error {
 	}
 
 	return nil
+}
+
+func (topo *TopologySpecification) dirConflictsDetect() error {
+	type (
+		usedDir struct {
+			host string
+			dir  string
+		}
+		conflict struct {
+			tp  string
+			cfg string
+		}
+	)
+
+	dirTypes := []string{
+		"DataDir",
+		"DeployDir",
+	}
+
+	// usedInfo => type
+	var (
+		dirStats    = map[usedDir]conflict{}
+		uniqueHosts = set.NewStringSet()
+	)
+
+	topoSpec := reflect.ValueOf(topo).Elem()
+	topoType := reflect.TypeOf(topo).Elem()
+
+	for i := 0; i < topoSpec.NumField(); i++ {
+		if isSkipField(topoSpec.Field(i)) {
+			continue
+		}
+
+		compSpecs := topoSpec.Field(i)
+		for index := 0; index < compSpecs.Len(); index++ {
+			compSpec := compSpecs.Index(index)
+			// skip nodes imported from TiDB-Ansible
+			if compSpec.Interface().(InstanceSpec).IsImported() {
+				continue
+			}
+			// check hostname
+			host := compSpec.FieldByName("Host").String()
+			cfg := topoType.Field(i).Tag.Get("yaml")
+			if host == "" {
+				return errors.Errorf("`%s` contains empty host field", cfg)
+			}
+			uniqueHosts.Insert(host)
+
+			// Directory conflicts
+			for _, dirType := range dirTypes {
+				if j, found := findField(compSpec, dirType); found {
+					item := usedDir{
+						host: host,
+						dir:  compSpec.Field(j).String(),
+					}
+					// `yaml:"data_dir,omitempty"`
+					tp := strings.Split(compSpec.Type().Field(j).Tag.Get("yaml"), ",")[0]
+					prev, exist := dirStats[item]
+					if exist {
+						return errors.Errorf("directory '%s' conflicts between '%s:%s.%s' and '%s:%s.%s'",
+							item.dir, prev.cfg, item.host, prev.tp, cfg, item.host, tp)
+					}
+					dirStats[item] = conflict{
+						tp:  tp,
+						cfg: cfg,
+					}
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+// Validate validates the topology specification and produce error if the
+// specification invalid (e.g: port conflicts or directory conflicts)
+func (topo *TopologySpecification) Validate() error {
+	if err := topo.portConflictsDetect(); err != nil {
+		return err
+	}
+
+	return topo.dirConflictsDetect()
 }
 
 // GetPDList returns a list of PD API hosts of the current cluster

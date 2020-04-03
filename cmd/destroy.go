@@ -14,16 +14,16 @@
 package cmd
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/fatih/color"
+	"github.com/joomcode/errorx"
+	"github.com/pingcap-incubator/tiops/pkg/cliutil"
 	"github.com/pingcap-incubator/tiops/pkg/log"
 	"github.com/pingcap-incubator/tiops/pkg/logger"
 	"github.com/pingcap-incubator/tiops/pkg/meta"
 	operator "github.com/pingcap-incubator/tiops/pkg/operation"
 	"github.com/pingcap-incubator/tiops/pkg/task"
-	"github.com/pingcap-incubator/tiops/pkg/utils"
 	tiuputils "github.com/pingcap-incubator/tiup/pkg/utils"
 	"github.com/pingcap/errors"
 	"github.com/spf13/cobra"
@@ -51,13 +51,13 @@ func newDestroyCmd() *cobra.Command {
 			}
 
 			if !skipConfirm {
-				promptMsg := fmt.Sprintf("This operation will destroy TiDB %s cluster %s and its data, do you want to continue?\n[Y]es/[N]o:",
-					color.HiYellowString(metadata.Version), color.HiYellowString(clusterName))
-				if input, confirm := utils.Confirm(promptMsg); confirm {
-					log.Infof("Destroying cluster...")
-				} else {
-					return errors.Errorf("operation cancelled by user (input: %s)", input)
+				if err := cliutil.PromptForConfirmOrAbortError(
+					"This operation will destroy TiDB %s cluster %s and its data.\nDo you want to continue? [y/N]:",
+					color.HiYellowString(metadata.Version),
+					color.HiYellowString(clusterName)); err != nil {
+					return err
 				}
+				log.Infof("Destroying cluster...")
 			}
 
 			t := task.NewBuilder().
@@ -70,12 +70,17 @@ func newDestroyCmd() *cobra.Command {
 				Build()
 
 			if err := t.Execute(task.NewContext()); err != nil {
-				return err
+				if errorx.Cast(err) != nil {
+					// FIXME: Map possible task errors and give suggestions.
+					return err
+				}
+				return errors.Trace(err)
 			}
+
 			if err := os.RemoveAll(meta.ClusterPath(clusterName)); err != nil {
 				return errors.Trace(err)
 			}
-			log.Infof("Destroy cluster `%s` successfully", clusterName)
+			log.Infof("Destroyed cluster `%s` successfully", clusterName)
 			return nil
 		},
 	}

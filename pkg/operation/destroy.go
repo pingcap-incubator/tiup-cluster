@@ -2,6 +2,7 @@ package operator
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/pingcap-incubator/tiops/pkg/log"
@@ -19,6 +20,11 @@ func Destroy(
 	uniqueHosts := set.NewStringSet()
 	coms := spec.ComponentsByStopOrder()
 
+	instCount := map[string]int{}
+	spec.IterInstance(func(inst meta.Instance) {
+		instCount[inst.GetHost()] = instCount[inst.GetHost()] + 1
+	})
+
 	for _, com := range coms {
 		insts := com.Instances()
 		err := DestroyComponent(getter, insts)
@@ -26,14 +32,60 @@ func Destroy(
 			return errors.Annotatef(err, "failed to destroy %s", com.Name())
 		}
 		for _, inst := range insts {
-			if !uniqueHosts.Exist(inst.GetHost()) {
-				uniqueHosts.Insert(inst.GetHost())
+			instCount[inst.GetHost()]--
+			if instCount[inst.GetHost()] == 0 {
 				if err := DestroyMonitored(getter, inst, spec.MonitoredOptions); err != nil {
 					return err
 				}
 			}
 		}
 	}
+
+	// Delete all global deploy directory
+	for host := range uniqueHosts {
+		if err := DeleteGlobalDirs(getter, host, spec.GlobalOptions); err != nil {
+			return nil
+		}
+	}
+
+	return nil
+}
+
+// DeleteGlobalDirs deletes all global directory if them empty
+func DeleteGlobalDirs(getter ExecutorGetter, host string, options meta.GlobalOptions) error {
+	e := getter.Get(host)
+	log.Infof("Clean global directories %s", host)
+	for _, dir := range []string{options.LogDir, options.DeployDir, options.DataDir} {
+		if dir == "" {
+			continue
+		}
+		if !strings.HasPrefix(dir, "/") {
+			dir = filepath.Join("/home/", options.User, dir)
+		}
+
+		log.Infof("\tClean directory %s on instance %s", dir, host)
+
+		c := module.ShellModuleConfig{
+			Command:  fmt.Sprintf("rmdir %s > /dev/null 2>&1 || true", dir),
+			Chdir:    "",
+			UseShell: false,
+		}
+		shell := module.NewShellModule(c)
+		stdout, stderr, err := shell.Execute(e)
+
+		if len(stdout) > 0 {
+			fmt.Println(string(stdout))
+		}
+		if len(stderr) > 0 {
+			log.Errorf(string(stderr))
+		}
+
+		if err != nil {
+			return errors.Annotatef(err, "failed to clean directory %s on: %s", dir, host)
+		}
+	}
+
+	log.Infof("Clean global directories %s success", host)
 	return nil
 }
 
@@ -119,9 +171,6 @@ func DestroyComponent(getter ExecutorGetter, instances []meta.Instance) error {
 		switch name {
 		case meta.ComponentTiKV, meta.ComponentPD, meta.ComponentPump, meta.ComponentDrainer, meta.ComponentPrometheus, meta.ComponentAlertManager:
 			delPaths = append(delPaths, ins.DataDir())
-			fallthrough
-		default:
-			delPaths = append(delPaths, ins.LogDir())
 		}
 
 		// In TiDB-Ansible, deploy dir are shared by all components on the same
@@ -130,11 +179,15 @@ func DestroyComponent(getter ExecutorGetter, instances []meta.Instance) error {
 		// that later.
 		if !ins.IsImported() {
 			delPaths = append(delPaths, ins.DeployDir())
+			if logDir := ins.LogDir(); !strings.HasPrefix(ins.DeployDir(), logDir) {
+				delPaths = append(delPaths, logDir)
+			}
 		} else {
 			log.Warnf("Deploy dir %s not deleted for TiDB-Ansible imported instance %s.",
 				ins.DeployDir(), ins.InstanceName())
 		}
 		delPaths = append(delPaths, fmt.Sprintf("/etc/systemd/system/%s", ins.ServiceName()))
+		log.Debugf("Deleting paths on %s: %s", ins.GetHost(), strings.Join(delPaths, " "))
 		c := module.ShellModuleConfig{
 			Command:  fmt.Sprintf("rm -rf %s;", strings.Join(delPaths, " ")),
 			Sudo:     true, // the .service files are in a directory owned by root

@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/pingcap-incubator/tiops/pkg/api"
+	"github.com/pingcap-incubator/tiops/pkg/log"
 	"github.com/pingcap-incubator/tiops/pkg/meta"
 	"github.com/pingcap-incubator/tiup/pkg/set"
 	"github.com/pingcap/errors"
@@ -36,15 +37,7 @@ func Upgrade(
 
 	leaderAware := set.NewStringSet(meta.ComponentPD, meta.ComponentTiKV)
 
-	var pdAddrs []string
-
 	for _, component := range components {
-		if component.Name() == meta.ComponentPD {
-			for _, instance := range component.Instances() {
-				pdAddrs = append(pdAddrs, addr(instance))
-			}
-		}
-
 		instances := filterInstance(component.Instances(), nodeFilter)
 		if len(instances) < 1 {
 			continue
@@ -52,10 +45,12 @@ func Upgrade(
 
 		// Transfer leader of evict leader if the component is TiKV/PD in non-force mode
 		if !options.Force && leaderAware.Exist(component.Name()) {
+			pdClient := api.NewPDClient(spec.GetPDList(), 5*time.Second, nil)
 			switch component.Name() {
 			case meta.ComponentPD:
+				log.Infof("Restarting component %s", component.Name())
+
 				for _, instance := range instances {
-					pdClient := api.NewPDClient(addr(instance), 5*time.Second, nil)
 					leader, err := pdClient.GetLeader()
 					if err != nil {
 						return errors.Annotatef(err, "failed to get PD leader %s", instance.GetHost())
@@ -65,29 +60,33 @@ func Upgrade(
 							return errors.Annotatef(err, "failed to evict PD leader %s", instance.GetHost())
 						}
 					}
-					if err := StopComponent(getter, []meta.Instance{instance}); err != nil {
-						return errors.Annotatef(err, "failed to stop %s", component.Name())
+
+					if err := stopInstance(getter, instance); err != nil {
+						return errors.Annotatef(err, "failed to stop %s", instance.GetHost())
 					}
-					if err := StartComponent(getter, []meta.Instance{instance}); err != nil {
-						return errors.Annotatef(err, "failed to start %s", component.Name())
+					if err := startInstance(getter, instance); err != nil {
+						return errors.Annotatef(err, "failed to start %s", instance.GetHost())
 					}
 				}
 
 			case meta.ComponentTiKV:
-				if pdAddrs == nil || len(pdAddrs) <= 0 {
-					return errors.New("cannot find pd addr")
-				}
+				log.Infof("Restarting component %s", component.Name())
+				pdClient := api.NewPDClient(spec.GetPDList(), 5*time.Second, nil)
 
 				for _, instance := range instances {
-					pdClient := api.NewPDClient(pdAddrs[0], 5*time.Second, nil)
 					if err := pdClient.EvictStoreLeader(addr(instance)); err != nil {
 						return errors.Annotatef(err, "failed to evict store leader %s", instance.GetHost())
 					}
-					if err := StopComponent(getter, []meta.Instance{instance}); err != nil {
-						return errors.Annotatef(err, "failed to stop %s", component.Name())
+
+					if err := stopInstance(getter, instance); err != nil {
+						return errors.Annotatef(err, "failed to stop %s", instance.GetHost())
 					}
-					if err := StartComponent(getter, []meta.Instance{instance}); err != nil {
-						return errors.Annotatef(err, "failed to start %s", component.Name())
+					if err := startInstance(getter, instance); err != nil {
+						return errors.Annotatef(err, "failed to start %s", instance.GetHost())
+					}
+					// remove store leader evict scheduler after restart
+					if err := pdClient.RemoveStoreEvict(addr(instance)); err != nil {
+						return errors.Annotatef(err, "failed to remove evict store scheduler for %s", instance.GetHost())
 					}
 				}
 			}

@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package utils
+package cliutil
 
 import (
 	"bufio"
@@ -58,7 +58,7 @@ func Prompt(prompt string) string {
 	if prompt != "" {
 		prompt += " " // append a whitespace
 	}
-	fmt.Printf(prompt)
+	fmt.Print(prompt)
 
 	reader := bufio.NewReader(os.Stdin)
 	input, err := reader.ReadString('\n')
@@ -68,27 +68,33 @@ func Prompt(prompt string) string {
 	return strings.TrimSuffix(input, "\n")
 }
 
-// Confirm accepts YES/NO from console by user
-func Confirm(prompt string) (string, bool) {
-	ans := Prompt(prompt)
-	switch strings.ToLower(ans) {
+// PromptForConfirm accepts yes / no from console by user
+func PromptForConfirm(format string, a ...interface{}) bool {
+	ans := Prompt(fmt.Sprintf(format, a...))
+	switch strings.TrimSpace(strings.ToLower(ans)) {
 	case "y", "yes":
-		return ans, true
+		return true
 	default:
-		return ans, false
+		return false
 	}
 }
 
-// GetPasswd reads a password input from console
-func GetPasswd(prompt string) string {
-	defer fmt.Println("") // print a new line after reading input
-
-	if prompt != "" {
-		prompt += " " // append a whitespace
+// PromptForConfirmOrAbortError accepts yes / no from console by user, generates AbortError if user does not input yes.
+func PromptForConfirmOrAbortError(format string, a ...interface{}) error {
+	if !PromptForConfirm(format, a...) {
+		return errOperationAbort.New("Operation aborted by user")
 	}
-	fmt.Printf(prompt)
+	return nil
+}
 
-	input, err := terminal.ReadPassword(int(syscall.Stdin))
+// PromptForPassword reads a password input from console
+func PromptForPassword(format string, a ...interface{}) string {
+	defer fmt.Println("")
+
+	fmt.Printf(format, a...)
+
+	input, err := terminal.ReadPassword(syscall.Stdin)
+
 	if err != nil {
 		return ""
 	}

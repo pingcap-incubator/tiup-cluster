@@ -14,11 +14,13 @@
 package cmd
 
 import (
-	"fmt"
 	"path/filepath"
 	"strings"
 
+	"github.com/joomcode/errorx"
 	"github.com/pingcap-incubator/tiops/pkg/bindversion"
+	"github.com/pingcap-incubator/tiops/pkg/cliutil"
+	"github.com/pingcap-incubator/tiops/pkg/log"
 	"github.com/pingcap-incubator/tiops/pkg/logger"
 	"github.com/pingcap-incubator/tiops/pkg/meta"
 	operator "github.com/pingcap-incubator/tiops/pkg/operation"
@@ -30,14 +32,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var errPasswordKeyAtLeastOne = errors.New("--password and --key need to specify at least one")
-
 type scaleOutOptions struct {
-	user       string // username to login to the SSH server
-	usePasswd  bool   // use password for authentication
-	password   string // password of the user
-	keyFile    string // path to the private key file
-	passphrase string // passphrase of the private key file
+	user         string // username to login to the SSH server
+	identityFile string // path to the private key file
+	skipConfirm  bool   // skip the confirmation of topology
 }
 
 func newScaleOutCmd() *cobra.Command {
@@ -50,23 +48,15 @@ func newScaleOutCmd() *cobra.Command {
 			if len(args) != 2 {
 				return cmd.Help()
 			}
-			if opt.usePasswd {
-				opt.password = utils.GetPasswd("Password:")
-				fmt.Println("")
-			}
-			if len(opt.keyFile) == 0 && len(opt.password) == 0 {
-				return errPasswordKeyAtLeastOne
-			}
 
 			logger.EnableAuditLog()
 			return scaleOut(args[0], args[1], opt)
 		},
 	}
 
-	cmd.Flags().StringVar(&opt.user, "user", "root", "Specify the system user name")
-	cmd.Flags().BoolVar(&opt.usePasswd, "password", false, "Specify the password of system user")
-	cmd.Flags().StringVarP(&opt.keyFile, "identity_file", "i", "", "Specify the key path of system user")
-	cmd.Flags().StringVar(&opt.passphrase, "passphrase", "", "Specify the passphrase of the key")
+	cmd.Flags().StringVar(&opt.user, "user", "root", "The user name to login via SSH. The user must has root (or sudo) privilege.")
+	cmd.Flags().StringVarP(&opt.identityFile, "identity_file", "i", "", "The path of the SSH identity file. If specified, public key authentication will be used.")
+	cmd.Flags().BoolVarP(&opt.skipConfirm, "yes", "y", false, "Skip confirming the topology")
 
 	return cmd
 }
@@ -86,6 +76,19 @@ func scaleOut(clusterName, topoFile string, opt scaleOutOptions) error {
 		return err
 	}
 
+	if err := checkClusterPortConflict(&newPart); err != nil {
+		return err
+	}
+	if err := checkClusterDirConflict(&newPart); err != nil {
+		return err
+	}
+
+	if !opt.skipConfirm {
+		if err := confirmTopology(clusterName, metadata.Version, &newPart); err != nil {
+			return err
+		}
+	}
+
 	// Abort scale out operation if the merged topology is invalid
 	mergedTopo := metadata.Topology.Merge(&newPart)
 	if err := mergedTopo.Validate(); err != nil {
@@ -97,13 +100,28 @@ func scaleOut(clusterName, topoFile string, opt scaleOutOptions) error {
 	newPart.MonitoredOptions = metadata.Topology.MonitoredOptions
 	newPart.ServerConfigs = metadata.Topology.ServerConfigs
 
-	// Build the scale out tasks
-	t, err := buildScaleOutTask(clusterName, metadata, mergedTopo, opt, &newPart)
+	sshConnProps, err := cliutil.ReadIdentityFileOrPassword(opt.identityFile)
 	if err != nil {
 		return err
 	}
 
-	return t.Execute(task.NewContext())
+	// Build the scale out tasks
+	t, err := buildScaleOutTask(clusterName, metadata, mergedTopo, opt, sshConnProps, &newPart)
+	if err != nil {
+		return err
+	}
+
+	if err := t.Execute(task.NewContext()); err != nil {
+		if errorx.Cast(err) != nil {
+			// FIXME: Map possible task errors and give suggestions.
+			return err
+		}
+		return errors.Trace(err)
+	}
+
+	log.Infof("Scaled cluster `%s` out successfully", clusterName)
+
+	return nil
 }
 
 func buildScaleOutTask(
@@ -111,6 +129,7 @@ func buildScaleOutTask(
 	metadata *meta.ClusterMeta,
 	mergedTopo *meta.Specification,
 	opt scaleOutOptions,
+	sshConnProps *cliutil.SSHConnectionProps,
 	newPart *meta.TopologySpecification) (task.Task, error) {
 	var (
 		envInitTasks       []task.Task // tasks which are used to initialize environment
@@ -124,12 +143,13 @@ func buildScaleOutTask(
 	metadata.Topology.IterInstance(func(instance meta.Instance) {
 		initializedHosts.Insert(instance.GetHost())
 	})
+	// uninitializedHosts are hosts which haven't been initialized yet
 	uninitializedHosts := set.NewStringSet()
 	newPart.IterInstance(func(instance meta.Instance) {
 		if host := instance.GetHost(); !initializedHosts.Exist(host) {
 			uninitializedHosts.Insert(host)
 			t := task.NewBuilder().
-				RootSSH(instance.GetHost(), instance.GetSSHPort(), opt.user, opt.password, opt.keyFile, opt.passphrase).
+				RootSSH(instance.GetHost(), instance.GetSSHPort(), opt.user, sshConnProps.Password, sshConnProps.IdentityFile, sshConnProps.IdentityFilePassphrase).
 				EnvInit(instance.GetHost(), metadata.User).
 				Build()
 			envInitTasks = append(envInitTasks, t)
@@ -160,12 +180,11 @@ func buildScaleOutTask(
 		// Deploy component
 		t := task.NewBuilder().
 			UserSSH(inst.GetHost(), metadata.User).
-			Mkdir(inst.GetHost(),
+			Mkdir(metadata.User, inst.GetHost(),
+				deployDir, dataDir, logDir,
 				filepath.Join(deployDir, "bin"),
 				filepath.Join(deployDir, "conf"),
-				filepath.Join(deployDir, "scripts"),
-				dataDir,
-				logDir).
+				filepath.Join(deployDir, "scripts")).
 			CopyComponent(inst.ComponentName(), version, inst.GetHost(), deployDir).
 			ScaleConfig(clusterName,
 				metadata.Topology,
@@ -193,15 +212,28 @@ func buildScaleOutTask(
 		if !strings.HasPrefix(logDir, "/") {
 			logDir = filepath.Join("/home/", metadata.User, logDir)
 		}
+
+		// Download and copy the latest component to remote if the cluster is imported from Ansible
+		tb := task.NewBuilder()
+		if inst.IsImported() {
+			switch compName := inst.ComponentName(); compName {
+			case meta.ComponentGrafana, meta.ComponentPrometheus:
+				version := bindversion.ComponentVersion(compName, metadata.Version)
+				tb.Download(compName, version).CopyComponent(compName, version, inst.GetHost(), deployDir)
+			}
+		}
+
 		// Refresh all configuration
-		t := task.NewBuilder().
-			UserSSH(inst.GetHost(), metadata.User).
-			InitConfig(clusterName, inst, metadata.User, meta.DirPaths{
+		t := tb.InitConfig(clusterName,
+			inst,
+			metadata.User,
+			meta.DirPaths{
 				Deploy: deployDir,
 				Data:   dataDir,
 				Log:    logDir,
-			}).
-			Build()
+				Cache:  meta.ClusterPath(clusterName, "config"),
+			},
+		).Build()
 		refreshConfigTasks = append(refreshConfigTasks, t)
 	})
 

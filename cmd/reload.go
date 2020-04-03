@@ -17,6 +17,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/joomcode/errorx"
+	"github.com/pingcap-incubator/tiops/pkg/bindversion"
+	"github.com/pingcap-incubator/tiops/pkg/log"
 	"github.com/pingcap-incubator/tiops/pkg/logger"
 	"github.com/pingcap-incubator/tiops/pkg/meta"
 	operator "github.com/pingcap-incubator/tiops/pkg/operation"
@@ -53,7 +56,17 @@ func newReloadCmd() *cobra.Command {
 				return err
 			}
 
-			return t.Execute(task.NewContext())
+			if err := t.Execute(task.NewContext()); err != nil {
+				if errorx.Cast(err) != nil {
+					// FIXME: Map possible task errors and give suggestions.
+					return err
+				}
+				return errors.Trace(err)
+			}
+
+			log.Infof("Reloaded cluster `%s` successfully", clusterName)
+
+			return nil
 		},
 	}
 
@@ -85,19 +98,28 @@ func buildReloadTask(
 		if !strings.HasPrefix(logDir, "/") {
 			logDir = filepath.Join("/home/", metadata.User, logDir)
 		}
+
+		// Download and copy the latest component to remote if the cluster is imported from Ansible
+		tb := task.NewBuilder().UserSSH(inst.GetHost(), metadata.User)
+		if inst.IsImported() {
+			switch compName := inst.ComponentName(); compName {
+			case meta.ComponentGrafana, meta.ComponentPrometheus:
+				version := bindversion.ComponentVersion(compName, metadata.Version)
+				tb.Download(compName, version).CopyComponent(compName, version, inst.GetHost(), deployDir)
+			}
+		}
+
 		// Refresh all configuration
-		t := task.NewBuilder().
-			UserSSH(inst.GetHost(), metadata.User).
-			InitConfig(clusterName, inst, metadata.User, meta.DirPaths{
-				Deploy: deployDir,
-				Data:   dataDir,
-				Log:    logDir,
-			}).
-			Build()
+		t := tb.InitConfig(clusterName, inst, metadata.User, meta.DirPaths{
+			Deploy: deployDir,
+			Data:   dataDir,
+			Log:    logDir,
+			Cache:  meta.ClusterPath(clusterName, "config"),
+		}).Build()
 		refreshConfigTasks = append(refreshConfigTasks, t)
 	})
 
-	task := task.NewBuilder().
+	t := task.NewBuilder().
 		SSHKeySet(
 			meta.ClusterPath(clusterName, "ssh", "id_rsa"),
 			meta.ClusterPath(clusterName, "ssh", "id_rsa.pub")).
@@ -106,5 +128,5 @@ func buildReloadTask(
 		ClusterOperate(metadata.Topology, operator.UpgradeOperation, options).
 		Build()
 
-	return task, nil
+	return t, nil
 }

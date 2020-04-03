@@ -18,7 +18,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/joomcode/errorx"
 	"github.com/pingcap-incubator/tiops/pkg/bindversion"
+	"github.com/pingcap-incubator/tiops/pkg/log"
 	"github.com/pingcap-incubator/tiops/pkg/logger"
 	"github.com/pingcap-incubator/tiops/pkg/meta"
 	operator "github.com/pingcap-incubator/tiops/pkg/operation"
@@ -69,12 +71,12 @@ func versionCompare(curVersion, newVersion string) error {
 	}
 }
 
-func upgrade(name, version string, opt upgradeOptions) error {
-	if utils.IsNotExist(meta.ClusterPath(name, meta.MetaFileName)) {
-		return errors.Errorf("cannot upgrade non-exists cluster %s", name)
+func upgrade(clusterName, version string, opt upgradeOptions) error {
+	if utils.IsNotExist(meta.ClusterPath(clusterName, meta.MetaFileName)) {
+		return errors.Errorf("cannot upgrade non-exists cluster %s", clusterName)
 	}
 
-	metadata, err := meta.ClusterMetadata(name)
+	metadata, err := meta.ClusterMetadata(clusterName)
 	if err != nil {
 		return err
 	}
@@ -114,30 +116,70 @@ func upgrade(name, version string, opt upgradeOptions) error {
 			if !strings.HasPrefix(deployDir, "/") {
 				deployDir = filepath.Join("/home/", metadata.User, deployDir)
 			}
+			// data dir would be empty for components which don't need it
+			dataDir := inst.DataDir()
+			if dataDir != "" && !strings.HasPrefix(dataDir, "/") {
+				dataDir = filepath.Join("/home/", metadata.User, dataDir)
+			}
+			// log dir will always be with values, but might not used by the component
+			logDir := inst.LogDir()
+			if !strings.HasPrefix(logDir, "/") {
+				logDir = filepath.Join("/home/", metadata.User, logDir)
+			}
+
 			// Deploy component
-			t := task.NewBuilder().
-				BackupComponent(inst.ComponentName(), metadata.Version, inst.GetHost(), deployDir).
-				CopyComponent(inst.ComponentName(), version, inst.GetHost(), deployDir).
-				Build()
-			copyCompTasks = append(copyCompTasks, t)
+			tb := task.NewBuilder()
+			if inst.IsImported() {
+				switch inst.ComponentName() {
+				case meta.ComponentPrometheus, meta.ComponentGrafana:
+					tb.CopyComponent(inst.ComponentName(), version, inst.GetHost(), deployDir)
+				default:
+					tb.BackupComponent(inst.ComponentName(), metadata.Version, inst.GetHost(), deployDir).
+						CopyComponent(inst.ComponentName(), version, inst.GetHost(), deployDir)
+				}
+				tb.InitConfig(
+					clusterName,
+					inst,
+					metadata.User,
+					meta.DirPaths{
+						Deploy: deployDir,
+						Data:   dataDir,
+						Log:    logDir,
+						Cache:  meta.ClusterPath(clusterName, "config"),
+					},
+				)
+			} else {
+				tb.BackupComponent(inst.ComponentName(), metadata.Version, inst.GetHost(), deployDir).
+					CopyComponent(inst.ComponentName(), version, inst.GetHost(), deployDir)
+			}
+			copyCompTasks = append(copyCompTasks, tb.Build())
 		}
 	}
 
 	t := task.NewBuilder().
 		SSHKeySet(
-			meta.ClusterPath(name, "ssh", "id_rsa"),
-			meta.ClusterPath(name, "ssh", "id_rsa.pub")).
+			meta.ClusterPath(clusterName, "ssh", "id_rsa"),
+			meta.ClusterPath(clusterName, "ssh", "id_rsa.pub")).
 		ClusterSSH(metadata.Topology, metadata.User).
 		Parallel(downloadCompTasks...).
 		Parallel(copyCompTasks...).
 		ClusterOperate(metadata.Topology, operator.UpgradeOperation, opt.options).
 		Build()
 
-	err = t.Execute(task.NewContext())
-	if err != nil {
-		return err
+	if err := t.Execute(task.NewContext()); err != nil {
+		if errorx.Cast(err) != nil {
+			// FIXME: Map possible task errors and give suggestions.
+			return err
+		}
+		return errors.Trace(err)
 	}
 
 	metadata.Version = version
-	return meta.SaveClusterMeta(name, metadata)
+	if err := meta.SaveClusterMeta(clusterName, metadata); err != nil {
+		return errors.Trace(err)
+	}
+
+	log.Infof("Upgraded cluster `%s` successfully", clusterName)
+
+	return nil
 }

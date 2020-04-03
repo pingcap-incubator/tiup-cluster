@@ -18,25 +18,39 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/pingcap-incubator/tiops/pkg/ansible"
+	"github.com/pingcap-incubator/tiops/pkg/cliutil"
 	"github.com/pingcap-incubator/tiops/pkg/log"
 	"github.com/pingcap-incubator/tiops/pkg/meta"
 	"github.com/pingcap-incubator/tiops/pkg/utils"
+	tiuputils "github.com/pingcap-incubator/tiup/pkg/utils"
 	"github.com/spf13/cobra"
 )
 
 func newImportCmd() *cobra.Command {
 	var (
 		ansibleDir string
+		rename     string
 	)
 
 	cmd := &cobra.Command{
-		Use:   "import [Flags]",
+		Use:   "import",
 		Short: "Import an exist TiDB cluster from TiDB-Ansible",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// migrate cluster metadata from Ansible inventory
 			clsName, clsMeta, err := ansible.ImportAnsible(ansibleDir)
 			if err != nil {
 				return err
+			}
+
+			// Rename the imported cluster
+			if (tiuputils.IsExist(meta.ClusterPath(clsName, meta.MetaFileName)) && rename == "") ||
+				(rename != "" && tiuputils.IsExist(meta.ClusterPath(rename, meta.MetaFileName))) {
+				return errDeployNameDuplicate.
+					New("Cluster name '%s' is duplicated", clsName).
+					WithProperty(cliutil.SuggestionFromFormat("Please use --rename `NAME` to specify another name (You can use `tiup cluster list` to see all clusters)"))
+			}
+			if rename != "" {
+				clsName = rename
 			}
 
 			// copy SSH key to TiOps profile directory
@@ -66,13 +80,14 @@ func newImportCmd() *cobra.Command {
 			// TODO: move original TiDB-Ansible directory to a staged location
 
 			log.Infof("Cluster %s imported.", clsName)
-			fmt.Println(fmt.Sprintf("Try `%s` to see the cluster.",
-				color.HiYellowString("tiops display %s", clsName)))
+			fmt.Printf("Try `%s` to see the cluster.\n",
+				color.HiYellowString("%s display %s", cmd.Parent().Use, clsName))
 			return nil
 		},
 	}
 
 	cmd.Flags().StringVarP(&ansibleDir, "dir", "d", "", "The path to TiDB-Ansible directory")
+	cmd.Flags().StringVarP(&rename, "rename", "r", "", "Rename the imported cluster to `NAME`")
 
 	return cmd
 }

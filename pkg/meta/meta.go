@@ -11,25 +11,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package task
+package meta
 
-// Func wrap a closure.
-type Func struct {
-	name string
-	fn   func() error
-}
+import "github.com/joomcode/errorx"
 
-// Execute implements the Task interface
-func (m *Func) Execute(_ *Context) error {
-	return m.fn()
-}
-
-// Rollback implements the Task interface
-func (m *Func) Rollback(_ *Context) error {
-	return ErrUnsupportedRollback
-}
-
-// String implements the fmt.Stringer interface
-func (m *Func) String() string {
-	return m.name
-}
+var (
+	errNS = errorx.NewNamespace("meta")
+)
