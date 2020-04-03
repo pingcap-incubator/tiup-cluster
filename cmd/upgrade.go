@@ -179,7 +179,7 @@ func upgrade(clusterName, version string, opt upgradeOptions) error {
 		return errors.Trace(err)
 	}
 
-	log.Infof("Upgrade cluster `%s` successfully", clusterName)
+	log.Infof("Upgraded cluster `%s` successfully", clusterName)
 
 	return nil
 }

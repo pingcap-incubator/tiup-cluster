@@ -62,7 +62,7 @@ func newStopCmd() *cobra.Command {
 				return errors.Trace(err)
 			}
 
-			log.Infof("Stop cluster `%s` successfully", clusterName)
+			log.Infof("Stopped cluster `%s` successfully", clusterName)
 
 			return nil
 		},

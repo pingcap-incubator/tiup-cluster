@@ -63,7 +63,7 @@ func newRestartCmd() *cobra.Command {
 				return errors.Trace(err)
 			}
 
-			log.Infof("Restart cluster `%s` successfully", clusterName)
+			log.Infof("Restarted cluster `%s` successfully", clusterName)
 
 			return nil
 		},

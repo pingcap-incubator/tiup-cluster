@@ -119,7 +119,7 @@ func scaleOut(clusterName, topoFile string, opt scaleOutOptions) error {
 		return errors.Trace(err)
 	}
 
-	log.Infof("Scale-out cluster `%s` successfully", clusterName)
+	log.Infof("Scaled cluster `%s` out successfully", clusterName)
 
 	return nil
 }

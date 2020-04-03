@@ -64,7 +64,7 @@ func newReloadCmd() *cobra.Command {
 				return errors.Trace(err)
 			}
 
-			log.Infof("Reload cluster `%s` successfully", clusterName)
+			log.Infof("Reloaded cluster `%s` successfully", clusterName)
 
 			return nil
 		},

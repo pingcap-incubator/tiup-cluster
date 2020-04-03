@@ -63,7 +63,7 @@ func newStartCmd() *cobra.Command {
 				return errors.Trace(err)
 			}
 
-			log.Infof("Start cluster `%s` successfully", clusterName)
+			log.Infof("Started cluster `%s` successfully", clusterName)
 
 			return nil
 		},

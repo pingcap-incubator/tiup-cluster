@@ -445,7 +445,7 @@ func deploy(clusterName, version, topoFile string, opt deployOptions) error {
 		return errors.Trace(err)
 	}
 
-	log.Infof("Deploy cluster `%s` successfully", clusterName)
+	log.Infof("Deployed cluster `%s` successfully", clusterName)
 	return nil
 }
 
