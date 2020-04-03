@@ -598,26 +598,26 @@ server_configs:
     display_name: "TiFlash"
     listen_host: "0.0.0.0"
     mark_cache_size: 5368709120
-    tmp_path: "%s/tiflash/data/tmp"
-    path: "%s/tiflash/data/db"
-    tcp_port: %d
-    http_port: %d
-    flash.tidb_status_addr: "%s"
-    flash.service_addr: "%s:%d"
-    flash.flash_cluster.cluster_manager_path: "%s/bin/tiflash/flash_cluster_manager"
-    flash.flash_cluster.log: "%s/log/tiflash_cluster_manager.log"
+    tmp_path: "%[1]s/tiflash/data/tmp"
+    path: "%[1]s/tiflash/data/db"
+    tcp_port: %[2]d
+    http_port: %[3]d
+    flash.tidb_status_addr: "%[4]s"
+    flash.service_addr: "%[5]s:%[6]d"
+    flash.flash_cluster.cluster_manager_path: "%[1]s/bin/tiflash/flash_cluster_manager"
+    flash.flash_cluster.log: "%[1]s/log/tiflash_cluster_manager.log"
     flash.flash_cluster.master_ttl: 60
     flash.flash_cluster.refresh_interval: 20
     flash.flash_cluster.update_rule_interval: 5
-    flash.proxy.config: "%s/conf/tiflash-learner.toml"
-    status.metrics_port: %d
-    logger.errorlog: "%s/log/tiflash_error.log"
-    logger.log: "%s/log/tiflash.log"
+    flash.proxy.config: "%[1]s/conf/tiflash-learner.toml"
+    status.metrics_port: %[7]d
+    logger.errorlog: "%[1]s/log/tiflash_error.log"
+    logger.log: "%[1]s/log/tiflash.log"
     logger.count: 20
     logger.level: "debug"
     logger.size: "1000M"
     application.runAsDaemon: true
-    raft.pd_addr: "%s"
+    raft.pd_addr: "%[8]s"
     quotas.default.interval.duration: 3600
     quotas.default.interval.errors: 0
     quotas.default.interval.execution_time: 0
@@ -636,10 +636,8 @@ server_configs:
     profiles.default.max_memory_usage: 10000000000
     profiles.default.use_uncompressed_cache: 0
     profiles.readonly.readonly: 1
-`, cfg.DeployDir, cfg.DeployDir, cfg.TCPPort, cfg.HTTPPort,
-		cfg.TiDBStatusAddrs, cfg.IP, cfg.FlashServicePort, cfg.DeployDir,
-		cfg.DeployDir, cfg.DeployDir, cfg.MetricsPort, cfg.DeployDir,
-		cfg.DeployDir, cfg.PDAddrs)), &topo)
+`, cfg.DeployDir, cfg.TCPPort, cfg.HTTPPort,
+		cfg.TiDBStatusAddrs, cfg.IP, cfg.FlashServicePort, cfg.MetricsPort, cfg.PDAddrs)), &topo)
 
 	if err != nil {
 		return nil, err
@@ -660,19 +658,17 @@ func (i *TiFlashInstance) InitTiFlashLearnerConfig(cfg *scripts.TiFlashScript, s
 	err := yaml.Unmarshal([]byte(fmt.Sprintf(`
 server_configs:
   tiflash-learner:
-    log-file: "%s/log/tiflash_tikv.log"
-    server.engine-addr: "%s:%d"
-    server.addr: "0.0.0.0:%d"
-    server.advertise-addr: "%s:%d"
-    server.status-addr: "%s:%d"
-    storage.data-dir: "%s/tiflash/data/tiflash"
+    log-file: "%[1]s/log/tiflash_tikv.log"
+    server.engine-addr: "%[2]s:%[3]d"
+    server.addr: "0.0.0.0:%[4]d"
+    server.advertise-addr: "%[2]s:%[4]d"
+    server.status-addr: "%[2]s:%[5]d"
+    storage.data-dir: "%[1]s/tiflash/data/tiflash"
     rocksdb.wal-dir: ""
     security.ca-path: ""
     security.cert-path: ""
     security.key-path: ""
-`, cfg.DeployDir, cfg.IP, cfg.FlashServicePort, cfg.FlashProxyPort,
-		cfg.IP, cfg.FlashProxyPort, cfg.IP, cfg.FlashProxyStatusPort,
-		cfg.DeployDir)), &topo)
+`, cfg.DeployDir, cfg.IP, cfg.FlashServicePort, cfg.FlashProxyPort, cfg.FlashProxyStatusPort)), &topo)
 
 	if err != nil {
 		return nil, err
