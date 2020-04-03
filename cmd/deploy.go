@@ -15,7 +15,6 @@ package cmd
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
@@ -124,35 +123,7 @@ func checkClusterDirConflict(topo *meta.Specification) error {
 	}
 
 	currentEntries := []Entry{}
-	existingEntries := []Entry{}
 
-	clusterDir := meta.ProfilePath(meta.TiOpsClusterDir)
-	fileInfos, err := ioutil.ReadDir(clusterDir)
-	if err != nil && !os.IsNotExist(err) {
-		return err
-	}
-
-	for _, fi := range fileInfos {
-		if tiuputils.IsNotExist(meta.ClusterPath(fi.Name(), meta.MetaFileName)) {
-			continue
-		}
-		metadata, err := meta.ClusterMetadata(fi.Name())
-		if err != nil {
-			return errors.Trace(err)
-		}
-
-		f := fixDir(metadata.Topology)
-		metadata.Topology.IterInstance(func(inst meta.Instance) {
-			for _, dirAccessor := range dirAccessors {
-				existingEntries = append(existingEntries, Entry{
-					clusterName: fi.Name(),
-					dirKind:     dirAccessor.dirKind,
-					dir:         f(dirAccessor.accessor(inst, metadata.Topology)),
-					instance:    inst,
-				})
-			}
-		})
-	}
 	f := fixDir(topo)
 	topo.IterInstance(func(inst meta.Instance) {
 		for _, dirAccessor := range dirAccessors {
@@ -164,8 +135,11 @@ func checkClusterDirConflict(topo *meta.Specification) error {
 		}
 	})
 
-	for _, d1 := range currentEntries {
-		for _, d2 := range existingEntries {
+	for index, d1 := range currentEntries {
+		if index + 1 == len(currentEntries) {
+			break
+		}
+		for _, d2 := range currentEntries[index+1:] {
 			if d1.instance.GetHost() != d2.instance.GetHost() {
 				continue
 			}
@@ -203,12 +177,6 @@ Please change to use another directory or another host.
 }
 
 func checkClusterPortConflict(topo *meta.Specification) error {
-	clusterDir := meta.ProfilePath(meta.TiOpsClusterDir)
-	fileInfos, err := ioutil.ReadDir(clusterDir)
-	if err != nil && !os.IsNotExist(err) {
-		return err
-	}
-
 	type Entry struct {
 		clusterName string
 		instance    meta.Instance
@@ -216,27 +184,6 @@ func checkClusterPortConflict(topo *meta.Specification) error {
 	}
 
 	currentEntries := []Entry{}
-	existingEntries := []Entry{}
-
-	for _, fi := range fileInfos {
-		if tiuputils.IsNotExist(meta.ClusterPath(fi.Name(), meta.MetaFileName)) {
-			continue
-		}
-		metadata, err := meta.ClusterMetadata(fi.Name())
-		if err != nil {
-			return errors.Trace(err)
-		}
-
-		metadata.Topology.IterInstance(func(inst meta.Instance) {
-			for _, port := range inst.UsedPorts() {
-				existingEntries = append(existingEntries, Entry{
-					clusterName: fi.Name(),
-					instance:    inst,
-					port:        port,
-				})
-			}
-		})
-	}
 
 	topo.IterInstance(func(inst meta.Instance) {
 		for _, port := range inst.UsedPorts() {
@@ -247,8 +194,12 @@ func checkClusterPortConflict(topo *meta.Specification) error {
 		}
 	})
 
-	for _, p1 := range currentEntries {
-		for _, p2 := range existingEntries {
+	for index, p1 := range currentEntries {
+		if index + 1 == len(currentEntries) {
+			break
+		}
+
+		for _, p2 := range currentEntries[index+1:] {
 			if p1.instance.GetHost() != p2.instance.GetHost() {
 				continue
 			}
