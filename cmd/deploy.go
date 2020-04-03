@@ -95,7 +95,7 @@ func fixDir(topo *meta.Specification) func(string) string {
 	}
 }
 
-func checkClusterDirConflict(topo *meta.Specification) error {
+func checkClusterDirConflict(topo *meta.Specification, checkMonitored bool) error {
 	type DirAccessor struct {
 		dirKind  string
 		accessor func(meta.Instance, *meta.TopologySpecification) string
@@ -105,15 +105,19 @@ func checkClusterDirConflict(topo *meta.Specification) error {
 		{dirKind: "deploy directory", accessor: func(instance meta.Instance, topo *meta.TopologySpecification) string { return instance.DeployDir() }},
 		{dirKind: "data directory", accessor: func(instance meta.Instance, topo *meta.TopologySpecification) string { return instance.DataDir() }},
 		{dirKind: "log directory", accessor: func(instance meta.Instance, topo *meta.TopologySpecification) string { return instance.LogDir() }},
-		{dirKind: "monitor deploy directory", accessor: func(instance meta.Instance, topo *meta.TopologySpecification) string {
-			return topo.MonitoredOptions.DeployDir
-		}},
-		{dirKind: "monitor data directory", accessor: func(instance meta.Instance, topo *meta.TopologySpecification) string {
-			return topo.MonitoredOptions.DataDir
-		}},
-		{dirKind: "monitor log directory", accessor: func(instance meta.Instance, topo *meta.TopologySpecification) string {
-			return topo.MonitoredOptions.LogDir
-		}},
+	}
+
+	if checkMonitored {
+		dirAccessors = append(dirAccessors,
+			DirAccessor{dirKind: "monitor deploy directory", accessor: func(instance meta.Instance, topo *meta.TopologySpecification) string {
+				return topo.MonitoredOptions.DeployDir
+			}},
+			DirAccessor{dirKind: "monitor data directory", accessor: func(instance meta.Instance, topo *meta.TopologySpecification) string {
+				return topo.MonitoredOptions.DataDir
+			}},
+			DirAccessor{dirKind: "monitor log directory", accessor: func(instance meta.Instance, topo *meta.TopologySpecification) string {
+				return topo.MonitoredOptions.LogDir
+			}})
 	}
 
 	type Entry struct {
@@ -332,7 +336,7 @@ func deploy(clusterName, version, topoFile string, opt deployOptions) error {
 	if err := checkClusterPortConflict(&topo); err != nil {
 		return err
 	}
-	if err := checkClusterDirConflict(&topo); err != nil {
+	if err := checkClusterDirConflict(&topo, true); err != nil {
 		return err
 	}
 

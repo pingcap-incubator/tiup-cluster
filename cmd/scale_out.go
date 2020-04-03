@@ -79,7 +79,7 @@ func scaleOut(clusterName, topoFile string, opt scaleOutOptions) error {
 	if err := checkClusterPortConflict(&newPart); err != nil {
 		return err
 	}
-	if err := checkClusterDirConflict(&newPart); err != nil {
+	if err := checkClusterDirConflict(&newPart, false); err != nil {
 		return err
 	}
 
