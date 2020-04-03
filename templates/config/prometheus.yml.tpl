@@ -200,7 +200,7 @@ scrape_configs:
     {{- end}}
       labels:
         group: 'pd'
-{{- if .TiFlashAddr}}
+{{- if .TiFlashStatusAddrs}}
     - targets:
     {{- range .TiFlashStatusAddrs}}
        - '{{.}}'
