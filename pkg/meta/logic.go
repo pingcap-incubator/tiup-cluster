@@ -14,7 +14,6 @@
 package meta
 
 import (
-	"bytes"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -574,7 +573,7 @@ type TiFlashInstance struct {
 }
 
 // InitTiFlashConfig initializes TiFlash config file
-func (i *TiFlashInstance) InitTiFlashConfig(e executor.TiOpsExecutor, cfg *scripts.TiFlashScript, spec TiFlashSpec, paths DirPaths) (yaml.MapSlice, error) {
+func (i *TiFlashInstance) InitTiFlashConfig(cfg *scripts.TiFlashScript) (yaml.MapSlice, error) {
 	topo := TopologySpecification{}
 
 	err := yaml.Unmarshal([]byte(fmt.Sprintf(`
@@ -631,18 +630,7 @@ server_configs:
 		return nil, err
 	}
 
-	fmt.Printf("T:\n%v\n", topo)
-
-	if conf, err1 := merge2Toml(i.ComponentName(), topo.ServerConfigs.TiFlash, spec.Config); err1 != nil {
-		return nil, err1
-	} else {
-		reader := bytes.NewReader(conf)
-		newConf := TopologySpecification{}
-		if err2 := yaml.NewDecoder(reader).Decode(newConf); err2 != nil {
-			return nil, err2
-		}
-		return newConf.ServerConfigs.TiFlash, nil
-	}
+	return topo.ServerConfigs.TiFlash, nil
 }
 
 // InitConfig implement Instance interface
@@ -706,12 +694,10 @@ func (i *TiFlashInstance) InitConfig(e executor.TiOpsExecutor, cluster, user str
 	//	return err
 	//}
 
-	conf, err := i.InitTiFlashConfig(e, cfg, spec, paths)
+	conf, err := i.InitTiFlashConfig(cfg)
 	if err != nil {
 		return err
 	}
-
-	fmt.Printf("C:\n%v\n", conf)
 
 	return i.mergeServerConfig(e, i.topo.ServerConfigs.TiFlash, conf, paths)
 }
