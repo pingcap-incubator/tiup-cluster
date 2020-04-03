@@ -68,13 +68,13 @@ type (
 
 	// ServerConfigs represents the server runtime configuration
 	ServerConfigs struct {
-		TiDB    map[string]interface{} `yaml:"tidb"`
-		TiKV    map[string]interface{} `yaml:"tikv"`
-		PD      map[string]interface{} `yaml:"pd"`
-		TiFlash	map[string]interface{} `yaml:"tiflash"`
-		TiFlashLearner	map[string]interface{} `yaml:"tiflash-learner"`
-		Pump    map[string]interface{} `yaml:"pump"`
-		Drainer map[string]interface{} `yaml:"drainer"`
+		TiDB           map[string]interface{} `yaml:"tidb"`
+		TiKV           map[string]interface{} `yaml:"tikv"`
+		PD             map[string]interface{} `yaml:"pd"`
+		TiFlash        map[string]interface{} `yaml:"tiflash"`
+		TiFlashLearner map[string]interface{} `yaml:"tiflash-learner"`
+		Pump           map[string]interface{} `yaml:"pump"`
+		Drainer        map[string]interface{} `yaml:"drainer"`
 	}
 
 	// TopologySpecification represents the specification of topology.yaml
@@ -286,21 +286,21 @@ func (s PDSpec) IsImported() bool {
 
 // TiFlashSpec represents the TiFlash topology specification in topology.yaml
 type TiFlashSpec struct {
-	Host    	string `yaml:"host"`
-	SSHPort     int    `yaml:"ssh_port,omitempty" default:"22"`
-	Imported 	bool   `yaml:"imported,omitempty"`
-	TCPPort 	int    `yaml:"tcp_port" default:"9000"`
-	HTTPPort         int `yaml:"http_port" default:"8123"`
-	FlashServicePort int `yaml:"flash_service_port" default:"3930"`
-	FlashProxyPort   int `yaml:"flash_proxy_port" default:"20170"`
-	FlashProxyStatusPort int `yaml:"flash_proxy_status_port" default:"20292"`
-	MetricsPort int `yaml:"metrics_port" default:"8234"`
-	DeployDir  string `yaml:"deploy_dir,omitempty"`
-	DataDir    string `yaml:"data_dir,omitempty"`
-	LogDir     string `yaml:"log_dir,omitempty"`
-	NumaNode   bool   `yaml:"numa_node,omitempty"`
-	Config     map[string]interface{} `yaml:"config,omitempty"`
-	LearnerConfig	map[string]interface{} `yaml:"learner_config,omitempty"`
+	Host                 string                 `yaml:"host"`
+	SSHPort              int                    `yaml:"ssh_port,omitempty" default:"22"`
+	Imported             bool                   `yaml:"imported,omitempty"`
+	TCPPort              int                    `yaml:"tcp_port" default:"9000"`
+	HTTPPort             int                    `yaml:"http_port" default:"8123"`
+	FlashServicePort     int                    `yaml:"flash_service_port" default:"3930"`
+	FlashProxyPort       int                    `yaml:"flash_proxy_port" default:"20170"`
+	FlashProxyStatusPort int                    `yaml:"flash_proxy_status_port" default:"20292"`
+	MetricsPort          int                    `yaml:"metrics_port" default:"8234"`
+	DeployDir            string                 `yaml:"deploy_dir,omitempty"`
+	DataDir              string                 `yaml:"data_dir,omitempty"`
+	LogDir               string                 `yaml:"log_dir,omitempty"`
+	NumaNode             bool                   `yaml:"numa_node,omitempty"`
+	Config               map[string]interface{} `yaml:"config,omitempty"`
+	LearnerConfig        map[string]interface{} `yaml:"learner_config,omitempty"`
 }
 
 // Status queries current status of the instance

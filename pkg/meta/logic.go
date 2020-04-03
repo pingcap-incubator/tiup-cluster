@@ -168,7 +168,7 @@ func (i *instance) mergeServerConfig(e executor.TiOpsExecutor, globalConf, insta
 // mergeServerConfig merges the server configuration and overwrite the global configuration
 func (i *instance) mergeTiFlashLearnerServerConfig(e executor.TiOpsExecutor, globalConf, instanceConf map[string]interface{}, paths DirPaths) error {
 	fp := filepath.Join(paths.Cache, fmt.Sprintf("%s-learner_%s-%d.toml", i.ComponentName(), i.GetHost(), i.GetPort()))
-	conf, err := merge2Toml(i.ComponentName() + "-learner", globalConf, instanceConf)
+	conf, err := merge2Toml(i.ComponentName()+"-learner", globalConf, instanceConf)
 	if err != nil {
 		return err
 	}

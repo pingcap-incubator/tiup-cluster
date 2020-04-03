@@ -115,16 +115,6 @@ func parseDirs(host *aini.Host, ins meta.InstanceSpec) (meta.InstanceSpec, error
 		}
 		return newIns, nil
 	case meta.ComponentTiFlash:
-		serviceFile := fmt.Sprintf("%s/%s-%d.service",
-			systemdUnitPath,
-			meta.ComponentTiFlash,
-			ins.GetMainPort())
-		cmd := fmt.Sprintf("cat `grep 'ExecStart' %s | sed 's/ExecStart=//'`", serviceFile)
-		stdout, _, err := e.Execute(cmd, false)
-		if err != nil {
-			return ins, nil
-		}
-
 		// parse dirs
 		newIns := ins.(meta.TiFlashSpec)
 		for _, line := range strings.Split(string(stdout), "\n") {

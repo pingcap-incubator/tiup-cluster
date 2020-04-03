@@ -25,37 +25,37 @@ import (
 
 // TiFlashScript represent the data to generate TiFlash config
 type TiFlashScript struct {
-	IP         string
-	TCPPort    int
-	HTTPPort   int
-	FlashServicePort int
-	FlashProxyPort int
+	IP                   string
+	TCPPort              int
+	HTTPPort             int
+	FlashServicePort     int
+	FlashProxyPort       int
 	FlashProxyStatusPort int
-	MetricsPort int
-	DeployDir  string
-	DataDir    string
-	LogDir     string
-	NumaNode   string
-	Endpoints  []*PDScript
+	MetricsPort          int
+	DeployDir            string
+	DataDir              string
+	LogDir               string
+	NumaNode             string
+	Endpoints            []*PDScript
 	TiDBStatusAddrs      string
-	PDAddrs             string
+	PDAddrs              string
 }
 
 // NewTiFlashScript returns a TiFlashScript with given arguments
 func NewTiFlashScript(ip, deployDir, dataDir string, logDir string, tidbStatusAddrs string, pdAddrs string) *TiFlashScript {
 	return &TiFlashScript{
-		IP:         ip,
-		TCPPort:	9000,
-		HTTPPort:	8123,
-		FlashServicePort: 3930,
-		FlashProxyPort: 20170,
+		IP:                   ip,
+		TCPPort:              9000,
+		HTTPPort:             8123,
+		FlashServicePort:     3930,
+		FlashProxyPort:       20170,
 		FlashProxyStatusPort: 20292,
-		MetricsPort: 8234,
-		DeployDir:  deployDir,
-		DataDir:    dataDir,
-		LogDir:     logDir,
+		MetricsPort:          8234,
+		DeployDir:            deployDir,
+		DataDir:              dataDir,
+		LogDir:               logDir,
 		TiDBStatusAddrs:      tidbStatusAddrs,
-		PDAddrs:               pdAddrs,
+		PDAddrs:              pdAddrs,
 	}
 }
 
