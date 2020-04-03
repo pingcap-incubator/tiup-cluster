@@ -727,8 +727,13 @@ func (i *GrafanaInstance) InitConfig(e executor.TiOpsExecutor, cluster, user str
 	}
 
 	// transfer datasource.yml
+	if len(i.topo.Monitors) == 0 {
+		return errors.New("not prometheus found in topology")
+	}
 	fp = filepath.Join(paths.Cache, fmt.Sprintf("datasource_%s.yml", i.GetHost()))
-	if err := config.NewDatasourceConfig(cluster, i.GetHost()).ConfigToFile(fp); err != nil {
+	if err := config.NewDatasourceConfig(cluster, i.topo.Monitors[0].Host).
+		WithPort(uint64(i.topo.Monitors[0].Port)).
+		ConfigToFile(fp); err != nil {
 		return err
 	}
 	dst = filepath.Join(paths.Deploy, "conf", "datasource.yml")
@@ -858,6 +863,21 @@ func (topo *Specification) IterInstance(fn func(instance Instance)) {
 	for _, comp := range topo.ComponentsByStartOrder() {
 		for _, inst := range comp.Instances() {
 			fn(inst)
+		}
+	}
+}
+
+// IterHost iterates one instance for each host
+func (topo *Specification) IterHost(fn func(instance Instance)) {
+	hostMap := make(map[string]bool)
+	for _, comp := range topo.ComponentsByStartOrder() {
+		for _, inst := range comp.Instances() {
+			host := inst.GetHost()
+			_, ok := hostMap[host]
+			if !ok {
+				hostMap[host] = true
+				fn(inst)
+			}
 		}
 	}
 }
