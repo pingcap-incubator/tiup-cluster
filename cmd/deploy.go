@@ -87,7 +87,7 @@ func newDeploy() *cobra.Command {
 
 func fixDir(topo *meta.Specification) func(string) string {
 	return func(dir string) string {
-		if !strings.HasPrefix(dir, "/") {
+		if dir != "" && !strings.HasPrefix(dir, "/") {
 			return path.Join("/home/", topo.GlobalOptions.User, dir)
 		}
 		return dir
@@ -100,18 +100,20 @@ func checkClusterDirConflict(topo *meta.Specification) error {
 		accessor func(meta.Instance, *meta.TopologySpecification) string
 	}
 
-	dirAccessors := []DirAccessor{
+	instanceDirAccessor := []DirAccessor {
 		{dirKind: "deploy directory", accessor: func(instance meta.Instance, topo *meta.TopologySpecification) string { return instance.DeployDir() }},
 		{dirKind: "data directory", accessor: func(instance meta.Instance, topo *meta.TopologySpecification) string { return instance.DataDir() }},
 		{dirKind: "log directory", accessor: func(instance meta.Instance, topo *meta.TopologySpecification) string { return instance.LogDir() }},
+	}
+	hostDirAccessor := []DirAccessor {
 		{dirKind: "monitor deploy directory", accessor: func(instance meta.Instance, topo *meta.TopologySpecification) string {
-			return topo.MonitoredOptions.DeployDir
+		return topo.MonitoredOptions.DeployDir
 		}},
 		{dirKind: "monitor data directory", accessor: func(instance meta.Instance, topo *meta.TopologySpecification) string {
-			return topo.MonitoredOptions.DataDir
+		return topo.MonitoredOptions.DataDir
 		}},
 		{dirKind: "monitor log directory", accessor: func(instance meta.Instance, topo *meta.TopologySpecification) string {
-			return topo.MonitoredOptions.LogDir
+		return topo.MonitoredOptions.LogDir
 		}},
 	}
 
@@ -126,7 +128,16 @@ func checkClusterDirConflict(topo *meta.Specification) error {
 
 	f := fixDir(topo)
 	topo.IterInstance(func(inst meta.Instance) {
-		for _, dirAccessor := range dirAccessors {
+		for _, dirAccessor := range instanceDirAccessor {
+			currentEntries = append(currentEntries, Entry{
+				dirKind:  dirAccessor.dirKind,
+				dir:      f(dirAccessor.accessor(inst, topo)),
+				instance: inst,
+			})
+		}
+	})
+	topo.IterHost(func(inst meta.Instance) {
+		for _, dirAccessor := range hostDirAccessor {
 			currentEntries = append(currentEntries, Entry{
 				dirKind:  dirAccessor.dirKind,
 				dir:      f(dirAccessor.accessor(inst, topo)),
@@ -144,7 +155,7 @@ func checkClusterDirConflict(topo *meta.Specification) error {
 				continue
 			}
 
-			if d1.dir == d2.dir {
+			if d1.dir == d2.dir && d1.dir != "" {
 				properties := map[string]string{
 					"ThisDirKind":    d1.dirKind,
 					"ThisDir":        d1.dir,
