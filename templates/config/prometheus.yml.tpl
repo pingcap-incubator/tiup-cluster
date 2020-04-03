@@ -205,7 +205,7 @@ scrape_configs:
     {{- range .TiFlashStatusAddrs}}
        - '{{.}}'
     {{- end}}
-      labbels:
+      labels:
         group: 'tiflash'
 {{- end}}
 {{- if .PushgatewayAddr}}
