@@ -47,6 +47,7 @@ server_configs:
     schedule.replica-schedule-limit: 64
     schedule.merge-schedule-limit: 8
     schedule.hot-region-schedule-limit: 4
+    replication.enable-placement-rules: true
   pump:
     gc: 7
 
