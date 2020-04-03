@@ -3,7 +3,6 @@
 # "To provide additional docker-compose args, set the COMPOSE var. Ex:
 # COMPOSE="-f FILE_PATH_HERE"
 
-set -ux
 set -o errexit
 set -o pipefail
 set -o nounset

@@ -96,6 +96,12 @@ tikv_servers:
     #   readpool.storage.low-concurrency: 10
   - host: 10.0.1.15
   - host: 10.0.1.16
+
+# tiflash_servers:
+#   - host: 10.0.1.14
+#   - host: 10.0.1.15
+#   - host: 10.0.1.16
+
 # pump_servers:
 #   - host: 10.0.1.17
 #     ssh_port: 22
