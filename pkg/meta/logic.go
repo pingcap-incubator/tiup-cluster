@@ -720,22 +720,22 @@ func (i *TiFlashInstance) InitConfig(e executor.TiOpsExecutor, cluster, user str
 		return err
 	}
 
-	conf, err := i.InitTiFlashConfig(cfg)
-	if err != nil {
-		return err
-	}
-
 	confLearner, err := i.InitTiFlashLearnerConfig(cfg)
 	if err != nil {
 		return err
 	}
 
-	err = i.mergeTiFlashServerConfig(e, i.topo.ServerConfigs.TiFlash, confLearner, paths)
+	err = i.mergeTiFlashServerConfig(e, confLearner, i.topo.ServerConfigs.TiFlash, paths)
 	if err != nil {
 		return err
 	}
 
-	return i.mergeServerConfig(e, i.topo.ServerConfigs.TiFlash, conf, paths)
+	conf, err := i.InitTiFlashConfig(cfg)
+	if err != nil {
+		return err
+	}
+
+	return i.mergeServerConfig(e, conf, i.topo.ServerConfigs.TiFlash, paths)
 }
 
 // ScaleConfig deploy temporary config on scaling
