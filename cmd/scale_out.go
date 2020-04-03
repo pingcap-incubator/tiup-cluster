@@ -231,7 +231,7 @@ func buildScaleOutTask(
 				Cache:  meta.ClusterPath(clusterName, "config"),
 			},
 		)
-		refreshConfigTasks = append(refreshConfigTasks, t)
+		refreshConfigTasks = append(refreshConfigTasks, t.Build())
 	})
 
 	// Deploy monitor relevant components to remote
