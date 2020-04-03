@@ -19,6 +19,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/fatih/color"
@@ -26,7 +27,6 @@ import (
 	"github.com/pingcap-incubator/tiops/pkg/bindversion"
 	"github.com/pingcap-incubator/tiops/pkg/cliutil"
 	"github.com/pingcap-incubator/tiops/pkg/errutil"
-	"github.com/pingcap-incubator/tiops/pkg/executor"
 	"github.com/pingcap-incubator/tiops/pkg/log"
 	"github.com/pingcap-incubator/tiops/pkg/logger"
 	"github.com/pingcap-incubator/tiops/pkg/meta"
@@ -37,11 +37,14 @@ import (
 	tiuputils "github.com/pingcap-incubator/tiup/pkg/utils"
 	"github.com/pingcap/errors"
 	"github.com/spf13/cobra"
+	"go.uber.org/zap"
 )
 
 var (
 	errNSDeploy            = errNS.NewSubNamespace("deploy")
 	errDeployNameDuplicate = errNSDeploy.NewType("name_dup", errutil.ErrTraitPreCheck)
+	errDeployDirConflict   = errNSDeploy.NewType("dir_conflict", errutil.ErrTraitPreCheck)
+	errDeployPortConflict  = errNSDeploy.NewType("port_conflict", errutil.ErrTraitPreCheck)
 )
 
 type componentInfo struct {
@@ -50,12 +53,9 @@ type componentInfo struct {
 }
 
 type deployOptions struct {
-	user        string // username to login to the SSH server
-	usePasswd   bool   // use password for authentication
-	password    string // password of the user
-	keyFile     string // path to the private key file
-	passphrase  string // passphrase of the private key file
-	skipConfirm bool   // skip the confirmation of topology
+	user         string // username to login to the SSH server
+	identityFile string // path to the private key file
+	skipConfirm  bool   // skip the confirmation of topology
 }
 
 func newDeploy() *cobra.Command {
@@ -63,6 +63,7 @@ func newDeploy() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:          "deploy <cluster-name> <version> <topology.yaml>",
 		Short:        "Deploy a cluster for production",
+		Long:         "Deploy a cluster for production. SSH connection will be used to deploy files, as well as creating system users for running the service.",
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			shouldContinue, err := cliutil.CheckCommandArgsAndMayPrintHelp(cmd, args, 3)
@@ -73,39 +74,14 @@ func newDeploy() *cobra.Command {
 				return nil
 			}
 
-			if opt.usePasswd {
-				// FIXME: We should prompt for password when necessary automatically.
-				opt.password = cliutil.PromptForPassword("Password: ")
-				fmt.Println("")
-			}
-
-			if len(opt.keyFile) == 0 && !opt.usePasswd {
-				// FIXME: We should lookup identity key automatically.
-				return executor.ErrSSHRequireCredential.
-					New("Identity file and password is unspecified").
-					WithProperty(cliutil.SuggestionFromTemplate(`
-You should specify either SSH identity file or password.
-
-To SSH connect using identity file:
-  {{ColorCommand}}{{OsArgs}} -i <file>{{ColorReset}}
-
-To SSH connect using password:
-  {{ColorCommand}}{{OsArgs}} --password{{ColorReset}}
-
-`, nil))
-			}
-
 			logger.EnableAuditLog()
 			return deploy(args[0], args[1], args[2], opt)
 		},
 	}
 
-	cmd.Flags().StringVar(&opt.user, "user", "root", "Specify the system user name")
-	cmd.Flags().BoolVar(&opt.usePasswd, "password", false, "Specify the password of system user")
-	cmd.Flags().StringVarP(&opt.keyFile, "identity_file", "i", "", "Specify the path of the SSH identity file")
-	// FIXME: We should prompt for passphrase automatically
-	cmd.Flags().StringVar(&opt.passphrase, "passphrase", "", "Specify the passphrase of the SSH identity file")
-	cmd.Flags().BoolVarP(&opt.skipConfirm, "yes", "y", false, "Skip the confirmation of topology")
+	cmd.Flags().StringVar(&opt.user, "user", "root", "The user name to login via SSH. The user must has root (or sudo) privilege.")
+	cmd.Flags().StringVarP(&opt.identityFile, "identity_file", "i", "", "The path of the SSH identity file. If specified, public key authentication will be used.")
+	cmd.Flags().BoolVarP(&opt.skipConfirm, "yes", "y", false, "Skip confirming the topology")
 
 	return cmd
 }
@@ -120,8 +96,35 @@ func fixDir(topo *meta.Specification) func(string) string {
 }
 
 func checkClusterDirConflict(topo *meta.Specification) error {
-	dirs := []string{}
-	existDirs := []string{}
+	type DirAccessor struct {
+		dirKind  string
+		accessor func(meta.Instance, *meta.TopologySpecification) string
+	}
+
+	dirAccessors := []DirAccessor{
+		{dirKind: "deploy directory", accessor: func(instance meta.Instance, topo *meta.TopologySpecification) string { return instance.DeployDir() }},
+		{dirKind: "data directory", accessor: func(instance meta.Instance, topo *meta.TopologySpecification) string { return instance.DataDir() }},
+		{dirKind: "log directory", accessor: func(instance meta.Instance, topo *meta.TopologySpecification) string { return instance.LogDir() }},
+		{dirKind: "monitor deploy directory", accessor: func(instance meta.Instance, topo *meta.TopologySpecification) string {
+			return topo.MonitoredOptions.DeployDir
+		}},
+		{dirKind: "monitor data directory", accessor: func(instance meta.Instance, topo *meta.TopologySpecification) string {
+			return topo.MonitoredOptions.DataDir
+		}},
+		{dirKind: "monitor log directory", accessor: func(instance meta.Instance, topo *meta.TopologySpecification) string {
+			return topo.MonitoredOptions.LogDir
+		}},
+	}
+
+	type Entry struct {
+		clusterName string
+		dirKind     string
+		dir         string
+		instance    meta.Instance
+	}
+
+	currentEntries := []Entry{}
+	existingEntries := []Entry{}
 
 	clusterDir := meta.ProfilePath(meta.TiOpsClusterDir)
 	fileInfos, err := ioutil.ReadDir(clusterDir)
@@ -140,38 +143,139 @@ func checkClusterDirConflict(topo *meta.Specification) error {
 
 		f := fixDir(metadata.Topology)
 		metadata.Topology.IterInstance(func(inst meta.Instance) {
-			existDirs = append(existDirs,
-				path.Join(inst.GetHost(), f(inst.DeployDir())),
-				path.Join(inst.GetHost(), f(inst.DataDir())),
-				path.Join(inst.GetHost(), f(inst.LogDir())),
-				path.Join(inst.GetHost(), f(metadata.Topology.MonitoredOptions.DeployDir)),
-				path.Join(inst.GetHost(), f(metadata.Topology.MonitoredOptions.DataDir)),
-				path.Join(inst.GetHost(), f(metadata.Topology.MonitoredOptions.LogDir)),
-			)
+			for _, dirAccessor := range dirAccessors {
+				existingEntries = append(existingEntries, Entry{
+					clusterName: fi.Name(),
+					dirKind:     dirAccessor.dirKind,
+					dir:         f(dirAccessor.accessor(inst, metadata.Topology)),
+					instance:    inst,
+				})
+			}
 		})
 	}
 	f := fixDir(topo)
 	topo.IterInstance(func(inst meta.Instance) {
-		dirs = append(dirs,
-			path.Join(inst.GetHost(), f(inst.DeployDir())),
-			path.Join(inst.GetHost(), f(inst.DataDir())),
-			path.Join(inst.GetHost(), f(inst.LogDir())),
-			path.Join(inst.GetHost(), f(topo.MonitoredOptions.DeployDir)),
-			path.Join(inst.GetHost(), f(topo.MonitoredOptions.DataDir)),
-			path.Join(inst.GetHost(), f(topo.MonitoredOptions.LogDir)),
-		)
+		for _, dirAccessor := range dirAccessors {
+			currentEntries = append(currentEntries, Entry{
+				dirKind:  dirAccessor.dirKind,
+				dir:      f(dirAccessor.accessor(inst, topo)),
+				instance: inst,
+			})
+		}
 	})
 
-	for _, d1 := range dirs {
-		for _, d2 := range existDirs {
-			if !strings.HasSuffix(d1, "/") {
-				d1 += "/"
+	for _, d1 := range currentEntries {
+		for _, d2 := range existingEntries {
+			if d1.instance.GetHost() != d2.instance.GetHost() {
+				continue
 			}
-			if !strings.HasSuffix(d2, "/") {
-				d2 += "/"
+
+			if d1.dir == d2.dir {
+				properties := map[string]string{
+					"ThisDirKind":    d1.dirKind,
+					"ThisDir":        d1.dir,
+					"ThisComponent":  d1.instance.ComponentName(),
+					"ThisHost":       d1.instance.GetHost(),
+					"ExistCluster":   d2.clusterName,
+					"ExistDirKind":   d2.dirKind,
+					"ExistDir":       d2.dir,
+					"ExistComponent": d2.instance.ComponentName(),
+					"ExistHost":      d2.instance.GetHost(),
+				}
+				zap.L().Info("Meet deploy directory conflict", zap.Any("info", properties))
+				return errDeployDirConflict.New("Deploy directory conflicts to an existing cluster").WithProperty(cliutil.SuggestionFromTemplate(`
+The directory you specified in the topology file is:
+  Directory: {{ColorKeyword}}{{.ThisDirKind}} {{.ThisDir}}{{ColorReset}}
+  Component: {{ColorKeyword}}{{.ThisComponent}} {{.ThisHost}}{{ColorReset}}
+
+It conflicts to a directory in the existing cluster:
+  Existing Cluster Name: {{ColorKeyword}}{{.ExistCluster}}{{ColorReset}}
+  Existing Directory:    {{ColorKeyword}}{{.ExistDirKind}} {{.ExistDir}}{{ColorReset}}
+  Existing Component:    {{ColorKeyword}}{{.ExistComponent}} {{.ExistHost}}{{ColorReset}}
+
+Please change to use another directory or another host.
+`, properties))
 			}
-			if strings.HasPrefix(d1, d2) || strings.HasPrefix(d2, d1) {
-				return errors.Errorf("directory %s already has been taken by other cluster", d1)
+		}
+	}
+
+	return nil
+}
+
+func checkClusterPortConflict(topo *meta.Specification) error {
+	clusterDir := meta.ProfilePath(meta.TiOpsClusterDir)
+	fileInfos, err := ioutil.ReadDir(clusterDir)
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+
+	type Entry struct {
+		clusterName string
+		instance    meta.Instance
+		port        int
+	}
+
+	currentEntries := []Entry{}
+	existingEntries := []Entry{}
+
+	for _, fi := range fileInfos {
+		if tiuputils.IsNotExist(meta.ClusterPath(fi.Name(), meta.MetaFileName)) {
+			continue
+		}
+		metadata, err := meta.ClusterMetadata(fi.Name())
+		if err != nil {
+			return errors.Trace(err)
+		}
+
+		metadata.Topology.IterInstance(func(inst meta.Instance) {
+			for _, port := range inst.UsedPorts() {
+				existingEntries = append(existingEntries, Entry{
+					clusterName: fi.Name(),
+					instance:    inst,
+					port:        port,
+				})
+			}
+		})
+	}
+
+	topo.IterInstance(func(inst meta.Instance) {
+		for _, port := range inst.UsedPorts() {
+			currentEntries = append(currentEntries, Entry{
+				instance: inst,
+				port:     port,
+			})
+		}
+	})
+
+	for _, p1 := range currentEntries {
+		for _, p2 := range existingEntries {
+			if p1.instance.GetHost() != p2.instance.GetHost() {
+				continue
+			}
+
+			if p1.port == p2.port {
+				properties := map[string]string{
+					"ThisPort":       strconv.Itoa(p1.port),
+					"ThisComponent":  p1.instance.ComponentName(),
+					"ThisHost":       p1.instance.GetHost(),
+					"ExistCluster":   p2.clusterName,
+					"ExistPort":      strconv.Itoa(p2.port),
+					"ExistComponent": p2.instance.ComponentName(),
+					"ExistHost":      p2.instance.GetHost(),
+				}
+				zap.L().Info("Meet deploy port conflict", zap.Any("info", properties))
+				return errDeployPortConflict.New("Deploy port conflicts to an existing cluster").WithProperty(cliutil.SuggestionFromTemplate(`
+The port you specified in the topology file is:
+  Port:      {{ColorKeyword}}{{.ThisPort}}{{ColorReset}}
+  Component: {{ColorKeyword}}{{.ThisComponent}} {{.ThisHost}}{{ColorReset}}
+
+It conflicts to a port in the existing cluster:
+  Existing Cluster Name: {{ColorKeyword}}{{.ExistCluster}}{{ColorReset}}
+  Existing Port:         {{ColorKeyword}}{{.ExistPort}}{{ColorReset}}
+  Existing Component:    {{ColorKeyword}}{{.ExistComponent}} {{.ExistHost}}{{ColorReset}}
+
+Please change to use another port or another host.
+`, properties))
 			}
 		}
 	}
@@ -225,7 +329,9 @@ func deploy(clusterName, version, topoFile string, opt deployOptions) error {
 		return err
 	}
 
-	// TODO: check port conflict cross cluster
+	if err := checkClusterPortConflict(&topo); err != nil {
+		return err
+	}
 	if err := checkClusterDirConflict(&topo); err != nil {
 		return err
 	}
@@ -236,10 +342,15 @@ func deploy(clusterName, version, topoFile string, opt deployOptions) error {
 		}
 	}
 
+	sshConnProps, err := cliutil.ReadIdentityFileOrPassword(opt.identityFile)
+	if err != nil {
+		return err
+	}
+
 	if err := os.MkdirAll(meta.ClusterPath(clusterName), 0755); err != nil {
 		return errorx.InitializationFailed.
 			Wrap(err, "Failed to create cluster metadata directory '%s'", meta.ClusterPath(clusterName)).
-			WithProperty(errutil.ErrPropSuggestion, "Please check file system permissions and try again.")
+			WithProperty(cliutil.SuggestionFromString("Please check file system permissions and try again."))
 	}
 
 	var (
@@ -254,7 +365,7 @@ func deploy(clusterName, version, topoFile string, opt deployOptions) error {
 		if !uniqueHosts.Exist(inst.GetHost()) {
 			uniqueHosts.Insert(inst.GetHost())
 			t := task.NewBuilder().
-				RootSSH(inst.GetHost(), inst.GetSSHPort(), opt.user, opt.password, opt.keyFile, opt.passphrase).
+				RootSSH(inst.GetHost(), inst.GetSSHPort(), opt.user, sshConnProps.Password, sshConnProps.IdentityFile, sshConnProps.IdentityFilePassphrase).
 				EnvInit(inst.GetHost(), topo.GlobalOptions.User).
 				UserSSH(inst.GetHost(), topo.GlobalOptions.User).
 				Build()
@@ -285,11 +396,10 @@ func deploy(clusterName, version, topoFile string, opt deployOptions) error {
 		// Deploy component
 		t := task.NewBuilder().
 			Mkdir(topo.GlobalOptions.User, inst.GetHost(),
+				deployDir, dataDir, logDir,
 				filepath.Join(deployDir, "bin"),
 				filepath.Join(deployDir, "conf"),
-				filepath.Join(deployDir, "scripts"),
-				dataDir,
-				logDir).
+				filepath.Join(deployDir, "scripts")).
 			CopyComponent(inst.ComponentName(), version, inst.GetHost(), deployDir).
 			InitConfig(
 				clusterName,
@@ -326,11 +436,17 @@ func deploy(clusterName, version, topoFile string, opt deployOptions) error {
 		return errors.Trace(err)
 	}
 
-	return meta.SaveClusterMeta(clusterName, &meta.ClusterMeta{
+	err = meta.SaveClusterMeta(clusterName, &meta.ClusterMeta{
 		User:     topo.GlobalOptions.User,
 		Version:  version,
 		Topology: &topo,
 	})
+	if err != nil {
+		return errors.Trace(err)
+	}
+
+	log.Infof("Deployed cluster `%s` successfully", clusterName)
+	return nil
 }
 
 func buildDownloadCompTasks(version string, topo *meta.Specification) []task.Task {
@@ -378,11 +494,10 @@ func buildMonitoredDeployTask(
 			t := task.NewBuilder().
 				UserSSH(host, globalOptions.User).
 				Mkdir(globalOptions.User, host,
+					deployDir, dataDir, logDir,
 					filepath.Join(deployDir, "bin"),
 					filepath.Join(deployDir, "conf"),
-					filepath.Join(deployDir, "scripts"),
-					dataDir,
-					logDir).
+					filepath.Join(deployDir, "scripts")).
 				CopyComponent(comp, version, host, deployDir).
 				MonitoredConfig(
 					clusterName,
