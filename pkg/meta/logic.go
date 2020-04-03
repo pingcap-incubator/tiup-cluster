@@ -164,6 +164,22 @@ func (i *instance) mergeServerConfig(e executor.TiOpsExecutor, globalConf, insta
 	return e.Transfer(fp, dst, false)
 }
 
+// mergeServerConfig merges the server configuration and overwrite the global configuration
+func (i *instance) mergeTiFlashServerConfig(e executor.TiOpsExecutor, globalConf, instanceConf yaml.MapSlice, paths DirPaths) error {
+	fp := filepath.Join(paths.Cache, fmt.Sprintf("%s-learner_%s-%d.toml", i.ComponentName(), i.GetHost(), i.GetPort()))
+	conf, err := merge2Toml(i.ComponentName() + "-learner", globalConf, instanceConf)
+	if err != nil {
+		return err
+	}
+	err = ioutil.WriteFile(fp, conf, os.ModePerm)
+	if err != nil {
+		return err
+	}
+	dst := filepath.Join(paths.Deploy, "conf", fmt.Sprintf("%s-learner.toml", i.ComponentName()))
+	// transfer config
+	return e.Transfer(fp, dst, false)
+}
+
 // ScaleConfig deploy temporary config on scaling
 func (i *instance) ScaleConfig(e executor.TiOpsExecutor, b *Specification, cluster, user string, paths DirPaths) error {
 	return i.InitConfig(e, cluster, user, paths)
@@ -633,6 +649,34 @@ server_configs:
 	return topo.ServerConfigs.TiFlash, nil
 }
 
+// InitTiFlashLearnerConfig initializes TiFlash learner config file
+func (i *TiFlashInstance) InitTiFlashLearnerConfig(cfg *scripts.TiFlashScript) (yaml.MapSlice, error) {
+	topo := TopologySpecification{}
+
+	err := yaml.Unmarshal([]byte(fmt.Sprintf(`
+server_configs:
+  tiflash-learner:
+    log-file: "%s/log/tiflash_tikv.log"
+    server.engine-addr: "%s:%d"
+    server.addr: "0.0.0.0:%d"
+    server.advertise-addr: "%s:%d"
+    server.status-addr: "%s:%d"
+    storage.data-dir: "%s/tiflash/data/tiflash"
+    rocksdb.wal-dir: ""
+    security.ca-path: ""
+    security.cert-path: ""
+    security.key-path: ""
+`, cfg.DeployDir, cfg.IP, cfg.FlashServicePort, cfg.FlashProxyPort,
+		cfg.IP, cfg.FlashProxyPort, cfg.IP, cfg.FlashProxyStatusPort,
+		cfg.DeployDir)), &topo)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return topo.ServerConfigs.TiFlashLearner, nil
+}
+
 // InitConfig implement Instance interface
 func (i *TiFlashInstance) InitConfig(e executor.TiOpsExecutor, cluster, user string, paths DirPaths) error {
 	if err := i.instance.InitConfig(e, cluster, user, paths); err != nil {
@@ -676,25 +720,17 @@ func (i *TiFlashInstance) InitConfig(e executor.TiOpsExecutor, cluster, user str
 		return err
 	}
 
-	fp2 := filepath.Join(paths.Cache, fmt.Sprintf("tiflash-learner_%s_%d.toml", i.GetHost(), i.GetPort()))
-	if err := cfg.ConfigTiFlashLearnerToFile(fp2); err != nil {
-		return err
-	}
-	dst2 := filepath.Join(paths.Deploy, "conf", "tiflash-learner.toml")
-	if err := e.Transfer(fp2, dst2, false); err != nil {
-		return err
-	}
-
-	//fp3 := filepath.Join(paths.Cache, fmt.Sprintf("tiflash_%s_%d.toml", i.GetHost(), i.GetPort()))
-	//if err := cfg.ConfigTiFlashToFile(fp3); err != nil {
-	//	return err
-	//}
-	//dst3 := filepath.Join(paths.Deploy, "conf", "tiflash.toml")
-	//if err := e.Transfer(fp3, dst3, false); err != nil {
-	//	return err
-	//}
-
 	conf, err := i.InitTiFlashConfig(cfg)
+	if err != nil {
+		return err
+	}
+
+	confLearner, err := i.InitTiFlashLearnerConfig(cfg)
+	if err != nil {
+		return err
+	}
+
+	err = i.mergeTiFlashServerConfig(e, i.topo.ServerConfigs.TiFlash, confLearner, paths)
 	if err != nil {
 		return err
 	}

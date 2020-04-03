@@ -72,6 +72,7 @@ type (
 		TiKV    yaml.MapSlice `yaml:"tikv"`
 		PD      yaml.MapSlice `yaml:"pd"`
 		TiFlash yaml.MapSlice `yaml:"tiflash"`
+		TiFlashLearner	yaml.MapSlice `yaml:"tiflash-learner"`
 		Pump    yaml.MapSlice `yaml:"pump"`
 		Drainer yaml.MapSlice `yaml:"drainer"`
 	}

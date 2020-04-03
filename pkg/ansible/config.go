@@ -65,10 +65,10 @@ func ImportConfig(name string, clsMeta *meta.ClusterMeta) error {
 						meta.ClusterPath(name, "config", inst.ComponentName()+".toml"),
 						inst.GetHost(),
 						true).
-					//CopyFile(filepath.Join(inst.DeployDir(), "conf", inst.ComponentName()+"-learner.toml"),
-					//	meta.ClusterPath(name, "config", inst.ComponentName()+"-learner.toml"),
-					//	inst.GetHost(),
-					//	true).
+					CopyFile(filepath.Join(inst.DeployDir(), "conf", inst.ComponentName()+"-learner.toml"),
+						meta.ClusterPath(name, "config", inst.ComponentName()+"-learner.toml"),
+						inst.GetHost(),
+						true).
 					Build()
 				copyFileTasks = append(copyFileTasks, t)
 			case meta.ComponentDrainer:
