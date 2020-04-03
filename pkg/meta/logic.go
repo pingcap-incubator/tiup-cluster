@@ -605,12 +605,12 @@ server_configs:
     http_port: %[4]d
     flash.tidb_status_addr: "%[5]s"
     flash.service_addr: "%[6]s:%[7]d"
-    flash.flash_cluster.cluster_manager_path: "%[10]s/%[1]s/bin/tiflash/flash_cluster_manager"
+    flash.flash_cluster.cluster_manager_path: "%[10]s/bin/tiflash/flash_cluster_manager"
     flash.flash_cluster.log: "%[10]s/%[2]s/tiflash_cluster_manager.log"
     flash.flash_cluster.master_ttl: 60
     flash.flash_cluster.refresh_interval: 20
     flash.flash_cluster.update_rule_interval: 5
-    flash.proxy.config: "%[10]s/%[1]s/conf/tiflash-learner.toml"
+    flash.proxy.config: "%[10]s/conf/tiflash-learner.toml"
     status.metrics_port: %[8]d
     logger.errorlog: "%[2]s/tiflash_error.log"
     logger.log: "%[10]s/%[2]s/tiflash.log"
