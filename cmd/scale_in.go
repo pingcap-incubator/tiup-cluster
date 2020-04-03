@@ -19,6 +19,7 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/joomcode/errorx"
+	"github.com/pingcap-incubator/tiops/pkg/bindversion"
 	"github.com/pingcap-incubator/tiops/pkg/cliutil"
 	"github.com/pingcap-incubator/tiops/pkg/log"
 	"github.com/pingcap-incubator/tiops/pkg/logger"
@@ -95,7 +96,18 @@ func scaleIn(clusterName string, options operator.Options) error {
 			if !strings.HasPrefix(logDir, "/") {
 				logDir = filepath.Join("/home/", metadata.User, logDir)
 			}
-			t := task.NewBuilder().InitConfig(clusterName,
+
+			// Download and copy the latest component to remote if the cluster is imported from Ansible
+			tb := task.NewBuilder()
+			if instance.IsImported() {
+				switch compName := instance.ComponentName(); compName {
+				case meta.ComponentGrafana, meta.ComponentPrometheus:
+					version := bindversion.ComponentVersion(compName, metadata.Version)
+					tb.Download(compName, version).CopyComponent(compName, version, instance.GetHost(), deployDir)
+				}
+			}
+
+			t := tb.InitConfig(clusterName,
 				instance,
 				metadata.User,
 				meta.DirPaths{
@@ -126,6 +138,8 @@ func scaleIn(clusterName string, options operator.Options) error {
 		}
 		return errors.Trace(err)
 	}
+
+	log.Infof("Scaled cluster `%s` in successfully", clusterName)
 
 	return nil
 }
