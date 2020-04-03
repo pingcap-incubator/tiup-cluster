@@ -571,7 +571,7 @@ func (c *TiFlashComponent) Instances() []Instance {
 				s.FlashServicePort,
 				s.FlashProxyPort,
 				s.FlashProxyStatusPort,
-				s.MetricsPort,
+				s.StatusPort,
 			},
 			usedDirs: []string{
 				s.DeployDir,
@@ -638,7 +638,7 @@ server_configs:
     profiles.default.use_uncompressed_cache: 0
     profiles.readonly.readonly: 1
 `, cfg.DataDir, cfg.LogDir, cfg.TCPPort, cfg.HTTPPort,
-		cfg.TiDBStatusAddrs, cfg.IP, cfg.FlashServicePort, cfg.MetricsPort, cfg.PDAddrs)), &topo)
+		cfg.TiDBStatusAddrs, cfg.IP, cfg.FlashServicePort, cfg.StatusPort, cfg.PDAddrs)), &topo)
 
 	if err != nil {
 		return nil, err
@@ -710,7 +710,7 @@ func (i *TiFlashInstance) InitConfig(e executor.TiOpsExecutor, cluster, user str
 		paths.Log,
 		tidbStatusStr,
 		pdStr,
-	).WithTCPPort(spec.TCPPort).WithHTTPPort(spec.HTTPPort).WithFlashServicePort(spec.FlashServicePort).WithFlashProxyPort(spec.FlashProxyPort).WithFlashProxyStatusPort(spec.FlashProxyStatusPort).WithFlashProxyStatusPort(spec.MetricsPort).AppendEndpoints(i.instance.topo.Endpoints(user)...)
+	).WithTCPPort(spec.TCPPort).WithHTTPPort(spec.HTTPPort).WithFlashServicePort(spec.FlashServicePort).WithFlashProxyPort(spec.FlashProxyPort).WithFlashProxyStatusPort(spec.FlashProxyStatusPort).WithStatusPort(spec.StatusPort).AppendEndpoints(i.instance.topo.Endpoints(user)...)
 
 	fp := filepath.Join(paths.Cache, fmt.Sprintf("run_tiflash_%s_%d.sh", i.GetHost(), i.GetPort()))
 	if err := cfg.ConfigToFile(fp); err != nil {
@@ -842,7 +842,8 @@ func (i *MonitorInstance) InitConfig(e executor.TiOpsExecutor, cluster, user str
 	}
 	for _, db := range i.topo.TiFlashServers {
 		uniqueHosts.Insert(db.Host)
-		cfig.AddTiFlash(db.Host, uint64(db.TCPPort))
+		cfig.AddTiFlashLearner(db.Host, uint64(db.FlashProxyStatusPort))
+		cfig.AddTiFlash(db.Host, uint64(db.StatusPort))
 	}
 	for _, pump := range i.topo.PumpServers {
 		uniqueHosts.Insert(pump.Host)
