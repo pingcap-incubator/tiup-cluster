@@ -102,7 +102,7 @@ scrape_configs:
     {{- range .TiFlashStatusAddrs}}
        - '{{.}}'
     {{- end}}
-    {{- range .TiFlashProxyStatusAddrs}}
+    {{- range .TiFlashLearnerStatusAddrs}}
        - '{{.}}'
     {{- end}}
 {{- end}}
