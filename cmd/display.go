@@ -15,15 +15,16 @@ package cmd
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/fatih/color"
-	"github.com/pingcap-incubator/tiops/pkg/cliutil"
-	"github.com/pingcap-incubator/tiops/pkg/log"
-	"github.com/pingcap-incubator/tiops/pkg/meta"
-	operator "github.com/pingcap-incubator/tiops/pkg/operation"
-	"github.com/pingcap-incubator/tiops/pkg/task"
-	"github.com/pingcap-incubator/tiops/pkg/utils"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/cliutil"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/log"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/meta"
+	operator "github.com/pingcap-incubator/tiup-cluster/pkg/operation"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/task"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/utils"
 	"github.com/pingcap-incubator/tiup/pkg/set"
 	tiuputils "github.com/pingcap-incubator/tiup/pkg/utils"
 	"github.com/pingcap/errors"
@@ -140,6 +141,18 @@ func displayClusterTopology(opt *displayOption) error {
 		{"ID", "Role", "Host", "Ports", "Status", "Data Dir", "Deploy Dir"},
 	}
 
+	ctx := task.NewContext()
+	err = ctx.SetSSHKeySet(meta.ClusterPath(opt.clusterName, "ssh", "id_rsa"),
+		meta.ClusterPath(opt.clusterName, "ssh", "id_rsa.pub"))
+	if err != nil {
+		return errors.AddStack(err)
+	}
+
+	err = ctx.SetClusterSSH(topo, metadata.User)
+	if err != nil {
+		return errors.AddStack(err)
+	}
+
 	filterRoles := set.NewStringSet(opt.filterRole...)
 	filterNodes := set.NewStringSet(opt.filterNode...)
 	pdList := topo.GetPDList()
@@ -161,18 +174,45 @@ func displayClusterTopology(opt *displayOption) error {
 				dataDir = insDirs[1]
 			}
 
+			status := ins.Status(pdList...)
+			// Query the service status
+			if status == "-" {
+				e, found := ctx.GetExecutor(ins.GetHost())
+				if found {
+					active, _ := operator.GetServiceStatus(e, ins.ServiceName())
+					if parts := strings.Split(strings.TrimSpace(active), " "); len(parts) > 2 {
+						if parts[1] == "active" {
+							status = "Up"
+						} else {
+							status = parts[1]
+						}
+					}
+				}
+			}
 			clusterTable = append(clusterTable, []string{
 				color.CyanString(ins.ID()),
 				ins.Role(),
 				ins.GetHost(),
 				utils.JoinInt(ins.UsedPorts(), "/"),
-				formatInstanceStatus(ins.Status(pdList...)),
+				formatInstanceStatus(status),
 				dataDir,
 				deployDir,
 			})
 
 		}
 	}
+
+	// Sort by role,host,ports
+	sort.Slice(clusterTable[1:], func(i, j int) bool {
+		lhs, rhs := clusterTable[i+1], clusterTable[j+1]
+		// column: 1 => role, 2 => host, 3 => ports
+		for _, col := range []int{1, 2} {
+			if lhs[col] != rhs[col] {
+				return lhs[col] < rhs[col]
+			}
+		}
+		return lhs[3] < rhs[3]
+	})
 
 	cliutil.PrintTable(clusterTable, true)
 

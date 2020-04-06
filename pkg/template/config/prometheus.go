@@ -26,23 +26,25 @@ import (
 
 // PrometheusConfig represent the data to generate Prometheus config
 type PrometheusConfig struct {
-	ClusterName           string
-	KafkaAddrs            []string
-	NodeExporterAddrs     []string
-	TiDBStatusAddrs       []string
-	TiKVStatusAddrs       []string
-	PDAddrs               []string
-	PumpAddrs             []string
-	DrainerAddrs          []string
-	ZookeeperAddrs        []string
-	BlackboxExporterAddrs []string
-	LightningAddrs        []string
-	MonitoredServers      []string
-	AlertmanagerAddr      string
-	PushgatewayAddr       string
-	BlackboxAddr          string
-	KafkaExporterAddr     string
-	GrafanaAddr           string
+	ClusterName               string
+	KafkaAddrs                []string
+	NodeExporterAddrs         []string
+	TiDBStatusAddrs           []string
+	TiKVStatusAddrs           []string
+	PDAddrs                   []string
+	TiFlashStatusAddrs        []string
+	TiFlashLearnerStatusAddrs []string
+	PumpAddrs                 []string
+	DrainerAddrs              []string
+	ZookeeperAddrs            []string
+	BlackboxExporterAddrs     []string
+	LightningAddrs            []string
+	MonitoredServers          []string
+	AlertmanagerAddr          string
+	PushgatewayAddr           string
+	BlackboxAddr              string
+	KafkaExporterAddr         string
+	GrafanaAddr               string
 }
 
 // NewPrometheusConfig returns a PrometheusConfig
@@ -79,6 +81,18 @@ func (c *PrometheusConfig) AddTiKV(ip string, port uint64) *PrometheusConfig {
 // AddPD add a PD address
 func (c *PrometheusConfig) AddPD(ip string, port uint64) *PrometheusConfig {
 	c.PDAddrs = append(c.PDAddrs, fmt.Sprintf("%s:%d", ip, port))
+	return c
+}
+
+// AddTiFlashLearner add a TiFlash learner address
+func (c *PrometheusConfig) AddTiFlashLearner(ip string, port uint64) *PrometheusConfig {
+	c.TiFlashLearnerStatusAddrs = append(c.TiFlashLearnerStatusAddrs, fmt.Sprintf("%s:%d", ip, port))
+	return c
+}
+
+// AddTiFlash add a TiFlash address
+func (c *PrometheusConfig) AddTiFlash(ip string, port uint64) *PrometheusConfig {
+	c.TiFlashStatusAddrs = append(c.TiFlashStatusAddrs, fmt.Sprintf("%s:%d", ip, port))
 	return c
 }
 

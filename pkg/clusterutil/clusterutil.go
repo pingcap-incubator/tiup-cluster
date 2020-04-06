@@ -11,10 +11,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package clusterutil
 
-import "github.com/pingcap-incubator/tiup-cluster/cmd"
+import (
+	"path/filepath"
+	"strings"
+)
 
-func main() {
-	cmd.Execute()
+// Abs returns the absolute path
+func Abs(user, path string) string {
+	if !strings.HasPrefix(path, "/") {
+		return filepath.Join("/home", user, path)
+	}
+	return path
 }

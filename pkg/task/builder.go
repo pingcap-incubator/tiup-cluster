@@ -14,8 +14,8 @@
 package task
 
 import (
-	"github.com/pingcap-incubator/tiops/pkg/meta"
-	operator "github.com/pingcap-incubator/tiops/pkg/operation"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/meta"
+	operator "github.com/pingcap-incubator/tiup-cluster/pkg/operation"
 	"github.com/pingcap-incubator/tiup/pkg/repository"
 )
 
@@ -210,6 +210,19 @@ func (b *Builder) ClusterOperate(
 // Mkdir appends a Mkdir task to the current task collection
 func (b *Builder) Mkdir(user, host string, dirs ...string) *Builder {
 	b.tasks = append(b.tasks, &Mkdir{
+		user: user,
+		host: host,
+		dirs: dirs,
+	})
+	return b
+}
+
+// Chown appends a Chown task to the current task collection
+func (b *Builder) Chown(user, host string, dirs ...string) *Builder {
+	if len(dirs) == 0 {
+		return b
+	}
+	b.tasks = append(b.tasks, &Chown{
 		user: user,
 		host: host,
 		dirs: dirs,

@@ -22,14 +22,16 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/pingcap-incubator/tiops/pkg/executor"
-	"github.com/pingcap-incubator/tiops/pkg/log"
-	"github.com/pingcap-incubator/tiops/pkg/module"
-	"github.com/pingcap-incubator/tiops/pkg/template/config"
-	"github.com/pingcap-incubator/tiops/pkg/template/scripts"
-	system "github.com/pingcap-incubator/tiops/pkg/template/systemd"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/clusterutil"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/executor"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/log"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/module"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/template/config"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/template/scripts"
+	system "github.com/pingcap-incubator/tiup-cluster/pkg/template/systemd"
 	"github.com/pingcap-incubator/tiup/pkg/set"
 	"github.com/pingcap/errors"
+	"gopkg.in/yaml.v2"
 )
 
 // Components names supported by TiOps
@@ -37,6 +39,7 @@ const (
 	ComponentTiDB             = "tidb"
 	ComponentTiKV             = "tikv"
 	ComponentPD               = "pd"
+	ComponentTiFlash          = "tiflash"
 	ComponentGrafana          = "grafana"
 	ComponentDrainer          = "drainer"
 	ComponentPump             = "pump"
@@ -159,6 +162,22 @@ func (i *instance) mergeServerConfig(e executor.TiOpsExecutor, globalConf, insta
 		return err
 	}
 	dst := filepath.Join(paths.Deploy, "conf", fmt.Sprintf("%s.toml", i.ComponentName()))
+	// transfer config
+	return e.Transfer(fp, dst, false)
+}
+
+// mergeServerConfig merges the server configuration and overwrite the global configuration
+func (i *instance) mergeTiFlashLearnerServerConfig(e executor.TiOpsExecutor, globalConf, instanceConf map[string]interface{}, paths DirPaths) error {
+	fp := filepath.Join(paths.Cache, fmt.Sprintf("%s-learner-%s-%d.toml", i.ComponentName(), i.GetHost(), i.GetPort()))
+	conf, err := merge2Toml(i.ComponentName()+"-learner", globalConf, instanceConf)
+	if err != nil {
+		return err
+	}
+	err = ioutil.WriteFile(fp, conf, os.ModePerm)
+	if err != nil {
+		return err
+	}
+	dst := filepath.Join(paths.Deploy, "conf", fmt.Sprintf("%s-learner.toml", i.ComponentName()))
 	// transfer config
 	return e.Transfer(fp, dst, false)
 }
@@ -526,6 +545,215 @@ func (i *PDInstance) ScaleConfig(e executor.TiOpsExecutor, b *Specification, clu
 	return nil
 }
 
+// TiFlashComponent represents TiFlash component.
+type TiFlashComponent struct{ *Specification }
+
+// Name implements Component interface.
+func (c *TiFlashComponent) Name() string {
+	return ComponentTiFlash
+}
+
+// Instances implements Component interface.
+func (c *TiFlashComponent) Instances() []Instance {
+	ins := make([]Instance, 0, len(c.TiFlashServers))
+	for _, s := range c.TiFlashServers {
+		ins = append(ins, &TiFlashInstance{instance{
+			InstanceSpec: s,
+			name:         c.Name(),
+			host:         s.Host,
+			port:         s.TCPPort,
+			sshp:         s.SSHPort,
+			topo:         c.Specification,
+
+			usedPorts: []int{
+				s.TCPPort,
+				s.HTTPPort,
+				s.FlashServicePort,
+				s.FlashProxyPort,
+				s.FlashProxyStatusPort,
+				s.StatusPort,
+			},
+			usedDirs: []string{
+				s.DeployDir,
+				s.DataDir,
+			},
+			statusFn: s.Status,
+		}})
+	}
+	return ins
+}
+
+// TiFlashInstance represent the TiFlash instance
+type TiFlashInstance struct {
+	instance
+}
+
+// InitTiFlashConfig initializes TiFlash config file
+func (i *TiFlashInstance) InitTiFlashConfig(cfg *scripts.TiFlashScript, src map[string]interface{}) (map[string]interface{}, error) {
+	topo := TopologySpecification{}
+
+	err := yaml.Unmarshal([]byte(fmt.Sprintf(`
+server_configs:
+  tiflash:
+    default_profile: "default"
+    display_name: "TiFlash"
+    listen_host: "0.0.0.0"
+    mark_cache_size: 5368709120
+    tmp_path: "%[1]s/tmp"
+    path: "%[1]s/db"
+    tcp_port: %[3]d
+    http_port: %[4]d
+    flash.tidb_status_addr: "%[5]s"
+    flash.service_addr: "%[6]s:%[7]d"
+    flash.flash_cluster.cluster_manager_path: "%[10]s/bin/tiflash/flash_cluster_manager"
+    flash.flash_cluster.log: "%[2]s/tiflash_cluster_manager.log"
+    flash.flash_cluster.master_ttl: 60
+    flash.flash_cluster.refresh_interval: 20
+    flash.flash_cluster.update_rule_interval: 5
+    flash.proxy.config: "%[10]s/conf/tiflash-learner.toml"
+    status.metrics_port: %[8]d
+    logger.errorlog: "%[2]s/tiflash_error.log"
+    logger.log: "%[2]s/tiflash.log"
+    logger.count: 20
+    logger.level: "debug"
+    logger.size: "1000M"
+    application.runAsDaemon: true
+    raft.pd_addr: "%[9]s"
+    quotas.default.interval.duration: 3600
+    quotas.default.interval.errors: 0
+    quotas.default.interval.execution_time: 0
+    quotas.default.interval.queries: 0
+    quotas.default.interval.read_rows: 0
+    quotas.default.interval.result_rows: 0
+    users.default.password: ""
+    users.default.profile: "default"
+    users.default.quota: "default"
+    users.default.networks.ip: "::/0"
+    users.readonly.password: ""
+    users.readonly.profile: "readonly"
+    users.readonly.quota: "default"
+    users.readonly.networks.ip: "::/0"
+    profiles.default.load_balancing: "random"
+    profiles.default.max_memory_usage: 10000000000
+    profiles.default.use_uncompressed_cache: 0
+    profiles.readonly.readonly: 1
+`, cfg.DataDir, cfg.LogDir, cfg.TCPPort, cfg.HTTPPort,
+		cfg.TiDBStatusAddrs, cfg.IP, cfg.FlashServicePort, cfg.StatusPort, cfg.PDAddrs, cfg.DeployDir)), &topo)
+
+	if err != nil {
+		return nil, err
+	}
+
+	conf, err := merge(topo.ServerConfigs.TiFlash, src)
+	if err != nil {
+		return nil, err
+	}
+
+	return conf, nil
+}
+
+// InitTiFlashLearnerConfig initializes TiFlash learner config file
+func (i *TiFlashInstance) InitTiFlashLearnerConfig(cfg *scripts.TiFlashScript, src map[string]interface{}) (map[string]interface{}, error) {
+	topo := TopologySpecification{}
+
+	err := yaml.Unmarshal([]byte(fmt.Sprintf(`
+server_configs:
+  tiflash-learner:
+    log-file: "%[1]s/tiflash_tikv.log"
+    server.engine-addr: "%[2]s:%[3]d"
+    server.addr: "0.0.0.0:%[4]d"
+    server.advertise-addr: "%[2]s:%[4]d"
+    server.status-addr: "%[2]s:%[5]d"
+    storage.data-dir: "%[6]s/tiflash"
+    rocksdb.wal-dir: ""
+    security.ca-path: ""
+    security.cert-path: ""
+    security.key-path: ""
+`, cfg.LogDir, cfg.IP, cfg.FlashServicePort, cfg.FlashProxyPort, cfg.FlashProxyStatusPort, cfg.DataDir)), &topo)
+
+	if err != nil {
+		return nil, err
+	}
+
+	conf, err := merge(topo.ServerConfigs.TiFlashLearner, src)
+	if err != nil {
+		return nil, err
+	}
+
+	return conf, nil
+}
+
+// InitConfig implement Instance interface
+func (i *TiFlashInstance) InitConfig(e executor.TiOpsExecutor, cluster, user string, paths DirPaths) error {
+	if err := i.instance.InitConfig(e, cluster, user, paths); err != nil {
+		return err
+	}
+
+	spec := i.InstanceSpec.(TiFlashSpec)
+
+	tidbStatusAddrs := []string{}
+	for _, tidb := range i.topo.TiDBServers {
+		tidbStatusAddrs = append(tidbStatusAddrs, fmt.Sprintf("%s:%d", tidb.Host, uint64(tidb.StatusPort)))
+	}
+	tidbStatusStr := strings.Join(tidbStatusAddrs, ",")
+
+	pdAddrs := []string{}
+	for _, pd := range i.topo.PDServers {
+		pdAddrs = append(pdAddrs, fmt.Sprintf("%s:%d", pd.Host, uint64(pd.ClientPort)))
+	}
+	pdStr := strings.Join(pdAddrs, ",")
+
+	cfg := scripts.NewTiFlashScript(
+		i.GetHost(),
+		paths.Deploy,
+		paths.Data,
+		paths.Log,
+		tidbStatusStr,
+		pdStr,
+	).WithTCPPort(spec.TCPPort).WithHTTPPort(spec.HTTPPort).WithFlashServicePort(spec.FlashServicePort).WithFlashProxyPort(spec.FlashProxyPort).WithFlashProxyStatusPort(spec.FlashProxyStatusPort).WithStatusPort(spec.StatusPort).AppendEndpoints(i.instance.topo.Endpoints(user)...)
+
+	fp := filepath.Join(paths.Cache, fmt.Sprintf("run_tiflash_%s_%d.sh", i.GetHost(), i.GetPort()))
+	if err := cfg.ConfigToFile(fp); err != nil {
+		return err
+	}
+	dst := filepath.Join(paths.Deploy, "scripts", "run_tiflash.sh")
+
+	if err := e.Transfer(fp, dst, false); err != nil {
+		return err
+	}
+
+	if _, _, err := e.Execute("chmod +x "+dst, false); err != nil {
+		return err
+	}
+
+	confLearner, err := i.InitTiFlashLearnerConfig(cfg, i.topo.ServerConfigs.TiFlashLearner)
+	if err != nil {
+		return err
+	}
+
+	err = i.mergeTiFlashLearnerServerConfig(e, confLearner, spec.LearnerConfig, paths)
+	if err != nil {
+		return err
+	}
+
+	conf, err := i.InitTiFlashConfig(cfg, i.topo.ServerConfigs.TiFlash)
+	if err != nil {
+		return err
+	}
+
+	return i.mergeServerConfig(e, conf, spec.Config, paths)
+}
+
+// ScaleConfig deploy temporary config on scaling
+func (i *TiFlashInstance) ScaleConfig(e executor.TiOpsExecutor, b *Specification, cluster, user string, paths DirPaths) error {
+	s := i.instance.topo
+	defer func() {
+		i.instance.topo = s
+	}()
+	i.instance.topo = b
+	return i.InitConfig(e, cluster, user, paths)
+}
+
 // MonitorComponent represents Monitor component.
 type MonitorComponent struct{ *Specification }
 
@@ -611,6 +839,11 @@ func (i *MonitorInstance) InitConfig(e executor.TiOpsExecutor, cluster, user str
 	for _, db := range i.topo.TiDBServers {
 		uniqueHosts.Insert(db.Host)
 		cfig.AddTiDB(db.Host, uint64(db.StatusPort))
+	}
+	for _, db := range i.topo.TiFlashServers {
+		uniqueHosts.Insert(db.Host)
+		cfig.AddTiFlashLearner(db.Host, uint64(db.FlashProxyStatusPort))
+		cfig.AddTiFlash(db.Host, uint64(db.StatusPort))
 	}
 	for _, pump := range i.topo.PumpServers {
 		uniqueHosts.Insert(pump.Host)
@@ -727,8 +960,13 @@ func (i *GrafanaInstance) InitConfig(e executor.TiOpsExecutor, cluster, user str
 	}
 
 	// transfer datasource.yml
+	if len(i.topo.Monitors) == 0 {
+		return errors.New("not prometheus found in topology")
+	}
 	fp = filepath.Join(paths.Cache, fmt.Sprintf("datasource_%s.yml", i.GetHost()))
-	if err := config.NewDatasourceConfig(cluster, i.GetHost()).ConfigToFile(fp); err != nil {
+	if err := config.NewDatasourceConfig(cluster, i.topo.Monitors[0].Host).
+		WithPort(uint64(i.topo.Monitors[0].Port)).
+		ConfigToFile(fp); err != nil {
 		return err
 	}
 	dst = filepath.Join(paths.Deploy, "conf", "datasource.yml")
@@ -839,6 +1077,7 @@ func (topo *Specification) ComponentsByStartOrder() (comps []Component) {
 	comps = append(comps, &TiKVComponent{topo})
 	comps = append(comps, &PumpComponent{topo})
 	comps = append(comps, &TiDBComponent{topo})
+	comps = append(comps, &TiFlashComponent{topo})
 	comps = append(comps, &DrainerComponent{topo})
 	comps = append(comps, &MonitorComponent{topo})
 	comps = append(comps, &GrafanaComponent{topo})
@@ -862,25 +1101,34 @@ func (topo *Specification) IterInstance(fn func(instance Instance)) {
 	}
 }
 
+// IterHost iterates one instance for each host
+func (topo *Specification) IterHost(fn func(instance Instance)) {
+	hostMap := make(map[string]bool)
+	for _, comp := range topo.ComponentsByStartOrder() {
+		for _, inst := range comp.Instances() {
+			host := inst.GetHost()
+			_, ok := hostMap[host]
+			if !ok {
+				hostMap[host] = true
+				fn(inst)
+			}
+		}
+	}
+}
+
 // Endpoints returns the PD endpoints configurations
 func (topo *Specification) Endpoints(user string) []*scripts.PDScript {
 	var ends []*scripts.PDScript
 	for _, spec := range topo.PDServers {
-		deployDir := spec.DeployDir
-		if !strings.HasPrefix(deployDir, "/") {
-			deployDir = filepath.Join("/home/", user, deployDir)
-		}
+		deployDir := clusterutil.Abs(user, spec.DeployDir)
 		// data dir would be empty for components which don't need it
 		dataDir := spec.DataDir
-		if dataDir != "" && !strings.HasPrefix(dataDir, "/") {
-			dataDir = filepath.Join("/home/", user, dataDir)
+		if dataDir != "" {
+			clusterutil.Abs(user, dataDir)
 		}
 		// log dir will always be with values, but might not used by the component
-		logDir := spec.LogDir
-		if !strings.HasPrefix(logDir, "/") {
-			logDir = filepath.Join("/home/", user, logDir)
-		}
-		// TODO: path
+		logDir := clusterutil.Abs(user, spec.LogDir)
+
 		script := scripts.NewPDScript(
 			spec.Name,
 			spec.Host,

@@ -15,10 +15,11 @@ package cmd
 
 import (
 	"github.com/joomcode/errorx"
-	"github.com/pingcap-incubator/tiops/pkg/logger"
-	"github.com/pingcap-incubator/tiops/pkg/meta"
-	operator "github.com/pingcap-incubator/tiops/pkg/operation"
-	"github.com/pingcap-incubator/tiops/pkg/task"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/log"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/logger"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/meta"
+	operator "github.com/pingcap-incubator/tiup-cluster/pkg/operation"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/task"
 	"github.com/pingcap-incubator/tiup/pkg/utils"
 	"github.com/pingcap/errors"
 	"github.com/spf13/cobra"
@@ -61,6 +62,8 @@ func newStartCmd() *cobra.Command {
 				}
 				return errors.Trace(err)
 			}
+
+			log.Infof("Started cluster `%s` successfully", clusterName)
 
 			return nil
 		},

@@ -20,11 +20,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pingcap-incubator/tiops/pkg/api"
-	"github.com/pingcap-incubator/tiops/pkg/executor"
-	"github.com/pingcap-incubator/tiops/pkg/log"
-	"github.com/pingcap-incubator/tiops/pkg/meta"
-	"github.com/pingcap-incubator/tiops/pkg/module"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/api"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/executor"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/log"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/meta"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/module"
 	"github.com/pingcap-incubator/tiup/pkg/set"
 	"github.com/pingcap/errors"
 )
@@ -66,11 +66,15 @@ func Stop(
 	spec *meta.Specification,
 	options Options,
 ) error {
-	uniqueHosts := set.NewStringSet()
 	roleFilter := set.NewStringSet(options.Roles...)
 	nodeFilter := set.NewStringSet(options.Nodes...)
 	components := spec.ComponentsByStopOrder()
 	components = filterComponent(components, roleFilter)
+
+	instCount := map[string]int{}
+	spec.IterInstance(func(inst meta.Instance) {
+		instCount[inst.GetHost()] = instCount[inst.GetHost()] + 1
+	})
 
 	for _, com := range components {
 		insts := filterInstance(com.Instances(), nodeFilter)
@@ -79,8 +83,8 @@ func Stop(
 			return errors.Annotatef(err, "failed to stop %s", com.Name())
 		}
 		for _, inst := range insts {
-			if !uniqueHosts.Exist(inst.GetHost()) {
-				uniqueHosts.Insert(inst.GetHost())
+			instCount[inst.GetHost()]--
+			if instCount[inst.GetHost()] == 0 {
 				if err := StopMonitored(getter, inst, spec.MonitoredOptions); err != nil {
 					return err
 				}
@@ -564,6 +568,7 @@ func StopComponent(getter ExecutorGetter, instances []meta.Instance) error {
 	return nil
 }
 
+// GetServiceStatus return the Acitive line of status.
 /*
 [tidb@ip-172-16-5-70 deploy]$ sudo systemctl status drainer-8249.service
 ● drainer-8249.service - drainer-8249 service
@@ -575,8 +580,7 @@ func StopComponent(getter ExecutorGetter, instances []meta.Instance) error {
 
 Mar 09 13:56:19 ip-172-16-5-70 systemd[1]: Started drainer-8249 service.
 */
-// getServiceStatus return the Acitive line of status.
-func getServiceStatus(e executor.TiOpsExecutor, name string) (active string, err error) {
+func GetServiceStatus(e executor.TiOpsExecutor, name string) (active string, err error) {
 	c := module.SystemdModuleConfig{
 		Unit:   name,
 		Action: "status",
@@ -609,7 +613,7 @@ func PrintClusterStatus(getter ExecutorGetter, spec *meta.Specification) (health
 		for _, ins := range com.Instances() {
 			log.Infof("\t%s", ins.GetHost())
 			e := getter.Get(ins.GetHost())
-			active, err := getServiceStatus(e, ins.ServiceName())
+			active, err := GetServiceStatus(e, ins.ServiceName())
 			if err != nil {
 				health = false
 				log.Errorf("\t\t%v", err)

@@ -17,9 +17,9 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/pingcap-incubator/tiops/pkg/log"
-	"github.com/pingcap-incubator/tiops/pkg/meta"
-	"github.com/pingcap-incubator/tiops/pkg/task"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/log"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/meta"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/task"
 	"github.com/pingcap/errors"
 )
 
@@ -34,8 +34,8 @@ func ImportConfig(name string, clsMeta *meta.ClusterMeta) error {
 	//}
 	var copyFileTasks []task.Task
 	for _, comp := range clsMeta.Topology.ComponentsByStartOrder() {
+		log.Infof("Copying config file(s) of %s...", comp.Name())
 		for _, inst := range comp.Instances() {
-			log.Infof("Copying config file of %s...", inst.ComponentName())
 			switch inst.ComponentName() {
 			case meta.ComponentPD, meta.ComponentTiKV, meta.ComponentPump, meta.ComponentTiDB, meta.ComponentDrainer:
 				t := task.NewBuilder().
@@ -47,6 +47,32 @@ func ImportConfig(name string, clsMeta *meta.ClusterMeta) error {
 						meta.ClusterPath(name,
 							"config",
 							fmt.Sprintf("%s-%s-%d.toml",
+								inst.ComponentName(),
+								inst.GetHost(),
+								inst.GetPort())),
+						inst.GetHost(),
+						true).
+					Build()
+				copyFileTasks = append(copyFileTasks, t)
+			case meta.ComponentTiFlash:
+				t := task.NewBuilder().
+					SSHKeySet(
+						meta.ClusterPath(name, "ssh", "id_rsa"),
+						meta.ClusterPath(name, "ssh", "id_rsa.pub")).
+					UserSSH(inst.GetHost(), clsMeta.User).
+					CopyFile(filepath.Join(inst.DeployDir(), "conf", inst.ComponentName()+".toml"),
+						meta.ClusterPath(name,
+							"config",
+							fmt.Sprintf("%s-%s-%d.toml",
+								inst.ComponentName(),
+								inst.GetHost(),
+								inst.GetPort())),
+						inst.GetHost(),
+						true).
+					CopyFile(filepath.Join(inst.DeployDir(), "conf", inst.ComponentName()+".toml"),
+						meta.ClusterPath(name,
+							"config",
+							fmt.Sprintf("%s-learner-%s-%d.toml",
 								inst.ComponentName(),
 								inst.GetHost(),
 								inst.GetPort())),

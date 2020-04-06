@@ -17,7 +17,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/pingcap-incubator/tiops/pkg/meta"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/meta"
 	"github.com/pingcap-incubator/tiup/pkg/set"
 )
 
@@ -58,6 +58,12 @@ func (u *UpdateMeta) Execute(ctx *Context) error {
 			continue
 		}
 		newMeta.Topology.PDServers = append(newMeta.Topology.PDServers, topo.PDServers[i])
+	}
+	for i, instance := range (&meta.TiFlashComponent{Specification: topo}).Instances() {
+		if deleted.Exist(instance.ID()) {
+			continue
+		}
+		newMeta.Topology.TiFlashServers = append(newMeta.Topology.TiFlashServers, topo.TiFlashServers[i])
 	}
 	for i, instance := range (&meta.PumpComponent{Specification: topo}).Instances() {
 		if deleted.Exist(instance.ID()) {

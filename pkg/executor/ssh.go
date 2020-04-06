@@ -22,10 +22,12 @@ import (
 	"time"
 
 	"github.com/appleboy/easyssh-proxy"
+	"github.com/fatih/color"
 	"github.com/joomcode/errorx"
-	"github.com/pingcap-incubator/tiops/pkg/cliutil"
-	"github.com/pingcap-incubator/tiops/pkg/errutil"
-	"github.com/pingcap-incubator/tiops/pkg/utils"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/cliutil"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/errutil"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/utils"
+	"go.uber.org/zap"
 )
 
 var (
@@ -112,6 +114,13 @@ func (e *SSHExecutor) Execute(cmd string, sudo bool, timeout ...time.Duration) (
 	// default timeout is 60s in easyssh-proxy
 	stdout, stderr, done, err := e.Config.Run(cmd, timeout...)
 
+	zap.L().Info("ssh command",
+		zap.String("host", e.Config.Server),
+		zap.String("port", e.Config.Port),
+		zap.String("cmd", cmd),
+		zap.String("stdout", stdout),
+		zap.String("stderr", stderr))
+
 	if err != nil {
 		baseErr := ErrSSHExecuteFailed.
 			Wrap(err, "Failed to execute command over SSH for '%s@%s:%s'", e.Config.User, e.Config.Server, e.Config.Port).
@@ -121,7 +130,9 @@ func (e *SSHExecutor) Execute(cmd string, sudo bool, timeout ...time.Duration) (
 		if len(stdout) > 0 || len(stderr) > 0 {
 			output := strings.TrimSpace(strings.Join([]string{stdout, stderr}, "\n"))
 			baseErr = baseErr.
-				WithProperty(cliutil.SuggestionFromFormat("Command output on remote host:\n%s", output))
+				WithProperty(cliutil.SuggestionFromFormat("Command output on remote host %s:\n%s\n",
+					e.Config.Server,
+					color.YellowString(output)))
 		}
 		return []byte(stdout), []byte(stderr), baseErr
 	}

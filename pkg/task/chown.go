@@ -15,36 +15,27 @@ package task
 
 import (
 	"fmt"
+	"strings"
 
-	"github.com/pingcap-incubator/tiup-cluster/pkg/log"
 	"github.com/pingcap/errors"
 )
 
-// Shell is used to create directory on the target host
-type Shell struct {
-	host    string
-	command string
-	sudo    bool
+// Chown is used to change the owner of directory on the target host
+type Chown struct {
+	user string
+	host string
+	dirs []string
 }
 
 // Execute implements the Task interface
-func (m *Shell) Execute(ctx *Context) error {
+func (m *Chown) Execute(ctx *Context) error {
 	exec, found := ctx.GetExecutor(m.host)
 	if !found {
 		return ErrNoExecutor
 	}
 
-	var cmd string
-
-	if m.sudo {
-		cmd = fmt.Sprintf(`sudo %s`, m.command)
-	} else {
-		cmd = m.command
-	}
-
-	log.Infof("Run command on %s(sudo:%v): %s", m.host, m.sudo, cmd)
-
-	_, _, err := exec.Execute(cmd, false)
+	cmd := fmt.Sprintf("chown -R %s:%s {%s}", m.user, m.user, strings.Join(m.dirs, ","))
+	_, _, err := exec.Execute(cmd, true)
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -53,11 +44,11 @@ func (m *Shell) Execute(ctx *Context) error {
 }
 
 // Rollback implements the Task interface
-func (m *Shell) Rollback(ctx *Context) error {
+func (m *Chown) Rollback(ctx *Context) error {
 	return ErrUnsupportedRollback
 }
 
 // String implements the fmt.Stringer interface
-func (m *Shell) String() string {
-	return fmt.Sprintf("Shell: host=%s, sudo=%v, command=`%s`", m.host, m.sudo, m.command)
+func (m *Chown) String() string {
+	return fmt.Sprintf("Chown: host=%s, directories='%s'", m.host, strings.Join(m.dirs, "','"))
 }

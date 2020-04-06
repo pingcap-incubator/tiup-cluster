@@ -17,21 +17,21 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
 
 	"github.com/fatih/color"
 	"github.com/joomcode/errorx"
-	"github.com/pingcap-incubator/tiops/pkg/bindversion"
-	"github.com/pingcap-incubator/tiops/pkg/cliutil"
-	"github.com/pingcap-incubator/tiops/pkg/errutil"
-	"github.com/pingcap-incubator/tiops/pkg/log"
-	"github.com/pingcap-incubator/tiops/pkg/logger"
-	"github.com/pingcap-incubator/tiops/pkg/meta"
-	"github.com/pingcap-incubator/tiops/pkg/task"
-	"github.com/pingcap-incubator/tiops/pkg/utils"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/bindversion"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/cliutil"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/clusterutil"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/errutil"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/log"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/logger"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/meta"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/task"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/utils"
 	"github.com/pingcap-incubator/tiup/pkg/repository"
 	"github.com/pingcap-incubator/tiup/pkg/set"
 	tiuputils "github.com/pingcap-incubator/tiup/pkg/utils"
@@ -88,23 +88,25 @@ func newDeploy() *cobra.Command {
 
 func fixDir(topo *meta.Specification) func(string) string {
 	return func(dir string) string {
-		if !strings.HasPrefix(dir, "/") {
-			return path.Join("/home/", topo.GlobalOptions.User, dir)
+		if dir != "" {
+			return clusterutil.Abs(topo.GlobalOptions.User, dir)
 		}
 		return dir
 	}
 }
 
-func checkClusterDirConflict(topo *meta.Specification) error {
+func checkClusterDirConflict(clusterName string, topo *meta.Specification) error {
 	type DirAccessor struct {
 		dirKind  string
 		accessor func(meta.Instance, *meta.TopologySpecification) string
 	}
 
-	dirAccessors := []DirAccessor{
+	instanceDirAccessor := []DirAccessor{
 		{dirKind: "deploy directory", accessor: func(instance meta.Instance, topo *meta.TopologySpecification) string { return instance.DeployDir() }},
 		{dirKind: "data directory", accessor: func(instance meta.Instance, topo *meta.TopologySpecification) string { return instance.DataDir() }},
 		{dirKind: "log directory", accessor: func(instance meta.Instance, topo *meta.TopologySpecification) string { return instance.LogDir() }},
+	}
+	hostDirAccessor := []DirAccessor{
 		{dirKind: "monitor deploy directory", accessor: func(instance meta.Instance, topo *meta.TopologySpecification) string {
 			return topo.MonitoredOptions.DeployDir
 		}},
@@ -131,8 +133,11 @@ func checkClusterDirConflict(topo *meta.Specification) error {
 	if err != nil && !os.IsNotExist(err) {
 		return err
 	}
-
 	for _, fi := range fileInfos {
+		if fi.Name() == clusterName {
+			continue
+		}
+
 		if tiuputils.IsNotExist(meta.ClusterPath(fi.Name(), meta.MetaFileName)) {
 			continue
 		}
@@ -143,7 +148,17 @@ func checkClusterDirConflict(topo *meta.Specification) error {
 
 		f := fixDir(metadata.Topology)
 		metadata.Topology.IterInstance(func(inst meta.Instance) {
-			for _, dirAccessor := range dirAccessors {
+			for _, dirAccessor := range instanceDirAccessor {
+				existingEntries = append(existingEntries, Entry{
+					clusterName: fi.Name(),
+					dirKind:     dirAccessor.dirKind,
+					dir:         f(dirAccessor.accessor(inst, metadata.Topology)),
+					instance:    inst,
+				})
+			}
+		})
+		metadata.Topology.IterHost(func(inst meta.Instance) {
+			for _, dirAccessor := range hostDirAccessor {
 				existingEntries = append(existingEntries, Entry{
 					clusterName: fi.Name(),
 					dirKind:     dirAccessor.dirKind,
@@ -153,9 +168,19 @@ func checkClusterDirConflict(topo *meta.Specification) error {
 			}
 		})
 	}
+
 	f := fixDir(topo)
 	topo.IterInstance(func(inst meta.Instance) {
-		for _, dirAccessor := range dirAccessors {
+		for _, dirAccessor := range instanceDirAccessor {
+			currentEntries = append(currentEntries, Entry{
+				dirKind:  dirAccessor.dirKind,
+				dir:      f(dirAccessor.accessor(inst, topo)),
+				instance: inst,
+			})
+		}
+	})
+	topo.IterHost(func(inst meta.Instance) {
+		for _, dirAccessor := range hostDirAccessor {
 			currentEntries = append(currentEntries, Entry{
 				dirKind:  dirAccessor.dirKind,
 				dir:      f(dirAccessor.accessor(inst, topo)),
@@ -170,7 +195,7 @@ func checkClusterDirConflict(topo *meta.Specification) error {
 				continue
 			}
 
-			if strings.HasPrefix(d1.dir, d2.dir) || strings.HasPrefix(d2.dir, d1.dir) {
+			if d1.dir == d2.dir && d1.dir != "" {
 				properties := map[string]string{
 					"ThisDirKind":    d1.dirKind,
 					"ThisDir":        d1.dir,
@@ -202,7 +227,7 @@ Please change to use another directory or another host.
 	return nil
 }
 
-func checkClusterPortConflict(topo *meta.Specification) error {
+func checkClusterPortConflict(clusterName string, topo *meta.Specification) error {
 	clusterDir := meta.ProfilePath(meta.TiOpsClusterDir)
 	fileInfos, err := ioutil.ReadDir(clusterDir)
 	if err != nil && !os.IsNotExist(err) {
@@ -219,6 +244,10 @@ func checkClusterPortConflict(topo *meta.Specification) error {
 	existingEntries := []Entry{}
 
 	for _, fi := range fileInfos {
+		if fi.Name() == clusterName {
+			continue
+		}
+
 		if tiuputils.IsNotExist(meta.ClusterPath(fi.Name(), meta.MetaFileName)) {
 			continue
 		}
@@ -329,10 +358,10 @@ func deploy(clusterName, version, topoFile string, opt deployOptions) error {
 		return err
 	}
 
-	if err := checkClusterPortConflict(&topo); err != nil {
+	if err := checkClusterPortConflict(clusterName, &topo); err != nil {
 		return err
 	}
-	if err := checkClusterDirConflict(&topo); err != nil {
+	if err := checkClusterDirConflict(clusterName, &topo); err != nil {
 		return err
 	}
 
@@ -361,13 +390,23 @@ func deploy(clusterName, version, topoFile string, opt deployOptions) error {
 
 	// Initialize environment
 	uniqueHosts := set.NewStringSet()
+	globalOptions := topo.GlobalOptions
 	topo.IterInstance(func(inst meta.Instance) {
 		if !uniqueHosts.Exist(inst.GetHost()) {
 			uniqueHosts.Insert(inst.GetHost())
+			var dirs []string
+			for _, dir := range []string{globalOptions.DeployDir, globalOptions.DataDir, globalOptions.LogDir} {
+				if dir == "" {
+					continue
+				}
+				dirs = append(dirs, clusterutil.Abs(globalOptions.User, dir))
+			}
 			t := task.NewBuilder().
 				RootSSH(inst.GetHost(), inst.GetSSHPort(), opt.user, sshConnProps.Password, sshConnProps.IdentityFile, sshConnProps.IdentityFilePassphrase).
-				EnvInit(inst.GetHost(), topo.GlobalOptions.User).
-				UserSSH(inst.GetHost(), topo.GlobalOptions.User).
+				EnvInit(inst.GetHost(), globalOptions.User).
+				UserSSH(inst.GetHost(), globalOptions.User).
+				Mkdir(globalOptions.User, inst.GetHost(), dirs...).
+				Chown(globalOptions.User, inst.GetHost(), dirs...).
 				Build()
 			envInitTasks = append(envInitTasks, t)
 		}
@@ -379,33 +418,26 @@ func deploy(clusterName, version, topoFile string, opt deployOptions) error {
 	// Deploy components to remote
 	topo.IterInstance(func(inst meta.Instance) {
 		version := bindversion.ComponentVersion(inst.ComponentName(), version)
-		deployDir := inst.DeployDir()
-		if !strings.HasPrefix(deployDir, "/") {
-			deployDir = filepath.Join("/home/", topo.GlobalOptions.User, deployDir)
-		}
+		deployDir := clusterutil.Abs(globalOptions.User, inst.DeployDir())
 		// data dir would be empty for components which don't need it
 		dataDir := inst.DataDir()
-		if dataDir != "" && !strings.HasPrefix(dataDir, "/") {
-			dataDir = filepath.Join("/home/", topo.GlobalOptions.User, dataDir)
+		if dataDir != "" {
+			clusterutil.Abs(globalOptions.User, dataDir)
 		}
 		// log dir will always be with values, but might not used by the component
-		logDir := inst.LogDir()
-		if !strings.HasPrefix(logDir, "/") {
-			logDir = filepath.Join("/home/", topo.GlobalOptions.User, logDir)
-		}
+		logDir := clusterutil.Abs(globalOptions.User, inst.LogDir())
 		// Deploy component
 		t := task.NewBuilder().
-			Mkdir(topo.GlobalOptions.User, inst.GetHost(),
+			Mkdir(globalOptions.User, inst.GetHost(),
+				deployDir, dataDir, logDir,
 				filepath.Join(deployDir, "bin"),
 				filepath.Join(deployDir, "conf"),
-				filepath.Join(deployDir, "scripts"),
-				dataDir,
-				logDir).
+				filepath.Join(deployDir, "scripts")).
 			CopyComponent(inst.ComponentName(), version, inst.GetHost(), deployDir).
 			InitConfig(
 				clusterName,
 				inst,
-				topo.GlobalOptions.User,
+				globalOptions.User,
 				meta.DirPaths{
 					Deploy: deployDir,
 					Data:   dataDir,
@@ -418,7 +450,7 @@ func deploy(clusterName, version, topoFile string, opt deployOptions) error {
 	})
 
 	// Deploy monitor relevant components to remote
-	dlTasks, dpTasks := buildMonitoredDeployTask(clusterName, uniqueHosts, topo.GlobalOptions, topo.MonitoredOptions, version)
+	dlTasks, dpTasks := buildMonitoredDeployTask(clusterName, uniqueHosts, globalOptions, topo.MonitoredOptions, version)
 	downloadCompTasks = append(downloadCompTasks, dlTasks...)
 	deployCompTasks = append(deployCompTasks, dpTasks...)
 
@@ -440,11 +472,17 @@ func deploy(clusterName, version, topoFile string, opt deployOptions) error {
 		return errors.Trace(err)
 	}
 
-	return meta.SaveClusterMeta(clusterName, &meta.ClusterMeta{
-		User:     topo.GlobalOptions.User,
+	err = meta.SaveClusterMeta(clusterName, &meta.ClusterMeta{
+		User:     globalOptions.User,
 		Version:  version,
 		Topology: &topo,
 	})
+	if err != nil {
+		return errors.Trace(err)
+	}
+
+	log.Infof("Deployed cluster `%s` successfully", clusterName)
+	return nil
 }
 
 func buildDownloadCompTasks(version string, topo *meta.Specification) []*task.StepDisplay {
@@ -477,29 +515,23 @@ func buildMonitoredDeployTask(
 		downloadCompTasks = append(downloadCompTasks, t)
 
 		for host := range uniqueHosts {
-			deployDir := monitoredOptions.DeployDir
-			if !strings.HasPrefix(deployDir, "/") {
-				deployDir = filepath.Join("/home/", globalOptions.User, deployDir)
-			}
+			deployDir := clusterutil.Abs(globalOptions.User, monitoredOptions.DeployDir)
 			// data dir would be empty for components which don't need it
 			dataDir := monitoredOptions.DataDir
-			if dataDir != "" && !strings.HasPrefix(dataDir, "/") {
-				dataDir = filepath.Join("/home/", globalOptions.User, dataDir)
+			if dataDir != "" {
+				clusterutil.Abs(globalOptions.User, dataDir)
 			}
-			logDir := monitoredOptions.LogDir
-			if !strings.HasPrefix(logDir, "/") {
-				logDir = filepath.Join("/home/", globalOptions.User, logDir)
-			}
+			// log dir will always be with values, but might not used by the component
+			logDir := clusterutil.Abs(globalOptions.User, monitoredOptions.LogDir)
 
 			// Deploy component
 			t := task.NewBuilder().
 				UserSSH(host, globalOptions.User).
 				Mkdir(globalOptions.User, host,
+					deployDir, dataDir, logDir,
 					filepath.Join(deployDir, "bin"),
 					filepath.Join(deployDir, "conf"),
-					filepath.Join(deployDir, "scripts"),
-					dataDir,
-					logDir).
+					filepath.Join(deployDir, "scripts")).
 				CopyComponent(comp, version, host, deployDir).
 				MonitoredConfig(
 					clusterName,

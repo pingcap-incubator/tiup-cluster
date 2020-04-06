@@ -18,12 +18,12 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/joomcode/errorx"
-	"github.com/pingcap-incubator/tiops/pkg/cliutil"
-	"github.com/pingcap-incubator/tiops/pkg/log"
-	"github.com/pingcap-incubator/tiops/pkg/logger"
-	"github.com/pingcap-incubator/tiops/pkg/meta"
-	operator "github.com/pingcap-incubator/tiops/pkg/operation"
-	"github.com/pingcap-incubator/tiops/pkg/task"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/cliutil"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/log"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/logger"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/meta"
+	operator "github.com/pingcap-incubator/tiup-cluster/pkg/operation"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/task"
 	tiuputils "github.com/pingcap-incubator/tiup/pkg/utils"
 	"github.com/pingcap/errors"
 	"github.com/spf13/cobra"
@@ -80,7 +80,7 @@ func newDestroyCmd() *cobra.Command {
 			if err := os.RemoveAll(meta.ClusterPath(clusterName)); err != nil {
 				return errors.Trace(err)
 			}
-			log.Infof("Destroy cluster `%s` successfully", clusterName)
+			log.Infof("Destroyed cluster `%s` successfully", clusterName)
 			return nil
 		},
 	}

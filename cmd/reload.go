@@ -14,14 +14,14 @@
 package cmd
 
 import (
-	"path/filepath"
-	"strings"
-
 	"github.com/joomcode/errorx"
-	"github.com/pingcap-incubator/tiops/pkg/logger"
-	"github.com/pingcap-incubator/tiops/pkg/meta"
-	operator "github.com/pingcap-incubator/tiops/pkg/operation"
-	"github.com/pingcap-incubator/tiops/pkg/task"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/bindversion"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/clusterutil"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/log"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/logger"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/meta"
+	operator "github.com/pingcap-incubator/tiup-cluster/pkg/operation"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/task"
 	"github.com/pingcap-incubator/tiup/pkg/utils"
 	"github.com/pingcap/errors"
 	"github.com/spf13/cobra"
@@ -62,6 +62,8 @@ func newReloadCmd() *cobra.Command {
 				return errors.Trace(err)
 			}
 
+			log.Infof("Reloaded cluster `%s` successfully", clusterName)
+
 			return nil
 		},
 	}
@@ -82,32 +84,36 @@ func buildReloadTask(
 	topo := metadata.Topology
 
 	topo.IterInstance(func(inst meta.Instance) {
-		deployDir := inst.DeployDir()
-		if !strings.HasPrefix(deployDir, "/") {
-			deployDir = filepath.Join("/home/", metadata.User, deployDir)
-		}
+		deployDir := clusterutil.Abs(metadata.User, inst.DeployDir())
+		// data dir would be empty for components which don't need it
 		dataDir := inst.DataDir()
-		if dataDir != "" && !strings.HasPrefix(dataDir, "/") {
-			dataDir = filepath.Join("/home/", metadata.User, dataDir)
+		if dataDir != "" {
+			clusterutil.Abs(metadata.User, dataDir)
 		}
-		logDir := inst.LogDir()
-		if !strings.HasPrefix(logDir, "/") {
-			logDir = filepath.Join("/home/", metadata.User, logDir)
+		// log dir will always be with values, but might not used by the component
+		logDir := clusterutil.Abs(metadata.User, inst.LogDir())
+
+		// Download and copy the latest component to remote if the cluster is imported from Ansible
+		tb := task.NewBuilder().UserSSH(inst.GetHost(), metadata.User)
+		if inst.IsImported() {
+			switch compName := inst.ComponentName(); compName {
+			case meta.ComponentGrafana, meta.ComponentPrometheus:
+				version := bindversion.ComponentVersion(compName, metadata.Version)
+				tb.Download(compName, version).CopyComponent(compName, version, inst.GetHost(), deployDir)
+			}
 		}
+
 		// Refresh all configuration
-		t := task.NewBuilder().
-			UserSSH(inst.GetHost(), metadata.User).
-			InitConfig(clusterName, inst, metadata.User, meta.DirPaths{
-				Deploy: deployDir,
-				Data:   dataDir,
-				Log:    logDir,
-				Cache:  meta.ClusterPath(clusterName, "config"),
-			}).
-			Build()
+		t := tb.InitConfig(clusterName, inst, metadata.User, meta.DirPaths{
+			Deploy: deployDir,
+			Data:   dataDir,
+			Log:    logDir,
+			Cache:  meta.ClusterPath(clusterName, "config"),
+		}).Build()
 		refreshConfigTasks = append(refreshConfigTasks, t)
 	})
 
-	task := task.NewBuilder().
+	t := task.NewBuilder().
 		SSHKeySet(
 			meta.ClusterPath(clusterName, "ssh", "id_rsa"),
 			meta.ClusterPath(clusterName, "ssh", "id_rsa.pub")).
@@ -116,5 +122,5 @@ func buildReloadTask(
 		ClusterOperate(metadata.Topology, operator.UpgradeOperation, options).
 		Build()
 
-	return task, nil
+	return t, nil
 }

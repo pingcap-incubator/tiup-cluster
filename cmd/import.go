@@ -15,23 +15,22 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/fatih/color"
-	"github.com/pingcap-incubator/tiops/pkg/ansible"
-	"github.com/pingcap-incubator/tiops/pkg/cliutil"
-	"github.com/pingcap-incubator/tiops/pkg/log"
-	"github.com/pingcap-incubator/tiops/pkg/meta"
-	"github.com/pingcap-incubator/tiops/pkg/utils"
-	tiuplocaldata "github.com/pingcap-incubator/tiup/pkg/localdata"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/ansible"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/cliutil"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/log"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/meta"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/utils"
 	tiuputils "github.com/pingcap-incubator/tiup/pkg/utils"
 	"github.com/spf13/cobra"
 )
 
 func newImportCmd() *cobra.Command {
 	var (
-		ansibleDir string
-		rename     string
+		ansibleDir        string
+		inventoryFileName string
+		rename            string
 	)
 
 	cmd := &cobra.Command{
@@ -39,7 +38,7 @@ func newImportCmd() *cobra.Command {
 		Short: "Import an exist TiDB cluster from TiDB-Ansible",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// migrate cluster metadata from Ansible inventory
-			clsName, clsMeta, err := ansible.ImportAnsible(ansibleDir)
+			clsName, clsMeta, err := ansible.ImportAnsible(ansibleDir, inventoryFileName)
 			if err != nil {
 				return err
 			}
@@ -80,21 +79,21 @@ func newImportCmd() *cobra.Command {
 			}
 
 			// TODO: move original TiDB-Ansible directory to a staged location
+			backupDir := meta.ClusterPath(clsName, "ansible-backup")
+			if err = utils.Move(ansibleDir, backupDir); err != nil {
+				return err
+			}
+			log.Infof("Ansible inventory saved in %s.", backupDir)
 
 			log.Infof("Cluster %s imported.", clsName)
-
-			exeCmd := "tiops"
-			if os.Getenv(tiuplocaldata.EnvNameWorkDir) != "" {
-				exeCmd = "tiup cluster" // called by TiUP
-			}
-
 			fmt.Printf("Try `%s` to see the cluster.\n",
-				color.HiYellowString("%s display %s", exeCmd, clsName))
+				color.HiYellowString("%s display %s", cmd.Parent().Use, clsName))
 			return nil
 		},
 	}
 
 	cmd.Flags().StringVarP(&ansibleDir, "dir", "d", "", "The path to TiDB-Ansible directory")
+	cmd.Flags().StringVar(&inventoryFileName, "inventory", ansible.AnsibleInventoryFile, "The name of inventory file")
 	cmd.Flags().StringVarP(&rename, "rename", "r", "", "Rename the imported cluster to `NAME`")
 
 	return cmd

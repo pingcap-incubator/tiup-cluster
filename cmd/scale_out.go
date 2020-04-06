@@ -15,16 +15,17 @@ package cmd
 
 import (
 	"path/filepath"
-	"strings"
 
 	"github.com/joomcode/errorx"
-	"github.com/pingcap-incubator/tiops/pkg/bindversion"
-	"github.com/pingcap-incubator/tiops/pkg/cliutil"
-	"github.com/pingcap-incubator/tiops/pkg/logger"
-	"github.com/pingcap-incubator/tiops/pkg/meta"
-	operator "github.com/pingcap-incubator/tiops/pkg/operation"
-	"github.com/pingcap-incubator/tiops/pkg/task"
-	"github.com/pingcap-incubator/tiops/pkg/utils"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/bindversion"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/cliutil"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/clusterutil"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/log"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/logger"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/meta"
+	operator "github.com/pingcap-incubator/tiup-cluster/pkg/operation"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/task"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/utils"
 	"github.com/pingcap-incubator/tiup/pkg/set"
 	tiuputils "github.com/pingcap-incubator/tiup/pkg/utils"
 	"github.com/pingcap/errors"
@@ -75,10 +76,16 @@ func scaleOut(clusterName, topoFile string, opt scaleOutOptions) error {
 		return err
 	}
 
-	if err := checkClusterPortConflict(&newPart); err != nil {
+	// Abort scale out operation if the merged topology is invalid
+	mergedTopo := metadata.Topology.Merge(&newPart)
+	if err := mergedTopo.Validate(); err != nil {
 		return err
 	}
-	if err := checkClusterDirConflict(&newPart); err != nil {
+
+	if err := checkClusterPortConflict(clusterName, mergedTopo); err != nil {
+		return err
+	}
+	if err := checkClusterDirConflict(clusterName, mergedTopo); err != nil {
 		return err
 	}
 
@@ -86,12 +93,6 @@ func scaleOut(clusterName, topoFile string, opt scaleOutOptions) error {
 		if err := confirmTopology(clusterName, metadata.Version, &newPart); err != nil {
 			return err
 		}
-	}
-
-	// Abort scale out operation if the merged topology is invalid
-	mergedTopo := metadata.Topology.Merge(&newPart)
-	if err := mergedTopo.Validate(); err != nil {
-		return err
 	}
 
 	// Inherit existing global configuration
@@ -117,6 +118,8 @@ func scaleOut(clusterName, topoFile string, opt scaleOutOptions) error {
 		}
 		return errors.Trace(err)
 	}
+
+	log.Infof("Scaled cluster `%s` out successfully", clusterName)
 
 	return nil
 }
@@ -154,9 +157,20 @@ func buildScaleOutTask(
 	newPart.IterInstance(func(instance meta.Instance) {
 		if host := instance.GetHost(); !initializedHosts.Exist(host) {
 			uninitializedHosts.Insert(host)
+			var dirs []string
+			globalOptions := metadata.Topology.GlobalOptions
+			for _, dir := range []string{globalOptions.DeployDir, globalOptions.DataDir, globalOptions.LogDir} {
+				if dir == "" {
+					continue
+				}
+				dirs = append(dirs, clusterutil.Abs(globalOptions.User, dir))
+			}
 			t := task.NewBuilder().
 				RootSSH(instance.GetHost(), instance.GetSSHPort(), opt.user, sshConnProps.Password, sshConnProps.IdentityFile, sshConnProps.IdentityFilePassphrase).
 				EnvInit(instance.GetHost(), metadata.User).
+				UserSSH(instance.GetHost(), metadata.User).
+				Mkdir(globalOptions.User, instance.GetHost(), dirs...).
+				Chown(globalOptions.User, instance.GetHost(), dirs...).
 				Build()
 			envInitTasks = append(envInitTasks, t)
 		}
@@ -168,30 +182,23 @@ func buildScaleOutTask(
 	// Deploy the new topology and refresh the configuration
 	newPart.IterInstance(func(inst meta.Instance) {
 		version := bindversion.ComponentVersion(inst.ComponentName(), metadata.Version)
-		deployDir := inst.DeployDir()
-		if !strings.HasPrefix(deployDir, "/") {
-			deployDir = filepath.Join("/home/", metadata.User, deployDir)
-		}
+		deployDir := clusterutil.Abs(metadata.User, inst.DeployDir())
 		// data dir would be empty for components which don't need it
 		dataDir := inst.DataDir()
-		if dataDir != "" && !strings.HasPrefix(dataDir, "/") {
-			dataDir = filepath.Join("/home/", metadata.User, dataDir)
+		if dataDir != "" {
+			clusterutil.Abs(metadata.User, dataDir)
 		}
 		// log dir will always be with values, but might not used by the component
-		logDir := inst.LogDir()
-		if !strings.HasPrefix(logDir, "/") {
-			logDir = filepath.Join("/home/", metadata.User, logDir)
-		}
+		logDir := clusterutil.Abs(metadata.User, inst.LogDir())
 
 		// Deploy component
 		t := task.NewBuilder().
 			UserSSH(inst.GetHost(), metadata.User).
 			Mkdir(metadata.User, inst.GetHost(),
+				deployDir, dataDir, logDir,
 				filepath.Join(deployDir, "bin"),
 				filepath.Join(deployDir, "conf"),
-				filepath.Join(deployDir, "scripts"),
-				dataDir,
-				logDir).
+				filepath.Join(deployDir, "scripts")).
 			CopyComponent(inst.ComponentName(), version, inst.GetHost(), deployDir).
 			ScaleConfig(clusterName,
 				metadata.Topology,
@@ -207,28 +214,27 @@ func buildScaleOutTask(
 	})
 
 	mergedTopo.IterInstance(func(inst meta.Instance) {
-		deployDir := inst.DeployDir()
-		if !strings.HasPrefix(deployDir, "/") {
-			deployDir = filepath.Join("/home/", metadata.User, deployDir)
-		}
+		deployDir := clusterutil.Abs(metadata.User, inst.DeployDir())
+		// data dir would be empty for components which don't need it
 		dataDir := inst.DataDir()
-		if dataDir != "" && !strings.HasPrefix(dataDir, "/") {
-			dataDir = filepath.Join("/home/", metadata.User, dataDir)
+		if dataDir != "" {
+			clusterutil.Abs(metadata.User, dataDir)
 		}
-		logDir := inst.LogDir()
-		if !strings.HasPrefix(logDir, "/") {
-			logDir = filepath.Join("/home/", metadata.User, logDir)
-		}
-		// Refresh all configuration
-		t := task.NewBuilder()
-		switch inst.ComponentName() {
-		case meta.ComponentGrafana, meta.ComponentPrometheus:
-			if inst.IsImported() {
-				version := bindversion.ComponentVersion(inst.ComponentName(), metadata.Version)
-				t.Download(inst.ComponentName(), version).CopyComponent(inst.ComponentName(), version, inst.GetHost(), deployDir)
+		// log dir will always be with values, but might not used by the component
+		logDir := clusterutil.Abs(metadata.User, inst.LogDir())
+
+		// Download and copy the latest component to remote if the cluster is imported from Ansible
+		tb := task.NewBuilder()
+		if inst.IsImported() {
+			switch compName := inst.ComponentName(); compName {
+			case meta.ComponentGrafana, meta.ComponentPrometheus:
+				version := bindversion.ComponentVersion(compName, metadata.Version)
+				tb.Download(compName, version).CopyComponent(compName, version, inst.GetHost(), deployDir)
 			}
 		}
-		t.InitConfig(clusterName,
+
+		// Refresh all configuration
+		t := tb.InitConfig(clusterName,
 			inst,
 			metadata.User,
 			meta.DirPaths{
@@ -237,8 +243,8 @@ func buildScaleOutTask(
 				Log:    logDir,
 				Cache:  meta.ClusterPath(clusterName, "config"),
 			},
-		)
-		refreshConfigTasks = append(refreshConfigTasks, t.Build())
+		).Build()
+		refreshConfigTasks = append(refreshConfigTasks, t)
 	})
 
 	// Deploy monitor relevant components to remote

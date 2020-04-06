@@ -17,9 +17,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/pingcap-incubator/tiops/pkg/executor"
-	"github.com/pingcap-incubator/tiops/pkg/log"
-	"github.com/pingcap-incubator/tiops/pkg/meta"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/executor"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/log"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/meta"
 	"github.com/pingcap/errors"
 	"github.com/relex/aini"
 )
@@ -110,6 +110,16 @@ func parseDirs(host *aini.Host, ins meta.InstanceSpec) (meta.InstanceSpec, error
 				logDir := strings.TrimSuffix(strings.TrimPrefix(fullLog,
 					"--log-file=\""), "/pd.log\"")
 				newIns.LogDir = logDir
+				continue
+			}
+		}
+		return newIns, nil
+	case meta.ComponentTiFlash:
+		// parse dirs
+		newIns := ins.(meta.TiFlashSpec)
+		for _, line := range strings.Split(string(stdout), "\n") {
+			if strings.HasPrefix(line, "DEPLOY_DIR=") {
+				newIns.DeployDir = strings.TrimPrefix(line, "DEPLOY_DIR=")
 				continue
 			}
 		}

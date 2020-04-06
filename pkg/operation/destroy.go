@@ -2,12 +2,12 @@ package operator
 
 import (
 	"fmt"
-	"path/filepath"
 	"strings"
 
-	"github.com/pingcap-incubator/tiops/pkg/log"
-	"github.com/pingcap-incubator/tiops/pkg/meta"
-	"github.com/pingcap-incubator/tiops/pkg/module"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/clusterutil"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/log"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/meta"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/module"
 	"github.com/pingcap-incubator/tiup/pkg/set"
 	"github.com/pingcap/errors"
 )
@@ -20,6 +20,11 @@ func Destroy(
 	uniqueHosts := set.NewStringSet()
 	coms := spec.ComponentsByStopOrder()
 
+	instCount := map[string]int{}
+	spec.IterInstance(func(inst meta.Instance) {
+		instCount[inst.GetHost()] = instCount[inst.GetHost()] + 1
+	})
+
 	for _, com := range coms {
 		insts := com.Instances()
 		err := DestroyComponent(getter, insts)
@@ -27,8 +32,8 @@ func Destroy(
 			return errors.Annotatef(err, "failed to destroy %s", com.Name())
 		}
 		for _, inst := range insts {
-			if !uniqueHosts.Exist(inst.GetHost()) {
-				uniqueHosts.Insert(inst.GetHost())
+			instCount[inst.GetHost()]--
+			if instCount[inst.GetHost()] == 0 {
 				if err := DestroyMonitored(getter, inst, spec.MonitoredOptions); err != nil {
 					return err
 				}
@@ -54,9 +59,7 @@ func DeleteGlobalDirs(getter ExecutorGetter, host string, options meta.GlobalOpt
 		if dir == "" {
 			continue
 		}
-		if !strings.HasPrefix(dir, "/") {
-			dir = filepath.Join("/home/", options.User, dir)
-		}
+		dir = clusterutil.Abs(options.User, dir)
 
 		log.Infof("\tClean directory %s on instance %s", dir, host)
 
