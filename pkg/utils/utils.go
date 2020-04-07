@@ -15,7 +15,6 @@ package utils
 
 import (
 	"fmt"
-	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -35,22 +34,6 @@ func JoinInt(nums []int, delim string) string {
 		result += delim
 	}
 	return strings.TrimSuffix(result, delim)
-}
-
-// InSlice checks if a element is present in a slice, returns false if slice is
-// empty, or any other error occurs
-func InSlice(elem interface{}, slice interface{}) bool {
-	s := reflect.ValueOf(slice)
-	if s.Kind() != reflect.Slice {
-		return false
-	}
-
-	for i := 0; i < s.Len(); i++ {
-		if elem == s.Index(i).Interface() {
-			return true
-		}
-	}
-	return false
 }
 
 // RetryOption is options for Retry()
