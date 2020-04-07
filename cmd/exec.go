@@ -24,9 +24,8 @@ import (
 )
 
 type execOptions struct {
-	command    string
-	sudo       bool
-	sshTimeout int64
+	command string
+	sudo    bool
 	//role string
 	//node string
 }
@@ -55,7 +54,7 @@ func newExecCmd() *cobra.Command {
 			var shellTasks []task.Task
 			metadata.Topology.IterInstance(func(inst meta.Instance) {
 				t := task.NewBuilder().
-					UserSSH(inst.GetHost(), metadata.User, opt.sshTimeout).
+					UserSSH(inst.GetHost(), metadata.User, sshTimeout).
 					Shell(inst.GetHost(), opt.command, opt.sudo).
 					Build()
 				shellTasks = append(shellTasks, t)
@@ -65,7 +64,7 @@ func newExecCmd() *cobra.Command {
 				SSHKeySet(
 					meta.ClusterPath(clusterName, "ssh", "id_rsa"),
 					meta.ClusterPath(clusterName, "ssh", "id_rsa.pub")).
-				ClusterSSH(metadata.Topology, metadata.User, opt.sshTimeout).
+				ClusterSSH(metadata.Topology, metadata.User, sshTimeout).
 				Parallel(shellTasks...).
 				Build()
 
@@ -82,7 +81,6 @@ func newExecCmd() *cobra.Command {
 
 	cmd.Flags().StringVar(&opt.command, "command", "ls", "the command run on cluster host")
 	cmd.Flags().BoolVar(&opt.sudo, "sudo", false, "use root permissions (default false)")
-	cmd.Flags().Int64Var(&opt.sshTimeout, "ssh-timeout", 5, "Timeout in seconds to connect host via SSH")
 
 	return cmd
 }

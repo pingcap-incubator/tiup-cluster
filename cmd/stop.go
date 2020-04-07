@@ -27,7 +27,6 @@ import (
 
 func newStopCmd() *cobra.Command {
 	var options operator.Options
-	var sshTimeout int64
 
 	cmd := &cobra.Command{
 		Use:   "stop <cluster-name>",
@@ -72,6 +71,5 @@ func newStopCmd() *cobra.Command {
 
 	cmd.Flags().StringSliceVarP(&options.Roles, "role", "R", nil, "Only stop specified roles")
 	cmd.Flags().StringSliceVarP(&options.Nodes, "node", "N", nil, "Only stop specified nodes")
-	cmd.Flags().Int64Var(&sshTimeout, "ssh-timeout", 5, "Timeout in seconds to connect host via SSH")
 	return cmd
 }

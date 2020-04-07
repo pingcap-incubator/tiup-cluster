@@ -31,7 +31,6 @@ func newImportCmd() *cobra.Command {
 		ansibleDir        string
 		inventoryFileName string
 		rename            string
-		sshTimeout        int64
 	)
 
 	cmd := &cobra.Command{
@@ -96,7 +95,6 @@ func newImportCmd() *cobra.Command {
 	cmd.Flags().StringVarP(&ansibleDir, "dir", "d", "", "The path to TiDB-Ansible directory")
 	cmd.Flags().StringVar(&inventoryFileName, "inventory", ansible.AnsibleInventoryFile, "The name of inventory file")
 	cmd.Flags().StringVarP(&rename, "rename", "r", "", "Rename the imported cluster to `NAME`")
-	cmd.Flags().Int64Var(&sshTimeout, "ssh-timeout", 5, "Timeout in seconds to connect host via SSH")
 
 	return cmd
 }

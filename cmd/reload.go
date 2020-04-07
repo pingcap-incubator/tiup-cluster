@@ -29,7 +29,6 @@ import (
 
 func newReloadCmd() *cobra.Command {
 	var options operator.Options
-	var sshTimeout int64
 
 	cmd := &cobra.Command{
 		Use:   "reload <cluster-name>",
@@ -50,7 +49,7 @@ func newReloadCmd() *cobra.Command {
 				return err
 			}
 
-			t, err := buildReloadTask(clusterName, metadata, options, sshTimeout)
+			t, err := buildReloadTask(clusterName, metadata, options)
 			if err != nil {
 				return err
 			}
@@ -71,7 +70,6 @@ func newReloadCmd() *cobra.Command {
 
 	cmd.Flags().StringSliceVarP(&options.Roles, "role", "R", nil, "Only start specified roles")
 	cmd.Flags().StringSliceVarP(&options.Nodes, "node", "N", nil, "Only start specified nodes")
-	cmd.Flags().Int64Var(&sshTimeout, "ssh-timeout", 5, "Timeout in seconds to connect host via SSH")
 
 	return cmd
 }
@@ -80,7 +78,6 @@ func buildReloadTask(
 	clusterName string,
 	metadata *meta.ClusterMeta,
 	options operator.Options,
-	sshTimeout int64,
 ) (task.Task, error) {
 
 	var refreshConfigTasks []task.Task

@@ -36,7 +36,6 @@ func newScaleInCmd() *cobra.Command {
 	var (
 		options     operator.Options
 		skipConfirm bool
-		sshTimeout  int64
 	)
 	cmd := &cobra.Command{
 		Use:   "scale-in <cluster-name>",
@@ -58,21 +57,20 @@ func newScaleInCmd() *cobra.Command {
 			}
 
 			logger.EnableAuditLog()
-			return scaleIn(clusterName, options, sshTimeout)
+			return scaleIn(clusterName, options)
 		},
 	}
 
 	cmd.Flags().StringSliceVarP(&options.Nodes, "node", "N", nil, "Specify the nodes")
 	cmd.Flags().BoolVarP(&skipConfirm, "yes", "y", false, "Skip the confirmation of destroying")
 	cmd.Flags().Int64Var(&options.Timeout, "transfer-timeout", 300, "Timeout in seconds when transferring PD and TiKV store leaders")
-	cmd.Flags().Int64Var(&sshTimeout, "ssh-timeout", 5, "Timeout in seconds to connect host via SSH")
 
 	_ = cmd.MarkFlagRequired("node")
 
 	return cmd
 }
 
-func scaleIn(clusterName string, options operator.Options, sshTimeout int64) error {
+func scaleIn(clusterName string, options operator.Options) error {
 	if tiuputils.IsNotExist(meta.ClusterPath(clusterName, meta.MetaFileName)) {
 		return errors.Errorf("cannot scale-in non-exists cluster %s", clusterName)
 	}
