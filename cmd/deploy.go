@@ -383,9 +383,9 @@ func deploy(clusterName, version, topoFile string, opt deployOptions) error {
 	}
 
 	var (
-		envInitTasks      []task.Task         // tasks which are used to initialize environment
+		envInitTasks      []*task.StepDisplay // tasks which are used to initialize environment
 		downloadCompTasks []*task.StepDisplay // tasks which are used to download components
-		deployCompTasks   []task.Task         // tasks which are used to copy components to remote host
+		deployCompTasks   []*task.StepDisplay // tasks which are used to copy components to remote host
 	)
 
 	// Initialize environment
@@ -415,7 +415,7 @@ func deploy(clusterName, version, topoFile string, opt deployOptions) error {
 				UserSSH(inst.GetHost(), globalOptions.User, sshTimeout).
 				Mkdir(globalOptions.User, inst.GetHost(), dirs...).
 				Chown(globalOptions.User, inst.GetHost(), dirs...).
-				Build()
+				BuildAsStep(fmt.Sprintf("  - Prepare %s:%d", inst.GetHost(), inst.GetSSHPort()))
 			envInitTasks = append(envInitTasks, t)
 		}
 	})
@@ -453,7 +453,7 @@ func deploy(clusterName, version, topoFile string, opt deployOptions) error {
 					Cache:  meta.ClusterPath(clusterName, "config"),
 				},
 			).
-			Build()
+			BuildAsStep(fmt.Sprintf("  - Copy %s -> %s", inst.ComponentName(), inst.GetHost()))
 		deployCompTasks = append(deployCompTasks, t)
 	})
 
@@ -472,10 +472,8 @@ func deploy(clusterName, version, topoFile string, opt deployOptions) error {
 		Step("+ Generate SSH keys",
 			task.NewBuilder().SSHKeyGen(meta.ClusterPath(clusterName, "ssh", "id_rsa")).Build()).
 		ParallelStep("+ Download TiDB components", downloadCompTasks...).
-		Step("+ Initialize target host environments",
-			task.NewBuilder().Parallel(envInitTasks...).Build()).
-		Step("+ Copy files",
-			task.NewBuilder().Parallel(deployCompTasks...).Build()).
+		ParallelStep("+ Initialize target host environments", envInitTasks...).
+		ParallelStep("+ Copy files", deployCompTasks...).
 		Build()
 
 	if err := t.Execute(task.NewContext()); err != nil {
@@ -520,7 +518,7 @@ func buildMonitoredDeployTask(
 	uniqueHosts set.StringSet,
 	globalOptions meta.GlobalOptions,
 	monitoredOptions meta.MonitoredOptions,
-	version string) (downloadCompTasks []*task.StepDisplay, deployCompTasks []task.Task) {
+	version string) (downloadCompTasks []*task.StepDisplay, deployCompTasks []*task.StepDisplay) {
 	for _, comp := range []string{meta.ComponentNodeExporter, meta.ComponentBlackboxExporter} {
 		version := bindversion.ComponentVersion(comp, version)
 		t := task.NewBuilder().
@@ -559,7 +557,8 @@ func buildMonitoredDeployTask(
 						Log:    logDir,
 						Cache:  meta.ClusterPath(clusterName, "config"),
 					},
-				).Build()
+				).
+				BuildAsStep(fmt.Sprintf("  - Copy %s -> %s", comp, host))
 			deployCompTasks = append(deployCompTasks, t)
 		}
 	}
