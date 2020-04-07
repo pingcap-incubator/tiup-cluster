@@ -64,11 +64,14 @@ func Retry(doFunc func() error, opts ...RetryOption) error {
 		}
 	}
 
-	// options must be greater than 0
-	if cfg.Delay <= 0 || cfg.Timeout <= 0 {
-		return fmt.Errorf("delay (%ds) and timeout (%s) must be greater than 0", cfg.Delay, cfg.Timeout)
+	// timeout must be greater than 0
+	if cfg.Timeout <= 0 {
+		return fmt.Errorf("timeout (%s) must be greater than 0", cfg.Timeout)
 	}
-	// set attempts automatically for invalid value
+	// set options automatically for invalid value
+	if cfg.Delay <= 0 {
+		cfg.Delay = defaultDelay
+	}
 	if cfg.Attempts <= 0 {
 		cfg.Attempts = cfg.Timeout.Milliseconds()/cfg.Delay.Milliseconds() + 1
 	}

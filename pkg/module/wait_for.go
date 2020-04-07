@@ -64,9 +64,8 @@ func (w *WaitFor) Execute(e executor.TiOpsExecutor) (err error) {
 	pattern := []byte(fmt.Sprintf(":%d ", w.c.Port))
 
 	retryOpt := utils.RetryOption{
-		Attempts: 60,
-		Delay:    w.c.Sleep,
-		Timeout:  w.c.Timeout,
+		Delay:   w.c.Sleep,
+		Timeout: w.c.Timeout,
 	}
 	if err := utils.Retry(func() error {
 		// only listing TCP ports
