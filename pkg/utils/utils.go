@@ -38,16 +38,16 @@ func JoinInt(nums []int, delim string) string {
 
 // RetryOption is options for Retry()
 type RetryOption struct {
-	Attempts int
+	Attempts int64
 	Delay    time.Duration
 	Timeout  time.Duration
 }
 
 // default values for RetryOption
 var (
-	defaultAttempts = 10
-	defaultDelay    = time.Millisecond * 500 // 500ms
-	defaultTimeout  = time.Second * 10       // 10s
+	defaultAttempts int64 = 10
+	defaultDelay          = time.Millisecond * 500 // 500ms
+	defaultTimeout        = time.Second * 10       // 10s
 )
 
 // Retry retries the func until it returns no error or reaches attempts limit or
@@ -64,15 +64,19 @@ func Retry(doFunc func() error, opts ...RetryOption) error {
 		}
 	}
 
-	// attempts must be greater than 0
+	// options must be greater than 0
+	if cfg.Delay <= 0 || cfg.Timeout <= 0 {
+		return fmt.Errorf("delay (%ds) and timeout (%s) must be greater than 0", cfg.Delay, cfg.Timeout)
+	}
+	// set attempts automatically for invalid value
 	if cfg.Attempts <= 0 {
-		cfg.Attempts = defaultAttempts
+		cfg.Attempts = cfg.Timeout.Milliseconds()/cfg.Delay.Milliseconds() + 1
 	}
 
 	timeoutChan := time.After(cfg.Timeout)
 
 	// call the function
-	var attemptCount int
+	var attemptCount int64
 	for attemptCount = 0; attemptCount < cfg.Attempts; attemptCount++ {
 		if err := doFunc(); err == nil {
 			return nil
