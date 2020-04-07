@@ -366,9 +366,8 @@ func (pc *PDClient) EvictStoreLeader(host string, retryOpt *utils.RetryOption) e
 				return nil
 			}
 			log.Debugf(
-				"Still waitting for %d/%d store leaders to transfer...",
+				"Still waitting for %d store leaders to transfer...",
 				currStoreInfo.Status.LeaderCount,
-				latestStore.Status.LeaderCount,
 			)
 		}
 
