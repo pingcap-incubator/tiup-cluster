@@ -603,6 +603,9 @@ type TiFlashInstance struct {
 func (i *TiFlashInstance) InitTiFlashConfig(cfg *scripts.TiFlashScript, src map[string]interface{}) (map[string]interface{}, error) {
 	topo := TopologySpecification{}
 
+	// multi-dir support
+	dirPath := strings.Join(strings.Split(cfg.DataDir, ","), "/db,")
+
 	err := yaml.Unmarshal([]byte(fmt.Sprintf(`
 server_configs:
   tiflash:
@@ -610,8 +613,8 @@ server_configs:
     display_name: "TiFlash"
     listen_host: "0.0.0.0"
     mark_cache_size: 5368709120
-    tmp_path: "%[1]s/tmp"
-    path: "%[1]s/db"
+    tmp_path: "%[10]s/tmp"
+    path: "%[1]s"
     tcp_port: %[3]d
     http_port: %[4]d
     flash.tidb_status_addr: "%[5]s"
@@ -648,8 +651,7 @@ server_configs:
     profiles.default.max_memory_usage: 10000000000
     profiles.default.use_uncompressed_cache: 0
     profiles.readonly.readonly: 1
-`, cfg.DataDir, cfg.LogDir, cfg.TCPPort, cfg.HTTPPort,
-		cfg.TiDBStatusAddrs, cfg.IP, cfg.FlashServicePort, cfg.StatusPort, cfg.PDAddrs, cfg.DeployDir)), &topo)
+`, dirPath, cfg.LogDir, cfg.TCPPort, cfg.HTTPPort, cfg.TiDBStatusAddrs, cfg.IP, cfg.FlashServicePort, cfg.StatusPort, cfg.PDAddrs, cfg.DeployDir)), &topo)
 
 	if err != nil {
 		return nil, err
