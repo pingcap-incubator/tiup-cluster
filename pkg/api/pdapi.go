@@ -346,9 +346,8 @@ func (pc *PDClient) EvictStoreLeader(host string, retryOpt *utils.RetryOption) e
 	// wait for the transfer to complete
 	if retryOpt == nil {
 		retryOpt = &utils.RetryOption{
-			Attempts: 120,
-			Delay:    time.Second * 5,
-			Timeout:  time.Second * 600,
+			Delay:   time.Second * 5,
+			Timeout: time.Second * 600,
 		}
 	}
 	if err := utils.Retry(func() error {
@@ -462,9 +461,8 @@ func (pc *PDClient) DelPD(name string, retryOpt *utils.RetryOption) error {
 	// wait for the deletion to complete
 	if retryOpt == nil {
 		retryOpt = &utils.RetryOption{
-			Attempts: 30,
-			Delay:    time.Second * 2,
-			Timeout:  time.Second * 60,
+			Delay:   time.Second * 2,
+			Timeout: time.Second * 60,
 		}
 	}
 	if err := utils.Retry(func() error {
@@ -551,9 +549,8 @@ func (pc *PDClient) DelStore(host string, retryOpt *utils.RetryOption) error {
 	// wait for the deletion to complete
 	if retryOpt == nil {
 		retryOpt = &utils.RetryOption{
-			Attempts: 30,
-			Delay:    time.Second * 2,
-			Timeout:  time.Second * 60,
+			Delay:   time.Second * 2,
+			Timeout: time.Second * 60,
 		}
 	}
 	if err := utils.Retry(func() error {

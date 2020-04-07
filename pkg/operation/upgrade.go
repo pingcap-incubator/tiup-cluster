@@ -40,7 +40,7 @@ func Upgrade(
 
 	timeoutOpt := &utils.RetryOption{
 		Timeout: time.Second * time.Duration(options.Timeout),
-		Delay:   time.Second * 5,
+		Delay:   time.Second * 2,
 	}
 
 	for _, component := range components {
