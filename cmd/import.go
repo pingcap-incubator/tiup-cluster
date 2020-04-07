@@ -31,6 +31,7 @@ func newImportCmd() *cobra.Command {
 		ansibleDir        string
 		inventoryFileName string
 		rename            string
+		sshTimeout        int64
 	)
 
 	cmd := &cobra.Command{
@@ -38,7 +39,7 @@ func newImportCmd() *cobra.Command {
 		Short: "Import an exist TiDB cluster from TiDB-Ansible",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// migrate cluster metadata from Ansible inventory
-			clsName, clsMeta, err := ansible.ImportAnsible(ansibleDir, inventoryFileName)
+			clsName, clsMeta, err := ansible.ImportAnsible(ansibleDir, inventoryFileName, sshTimeout)
 			if err != nil {
 				return err
 			}
@@ -70,7 +71,7 @@ func newImportCmd() *cobra.Command {
 			}
 
 			// copy config files form deployment servers
-			if err = ansible.ImportConfig(clsName, clsMeta); err != nil {
+			if err = ansible.ImportConfig(clsName, clsMeta, sshTimeout); err != nil {
 				return err
 			}
 
@@ -95,6 +96,7 @@ func newImportCmd() *cobra.Command {
 	cmd.Flags().StringVarP(&ansibleDir, "dir", "d", "", "The path to TiDB-Ansible directory")
 	cmd.Flags().StringVar(&inventoryFileName, "inventory", ansible.AnsibleInventoryFile, "The name of inventory file")
 	cmd.Flags().StringVarP(&rename, "rename", "r", "", "Rename the imported cluster to `NAME`")
+	cmd.Flags().Int64Var(&sshTimeout, "ssh-timeout", 5, "Timeout in seconds to connect host via SSH")
 
 	return cmd
 }

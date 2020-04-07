@@ -26,7 +26,7 @@ type Options struct {
 	Roles   []string
 	Nodes   []string
 	Force   bool  // Option for upgrade subcommand
-	Timeout int64 // timeout in seconds for operations that support it
+	Timeout int64 // timeout in seconds for operations that support it, not to confuse with SSH timeout
 }
 
 // Operation represents the type of cluster operation

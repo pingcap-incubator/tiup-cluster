@@ -27,6 +27,8 @@ import (
 
 func newStopCmd() *cobra.Command {
 	var options operator.Options
+	var sshTimeout int64
+
 	cmd := &cobra.Command{
 		Use:   "stop <cluster-name>",
 		Short: "Stop a TiDB cluster",
@@ -50,7 +52,7 @@ func newStopCmd() *cobra.Command {
 				SSHKeySet(
 					meta.ClusterPath(clusterName, "ssh", "id_rsa"),
 					meta.ClusterPath(clusterName, "ssh", "id_rsa.pub")).
-				ClusterSSH(metadata.Topology, metadata.User).
+				ClusterSSH(metadata.Topology, metadata.User, sshTimeout).
 				ClusterOperate(metadata.Topology, operator.StopOperation, options).
 				Build()
 
@@ -70,5 +72,6 @@ func newStopCmd() *cobra.Command {
 
 	cmd.Flags().StringSliceVarP(&options.Roles, "role", "R", nil, "Only stop specified roles")
 	cmd.Flags().StringSliceVarP(&options.Nodes, "node", "N", nil, "Only stop specified nodes")
+	cmd.Flags().Int64Var(&sshTimeout, "ssh-timeout", 5, "Timeout in seconds to connect host via SSH")
 	return cmd
 }

@@ -30,7 +30,10 @@ import (
 )
 
 func newDestroyCmd() *cobra.Command {
-	var skipConfirm bool
+	var (
+		skipConfirm bool
+		sshTimeout  int64
+	)
 	cmd := &cobra.Command{
 		Use:   "destroy <cluster-name>",
 		Short: "Destroy a specified cluster",
@@ -64,7 +67,7 @@ func newDestroyCmd() *cobra.Command {
 				SSHKeySet(
 					meta.ClusterPath(clusterName, "ssh", "id_rsa"),
 					meta.ClusterPath(clusterName, "ssh", "id_rsa.pub")).
-				ClusterSSH(metadata.Topology, metadata.User).
+				ClusterSSH(metadata.Topology, metadata.User, sshTimeout).
 				ClusterOperate(metadata.Topology, operator.StopOperation, operator.Options{}).
 				ClusterOperate(metadata.Topology, operator.DestroyOperation, operator.Options{}).
 				Build()
@@ -86,6 +89,7 @@ func newDestroyCmd() *cobra.Command {
 	}
 
 	cmd.Flags().BoolVarP(&skipConfirm, "yes", "y", false, "Skip the confirmation of destroying")
+	cmd.Flags().Int64Var(&sshTimeout, "ssh-timeout", 5, "Timeout in seconds to connect host via SSH")
 
 	return cmd
 }

@@ -35,6 +35,7 @@ type displayOption struct {
 	clusterName string
 	filterRole  []string
 	filterNode  []string
+	sshTimeout  int64
 }
 
 func newDisplayCmd() *cobra.Command {
@@ -60,12 +61,13 @@ func newDisplayCmd() *cobra.Command {
 			if err != nil {
 				return errors.AddStack(err)
 			}
-			return destroyTombsomeIfNeed(opt.clusterName, metadata)
+			return destroyTombsomeIfNeed(opt.clusterName, metadata, opt.sshTimeout)
 		},
 	}
 
 	cmd.Flags().StringSliceVarP(&opt.filterRole, "role", "R", nil, "Only display specified roles")
 	cmd.Flags().StringSliceVarP(&opt.filterNode, "node", "N", nil, "Only display specified nodes")
+	cmd.Flags().Int64Var(&opt.sshTimeout, "ssh-timeout", 5, "Timeout in seconds to connect host via SSH")
 
 	return cmd
 }
@@ -88,7 +90,7 @@ func displayClusterMeta(opt *displayOption) error {
 	return nil
 }
 
-func destroyTombsomeIfNeed(clusterName string, metadata *meta.ClusterMeta) error {
+func destroyTombsomeIfNeed(clusterName string, metadata *meta.ClusterMeta, sshTimeout int64) error {
 	topo := metadata.Topology
 
 	if !operator.NeedCheckTomebsome(topo) {
@@ -102,7 +104,7 @@ func destroyTombsomeIfNeed(clusterName string, metadata *meta.ClusterMeta) error
 		return errors.AddStack(err)
 	}
 
-	err = ctx.SetClusterSSH(topo, metadata.User)
+	err = ctx.SetClusterSSH(topo, metadata.User, sshTimeout)
 	if err != nil {
 		return errors.AddStack(err)
 	}
@@ -148,7 +150,7 @@ func displayClusterTopology(opt *displayOption) error {
 		return errors.AddStack(err)
 	}
 
-	err = ctx.SetClusterSSH(topo, metadata.User)
+	err = ctx.SetClusterSSH(topo, metadata.User, opt.sshTimeout)
 	if err != nil {
 		return errors.AddStack(err)
 	}

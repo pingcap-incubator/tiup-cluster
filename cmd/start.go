@@ -27,6 +27,7 @@ import (
 
 func newStartCmd() *cobra.Command {
 	var options operator.Options
+	var sshTimeout int64
 
 	cmd := &cobra.Command{
 		Use:   "start <cluster-name>",
@@ -51,7 +52,7 @@ func newStartCmd() *cobra.Command {
 				SSHKeySet(
 					meta.ClusterPath(clusterName, "ssh", "id_rsa"),
 					meta.ClusterPath(clusterName, "ssh", "id_rsa.pub")).
-				ClusterSSH(metadata.Topology, metadata.User).
+				ClusterSSH(metadata.Topology, metadata.User, sshTimeout).
 				ClusterOperate(metadata.Topology, operator.StartOperation, options).
 				Build()
 
@@ -71,5 +72,6 @@ func newStartCmd() *cobra.Command {
 
 	cmd.Flags().StringSliceVarP(&options.Roles, "role", "R", nil, "Only start specified roles")
 	cmd.Flags().StringSliceVarP(&options.Nodes, "node", "N", nil, "Only start specified nodes")
+	cmd.Flags().Int64Var(&sshTimeout, "ssh-timeout", 5, "Timeout in seconds to connect host via SSH")
 	return cmd
 }

@@ -56,6 +56,7 @@ type deployOptions struct {
 	user         string // username to login to the SSH server
 	identityFile string // path to the private key file
 	skipConfirm  bool   // skip the confirmation of topology
+	sshTimeout   int64  // timeout when connecting via SSH
 }
 
 func newDeploy() *cobra.Command {
@@ -82,6 +83,7 @@ func newDeploy() *cobra.Command {
 	cmd.Flags().StringVar(&opt.user, "user", "root", "The user name to login via SSH. The user must has root (or sudo) privilege.")
 	cmd.Flags().StringVarP(&opt.identityFile, "identity_file", "i", "", "The path of the SSH identity file. If specified, public key authentication will be used.")
 	cmd.Flags().BoolVarP(&opt.skipConfirm, "yes", "y", false, "Skip confirming the topology")
+	cmd.Flags().Int64Var(&opt.sshTimeout, "ssh-timeout", 5, "Timeout in seconds to connect host via SSH")
 
 	return cmd
 }
@@ -402,9 +404,17 @@ func deploy(clusterName, version, topoFile string, opt deployOptions) error {
 				dirs = append(dirs, clusterutil.Abs(globalOptions.User, dir))
 			}
 			t := task.NewBuilder().
-				RootSSH(inst.GetHost(), inst.GetSSHPort(), opt.user, sshConnProps.Password, sshConnProps.IdentityFile, sshConnProps.IdentityFilePassphrase).
+				RootSSH(
+					inst.GetHost(),
+					inst.GetSSHPort(),
+					opt.user,
+					sshConnProps.Password,
+					sshConnProps.IdentityFile,
+					sshConnProps.IdentityFilePassphrase,
+					opt.sshTimeout,
+				).
 				EnvInit(inst.GetHost(), globalOptions.User).
-				UserSSH(inst.GetHost(), globalOptions.User).
+				UserSSH(inst.GetHost(), globalOptions.User, opt.sshTimeout).
 				Mkdir(globalOptions.User, inst.GetHost(), dirs...).
 				Chown(globalOptions.User, inst.GetHost(), dirs...).
 				Build()
@@ -450,7 +460,14 @@ func deploy(clusterName, version, topoFile string, opt deployOptions) error {
 	})
 
 	// Deploy monitor relevant components to remote
-	dlTasks, dpTasks := buildMonitoredDeployTask(clusterName, uniqueHosts, globalOptions, topo.MonitoredOptions, version)
+	dlTasks, dpTasks := buildMonitoredDeployTask(
+		clusterName,
+		uniqueHosts,
+		globalOptions,
+		topo.MonitoredOptions,
+		version,
+		opt.sshTimeout,
+	)
 	downloadCompTasks = append(downloadCompTasks, dlTasks...)
 	deployCompTasks = append(deployCompTasks, dpTasks...)
 
@@ -506,7 +523,8 @@ func buildMonitoredDeployTask(
 	uniqueHosts set.StringSet,
 	globalOptions meta.GlobalOptions,
 	monitoredOptions meta.MonitoredOptions,
-	version string) (downloadCompTasks []*task.StepDisplay, deployCompTasks []task.Task) {
+	version string,
+	sshTimeout int64) (downloadCompTasks []*task.StepDisplay, deployCompTasks []task.Task) {
 	for _, comp := range []string{meta.ComponentNodeExporter, meta.ComponentBlackboxExporter} {
 		version := bindversion.ComponentVersion(comp, version)
 		t := task.NewBuilder().
@@ -526,7 +544,7 @@ func buildMonitoredDeployTask(
 
 			// Deploy component
 			t := task.NewBuilder().
-				UserSSH(host, globalOptions.User).
+				UserSSH(host, globalOptions.User, sshTimeout).
 				Mkdir(globalOptions.User, host,
 					deployDir, dataDir, logDir,
 					filepath.Join(deployDir, "bin"),
