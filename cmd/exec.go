@@ -102,7 +102,7 @@ func newExecCmd() *cobra.Command {
 	cmd.Flags().StringVar(&opt.command, "command", "ls", "the command run on cluster host")
 	cmd.Flags().BoolVar(&opt.sudo, "sudo", false, "use root permissions (default false)")
 	cmd.Flags().StringSliceVarP(&opt.roles, "role", "R", nil, "Only exec on host with specified roles")
-	cmd.Flags().StringSliceVarP(&opt.nodes, "node", "N", nil, "Only start on host with specified nodes")
+	cmd.Flags().StringSliceVarP(&opt.nodes, "node", "N", nil, "Only exec on host with specified nodes")
 
 	return cmd
 }
