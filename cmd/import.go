@@ -80,6 +80,7 @@ func newImportCmd() *cobra.Command {
 
 			// TODO: move original TiDB-Ansible directory to a staged location
 			backupDir := meta.ClusterPath(clsName, "ansible-backup")
+			fmt.Printf("ansibleDir=%s, backupDir=%s\n", ansibleDir, backupDir)
 			if err = utils.Move(ansibleDir, backupDir); err != nil {
 				return err
 			}
