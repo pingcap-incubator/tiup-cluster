@@ -79,7 +79,6 @@ func ImportConfig(name string, clsMeta *meta.ClusterMeta, sshTimeout int64) erro
 						inst.GetHost(),
 						true).
 					Build()
-				fmt.Printf("deploy=%s\n", inst.DeployDir())
 				copyFileTasks = append(copyFileTasks, t)
 			default:
 				break
