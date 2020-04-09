@@ -15,6 +15,7 @@ package meta
 
 import (
 	"fmt"
+	"github.com/BurntSushi/toml"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -692,6 +693,58 @@ server_configs:
 	return conf, nil
 }
 
+// checkContains check if all values in valA is contained in valB
+func checkContains(valA, valB interface{}) bool {
+	switch valA.(type) {
+	case map[string]interface{}:
+		subA := valA.(map[string]interface{})
+		if subB, ok := valB.(map[string]interface{}); ok {
+			return checkMapContains(subA, subB)
+		}
+		log.Infof("?1")
+		return false
+	case []interface{}:
+		subA := valA.([]interface{})
+		if subB, ok := valB.([]interface{}); ok {
+			return checkListContains(subA, subB)
+		}
+		log.Infof("?2")
+		return false
+	default:
+		if valA != valB {
+			return false
+		}
+	}
+	return true
+}
+
+// checkMapContains check if all values in mapA is contained in mapB
+func checkMapContains(mapA, mapB map[string]interface{}) bool {
+	for key, vA := range mapA {
+		if vB, ok := mapB[key]; ok {
+			if !checkContains(vA, vB) {
+				return false
+			}
+		} else {
+			return false
+		}
+	}
+	return true
+}
+
+// checkListContains check if all values in listA is contained in listB
+func checkListContains(listA, listB []interface{}) bool {
+	if len(listA) > len(listB) {
+		return false
+	}
+	for idx, vA := range listA {
+		if !checkContains(vA, listB[idx]) {
+			return false
+		}
+	}
+	return true
+}
+
 // InitConfig implement Instance interface
 func (i *TiFlashInstance) InitConfig(e executor.TiOpsExecutor, clusterName, clusterVersion, deployUser string, paths DirPaths) error {
 	if err := i.instance.InitConfig(e, clusterName, clusterVersion, deployUser, paths); err != nil {
@@ -711,6 +764,24 @@ func (i *TiFlashInstance) InitConfig(e executor.TiOpsExecutor, clusterName, clus
 		pdAddrs = append(pdAddrs, fmt.Sprintf("%s:%d", pd.Host, uint64(pd.ClientPort)))
 	}
 	pdStr := strings.Join(pdAddrs, ",")
+
+	// check if pd config enabled placement rules
+	// TODO: Move this logic to an independent checkConfig procedure
+	for _, pd := range i.topo.PDServers {
+		fp := filepath.Join(paths.Cache, fmt.Sprintf("%s-%s-%d.toml", pd.Role(), pd.Host, pd.GetMainPort()))
+		pdConf := make(map[string]interface{})
+		_, err := toml.DecodeFile(fp, &pdConf)
+		if err != nil {
+			return err
+		}
+		// replication.enable-placement-rules should be set to true to enable TiFlash
+		conf := make(map[string]interface{})
+		conf["replication"] = make(map[string]interface{})
+		conf["replication"].(map[string]interface{})["enable-placement-rules"] = true
+		if !checkMapContains(conf, pdConf) {
+			return fmt.Errorf("must set replication.enable-placement-rules to true in pd conf to enable TiFlash")
+		}
+	}
 
 	cfg := scripts.NewTiFlashScript(
 		i.GetHost(),
@@ -735,17 +806,17 @@ func (i *TiFlashInstance) InitConfig(e executor.TiOpsExecutor, clusterName, clus
 		return err
 	}
 
-	confLearner, err := i.InitTiFlashLearnerConfig(cfg, i.topo.ServerConfigs.TiFlashLearner)
+	conf, err := i.InitTiFlashLearnerConfig(cfg, i.topo.ServerConfigs.TiFlashLearner)
 	if err != nil {
 		return err
 	}
 
-	err = i.mergeTiFlashLearnerServerConfig(e, confLearner, spec.LearnerConfig, paths)
+	err = i.mergeTiFlashLearnerServerConfig(e, conf, spec.LearnerConfig, paths)
 	if err != nil {
 		return err
 	}
 
-	conf, err := i.InitTiFlashConfig(cfg, i.topo.ServerConfigs.TiFlash)
+	conf, err = i.InitTiFlashConfig(cfg, i.topo.ServerConfigs.TiFlash)
 	if err != nil {
 		return err
 	}
