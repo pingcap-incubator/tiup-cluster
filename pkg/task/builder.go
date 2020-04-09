@@ -75,6 +75,7 @@ func (b *Builder) ClusterSSH(spec *meta.Specification, deployUser string, sshTim
 		for _, in := range com.Instances() {
 			tasks = append(tasks, &UserSSH{
 				host:       in.GetHost(),
+				port:       in.GetSSHPort(),
 				deployUser: deployUser,
 				timeout:    sshTimeout,
 			})
