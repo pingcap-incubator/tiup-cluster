@@ -789,7 +789,23 @@ func (i *TiFlashInstance) InitConfig(e executor.TiOpsExecutor, clusterName, clus
 		return err
 	}
 
-	err = i.mergeTiFlashLearnerServerConfig(e, confLearner, spec.LearnerConfig, paths)
+	specLernerConfig := spec.LearnerConfig
+	// merge config files for imported instance
+	if i.IsImported() {
+		mergedConfig, err := mergeImported(
+			clusterName,
+			i.ComponentName()+"-learner",
+			i.GetHost(),
+			i.GetPort(),
+			spec.LearnerConfig,
+		)
+		if err != nil {
+			return err
+		}
+		specLernerConfig = mergedConfig
+	}
+
+	err = i.mergeTiFlashLearnerServerConfig(e, confLearner, specLernerConfig, paths)
 	if err != nil {
 		return err
 	}
@@ -802,7 +818,7 @@ func (i *TiFlashInstance) InitConfig(e executor.TiOpsExecutor, clusterName, clus
 	specConfig := spec.Config
 	// merge config files for imported instance
 	if i.IsImported() {
-		mergedConfig, err := mergeImported(
+		specConfig, err = mergeImported(
 			clusterName,
 			i.ComponentName(),
 			i.GetHost(),
@@ -812,7 +828,6 @@ func (i *TiFlashInstance) InitConfig(e executor.TiOpsExecutor, clusterName, clus
 		if err != nil {
 			return err
 		}
-		specConfig = mergedConfig
 	}
 
 	return i.mergeServerConfig(e, conf, specConfig, paths)
