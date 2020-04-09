@@ -153,10 +153,10 @@ func buildScaleOutTask(
 		initializedHosts.Insert(instance.GetHost())
 	})
 	// uninitializedHosts are hosts which haven't been initialized yet
-	uninitializedHosts := set.NewStringSet()
+	uninitializedHosts := map[string]int{} // host -> ssh-port
 	newPart.IterInstance(func(instance meta.Instance) {
 		if host := instance.GetHost(); !initializedHosts.Exist(host) {
-			uninitializedHosts.Insert(host)
+			uninitializedHosts[host] = instance.GetSSHPort()
 			var dirs []string
 			globalOptions := metadata.Topology.GlobalOptions
 			for _, dir := range []string{globalOptions.DeployDir, globalOptions.DataDir, globalOptions.LogDir} {
