@@ -16,6 +16,7 @@ package meta
 import (
 	"bytes"
 	"fmt"
+	"io/ioutil"
 	"reflect"
 	"strings"
 
@@ -88,8 +89,8 @@ func flattenMap(ms map[string]interface{}) (map[string]interface{}, error) {
 	return result, nil
 }
 
-func merge(global, overwrite map[string]interface{}) (map[string]interface{}, error) {
-	lhs, err := flattenMap(global)
+func merge(orig, overwrite map[string]interface{}) (map[string]interface{}, error) {
+	lhs, err := flattenMap(orig)
 	if err != nil {
 		return nil, err
 	}
@@ -125,4 +126,32 @@ func merge2Toml(comp string, global, overwrite map[string]interface{}) ([]byte, 
 		return nil, err
 	}
 	return buf.Bytes(), nil
+}
+
+func mergeImported(
+	clusterName, comp, host string,
+	port int,
+	specConfig map[string]interface{},
+) (map[string]interface{}, error) {
+	// read imported config of the instance
+	configPath := ClusterPath(
+		clusterName,
+		"config",
+		fmt.Sprintf("%s-%s-%d.toml", comp, host, port),
+	)
+	raw, err := ioutil.ReadFile(configPath)
+	if err != nil {
+		return specConfig, err
+	}
+	var configData map[string]interface{}
+	if err := toml.Unmarshal(raw, &configData); err != nil {
+		return specConfig, err
+	}
+
+	// overwrite topology specifieced configs to the imported configs
+	lhs, err := merge(configData, specConfig)
+	if err != nil {
+		return specConfig, err
+	}
+	return lhs, nil
 }
