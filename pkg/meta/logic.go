@@ -15,13 +15,13 @@ package meta
 
 import (
 	"fmt"
-	"github.com/BurntSushi/toml"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 
+	"github.com/BurntSushi/toml"
 	"github.com/goccy/go-yaml"
 	"github.com/google/uuid"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/clusterutil"
