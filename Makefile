@@ -44,7 +44,7 @@ cover-dir:
 	mkdir -p cover
 
 # Run tests
-unit-test:
+unit-test: cover-dir
 	$(GOTEST) ./... -covermode=count -coverprofile cover/cov.unit-test.out
 
 integration_test:
@@ -55,7 +55,7 @@ integration_test:
 	cd tests && sh run.sh ; \
 
 
-test: cover-dir failpoint-enable unit-test #integration_test 
+test: failpoint-enable unit-test #integration_test
 	@$(FAILPOINT_DISABLE)
 
 coverage:
