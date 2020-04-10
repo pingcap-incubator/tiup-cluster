@@ -29,18 +29,18 @@ import (
 
 var (
 	// AnsibleInventoryFile is the default inventory file name
-	AnsibleInventoryFile  = "inventory.ini"
-	groupVarsGlobal       = "group_vars/all.yml"
-	groupVarsTiDB         = "group_vars/tidb_servers.yml"
-	groupVarsTiKV         = "group_vars/tikv_servers.yml"
-	groupVarsPD           = "group_vars/pd_servers.yml"
-	groupVarsTiFlash      = "group_vars/tiflash_servers.yml"
-	groupVarsPump         = "group_vars/pump_servers.yml"
-	groupVarsDrainer      = "group_vars/drainer_servers.yml"
+	AnsibleInventoryFile = "inventory.ini"
+	groupVarsGlobal      = "group_vars/all.yml"
+	groupVarsTiDB        = "group_vars/tidb_servers.yml"
+	groupVarsTiKV        = "group_vars/tikv_servers.yml"
+	groupVarsPD          = "group_vars/pd_servers.yml"
+	groupVarsTiFlash     = "group_vars/tiflash_servers.yml"
+	// groupVarsPump         = "group_vars/pump_servers.yml"
+	// groupVarsDrainer      = "group_vars/drainer_servers.yml"
 	groupVarsAlertManager = "group_vars/alertmanager_servers.yml"
 	groupVarsGrafana      = "group_vars/grafana_servers.yml"
-	groupVarsMonitorAgent = "group_vars/monitored_servers.yml"
-	groupVarsPrometheus   = "group_vars/monitoring_servers.yml"
+	// groupVarsMonitorAgent = "group_vars/monitored_servers.yml"
+	groupVarsPrometheus = "group_vars/monitoring_servers.yml"
 	//groupVarsLightning    = "group_vars/lightning_server.yml"
 	//groupVarsImporter     = "group_vars/importer_server.yml"
 )
@@ -343,6 +343,15 @@ func parseInventory(dir string, inv *aini.InventoryData, sshTimeout int64) (stri
 				tmpIns.Retention = _retention
 			}
 
+			// apply values from the host
+			if port, ok := srv.Vars["prometheus_port"]; ok {
+				tmpIns.Port, _ = strconv.Atoi(port)
+			}
+			// NOTE: storage retention is not used at present, only for record
+			if _retention, ok := srv.Vars["prometheus_storage_retention"]; ok {
+				tmpIns.Retention = _retention
+			}
+
 			log.Debugf("Imported %s node %s:%d.", tmpIns.Role(), tmpIns.Host, tmpIns.GetMainPort())
 			ins, err := parseDirs(srv, tmpIns, sshTimeout)
 			if err != nil {
@@ -381,6 +390,14 @@ func parseInventory(dir string, inv *aini.InventoryData, sshTimeout int64) (stri
 				tmpIns.ClusterPort, _ = strconv.Atoi(clusterPort)
 			}
 
+			// apply values from the host
+			if port, ok := srv.Vars["alertmanager_port"]; ok {
+				tmpIns.WebPort, _ = strconv.Atoi(port)
+			}
+			if clusterPort, ok := srv.Vars["alertmanager_cluster_port"]; ok {
+				tmpIns.ClusterPort, _ = strconv.Atoi(clusterPort)
+			}
+
 			log.Debugf("Imported %s node %s:%d.", tmpIns.Role(), tmpIns.Host, tmpIns.GetMainPort())
 			ins, err := parseDirs(srv, tmpIns, sshTimeout)
 			if err != nil {
@@ -410,6 +427,11 @@ func parseInventory(dir string, inv *aini.InventoryData, sshTimeout int64) (stri
 			}
 
 			if port, ok := grpVars["grafana_port"]; ok {
+				tmpIns.Port, _ = strconv.Atoi(port)
+			}
+
+			// apply values from the host
+			if port, ok := srv.Vars["grafana_port"]; ok {
 				tmpIns.Port, _ = strconv.Atoi(port)
 			}
 
