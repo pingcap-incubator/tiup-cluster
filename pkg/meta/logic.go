@@ -692,58 +692,6 @@ server_configs:
 	return conf, nil
 }
 
-// checkContains check if all values in valA is contained in valB
-func checkContains(valA, valB interface{}) bool {
-	switch valA.(type) {
-	case map[string]interface{}:
-		subA := valA.(map[string]interface{})
-		if subB, ok := valB.(map[string]interface{}); ok {
-			return checkMapContains(subA, subB)
-		}
-		log.Infof("?1")
-		return false
-	case []interface{}:
-		subA := valA.([]interface{})
-		if subB, ok := valB.([]interface{}); ok {
-			return checkListContains(subA, subB)
-		}
-		log.Infof("?2")
-		return false
-	default:
-		if valA != valB {
-			return false
-		}
-	}
-	return true
-}
-
-// checkMapContains check if all values in mapA is contained in mapB
-func checkMapContains(mapA, mapB map[string]interface{}) bool {
-	for key, vA := range mapA {
-		if vB, ok := mapB[key]; ok {
-			if !checkContains(vA, vB) {
-				return false
-			}
-		} else {
-			return false
-		}
-	}
-	return true
-}
-
-// checkListContains check if all values in listA is contained in listB
-func checkListContains(listA, listB []interface{}) bool {
-	if len(listA) > len(listB) {
-		return false
-	}
-	for idx, vA := range listA {
-		if !checkContains(vA, listB[idx]) {
-			return false
-		}
-	}
-	return true
-}
-
 // InitConfig implement Instance interface
 func (i *TiFlashInstance) InitConfig(e executor.TiOpsExecutor, clusterName, clusterVersion, deployUser string, paths DirPaths) error {
 	if err := i.instance.InitConfig(e, clusterName, clusterVersion, deployUser, paths); err != nil {
@@ -764,18 +712,14 @@ func (i *TiFlashInstance) InitConfig(e executor.TiOpsExecutor, clusterName, clus
 	}
 	pdStr := strings.Join(pdAddrs, ",")
 
-	// check if pd config enabled placement rules
+	// replication.enable-placement-rules should be set to true to enable TiFlash
 	// TODO: Move this logic to an independent checkConfig procedure
+	const key = "replication.enable-placement-rules"
+	globalEnabled, ok1 := i.topo.ServerConfigs.PD[key].(bool)
 	for _, pd := range i.topo.PDServers {
-		pdConf, err := merge(i.topo.ServerConfigs.PD, pd.Config)
-		if err != nil {
-			return err
-		}
-		// replication.enable-placement-rules should be set to true to enable TiFlash
-		conf := make(map[string]interface{})
-		conf["replication"] = make(map[string]interface{})
-		conf["replication"].(map[string]interface{})["enable-placement-rules"] = true
-		if !checkMapContains(conf, pdConf) {
+		// if instance config exists AND the config is false, throw an error.
+		// if instance config does not exist, if global config does not exist OR the config is false, throw an error
+		if instanceEnabled, ok2 := pd.Config[key].(bool); (ok2 && !instanceEnabled) || (!ok2 && (!ok1 || !globalEnabled)) {
 			return fmt.Errorf("must set replication.enable-placement-rules to true in pd conf to enable TiFlash")
 		}
 	}
