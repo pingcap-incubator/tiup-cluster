@@ -16,7 +16,6 @@ package meta
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"reflect"
 	"strings"
 
@@ -128,23 +127,9 @@ func merge2Toml(comp string, global, overwrite map[string]interface{}) ([]byte, 
 	return buf.Bytes(), nil
 }
 
-func mergeImported(
-	clusterName, comp, host string,
-	port int,
-	specConfig map[string]interface{},
-) (map[string]interface{}, error) {
-	// read imported config of the instance
-	configPath := ClusterPath(
-		clusterName,
-		"config",
-		fmt.Sprintf("%s-%s-%d.toml", comp, host, port),
-	)
-	raw, err := ioutil.ReadFile(configPath)
-	if err != nil {
-		return specConfig, err
-	}
+func mergeImported(importConfig []byte, specConfig map[string]interface{}) (map[string]interface{}, error) {
 	var configData map[string]interface{}
-	if err := toml.Unmarshal(raw, &configData); err != nil {
+	if err := toml.Unmarshal(importConfig, &configData); err != nil {
 		return specConfig, err
 	}
 

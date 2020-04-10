@@ -339,13 +339,21 @@ func (i *TiDBInstance) InitConfig(e executor.TiOpsExecutor, clusterName, cluster
 	specConfig := spec.Config
 	// merge config files for imported instance
 	if i.IsImported() {
-		mergedConfig, err := mergeImported(
+		configPath := ClusterPath(
 			clusterName,
-			i.ComponentName(),
-			i.GetHost(),
-			i.GetPort(),
-			spec.Config,
+			"config",
+			fmt.Sprintf(
+				"%s-%s-%d.toml",
+				i.ComponentName(),
+				i.GetHost(),
+				i.GetPort(),
+			),
 		)
+		importConfig, err := ioutil.ReadFile(configPath)
+		if err != nil {
+			return err
+		}
+		mergedConfig, err := mergeImported(importConfig, spec.Config)
 		if err != nil {
 			return err
 		}
@@ -435,13 +443,21 @@ func (i *TiKVInstance) InitConfig(e executor.TiOpsExecutor, clusterName, cluster
 	specConfig := spec.Config
 	// merge config files for imported instance
 	if i.IsImported() {
-		mergedConfig, err := mergeImported(
+		configPath := ClusterPath(
 			clusterName,
-			i.ComponentName(),
-			i.GetHost(),
-			i.GetPort(),
-			spec.Config,
+			"config",
+			fmt.Sprintf(
+				"%s-%s-%d.toml",
+				i.ComponentName(),
+				i.GetHost(),
+				i.GetPort(),
+			),
 		)
+		importConfig, err := ioutil.ReadFile(configPath)
+		if err != nil {
+			return err
+		}
+		mergedConfig, err := mergeImported(importConfig, spec.Config)
 		if err != nil {
 			return err
 		}
@@ -551,13 +567,21 @@ func (i *PDInstance) InitConfig(e executor.TiOpsExecutor, clusterName, clusterVe
 	specConfig := spec.Config
 	// merge config files for imported instance
 	if i.IsImported() {
-		mergedConfig, err := mergeImported(
+		configPath := ClusterPath(
 			clusterName,
-			i.ComponentName(),
-			i.GetHost(),
-			i.GetPort(),
-			spec.Config,
+			"config",
+			fmt.Sprintf(
+				"%s-%s-%d.toml",
+				i.ComponentName(),
+				i.GetHost(),
+				i.GetPort(),
+			),
 		)
+		importConfig, err := ioutil.ReadFile(configPath)
+		if err != nil {
+			return err
+		}
+		mergedConfig, err := mergeImported(importConfig, spec.Config)
 		if err != nil {
 			return err
 		}
@@ -792,13 +816,21 @@ func (i *TiFlashInstance) InitConfig(e executor.TiOpsExecutor, clusterName, clus
 	specLernerConfig := spec.LearnerConfig
 	// merge config files for imported instance
 	if i.IsImported() {
-		mergedConfig, err := mergeImported(
+		configPath := ClusterPath(
 			clusterName,
-			i.ComponentName()+"-learner",
-			i.GetHost(),
-			i.GetPort(),
-			spec.LearnerConfig,
+			"config",
+			fmt.Sprintf(
+				"%s-%s-%d.toml",
+				i.ComponentName()+"learner",
+				i.GetHost(),
+				i.GetPort(),
+			),
 		)
+		importConfig, err := ioutil.ReadFile(configPath)
+		if err != nil {
+			return err
+		}
+		mergedConfig, err := mergeImported(importConfig, spec.LearnerConfig)
 		if err != nil {
 			return err
 		}
@@ -818,13 +850,21 @@ func (i *TiFlashInstance) InitConfig(e executor.TiOpsExecutor, clusterName, clus
 	specConfig := spec.Config
 	// merge config files for imported instance
 	if i.IsImported() {
-		specConfig, err = mergeImported(
+		configPath := ClusterPath(
 			clusterName,
-			i.ComponentName(),
-			i.GetHost(),
-			i.GetPort(),
-			spec.Config,
+			"config",
+			fmt.Sprintf(
+				"%s-%s-%d.toml",
+				i.ComponentName(),
+				i.GetHost(),
+				i.GetPort(),
+			),
 		)
+		importConfig, err := ioutil.ReadFile(configPath)
+		if err != nil {
+			return err
+		}
+		specConfig, err = mergeImported(importConfig, spec.Config)
 		if err != nil {
 			return err
 		}
