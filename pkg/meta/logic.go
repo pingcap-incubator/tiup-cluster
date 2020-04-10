@@ -21,7 +21,6 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/BurntSushi/toml"
 	"github.com/goccy/go-yaml"
 	"github.com/google/uuid"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/clusterutil"
@@ -768,9 +767,7 @@ func (i *TiFlashInstance) InitConfig(e executor.TiOpsExecutor, clusterName, clus
 	// check if pd config enabled placement rules
 	// TODO: Move this logic to an independent checkConfig procedure
 	for _, pd := range i.topo.PDServers {
-		fp := filepath.Join(paths.Cache, fmt.Sprintf("%s-%s-%d.toml", pd.Role(), pd.Host, pd.GetMainPort()))
-		pdConf := make(map[string]interface{})
-		_, err := toml.DecodeFile(fp, &pdConf)
+		pdConf, err := merge(i.topo.ServerConfigs.PD, pd.Config)
 		if err != nil {
 			return err
 		}
