@@ -64,7 +64,7 @@ func Start(
 
 	// Load from am, grafana
 	amComponent, grafanaComponent, promComponent := (&meta.AlertManagerComponent{Specification: spec}).Instances(), (&meta.GrafanaComponent{Specification: spec}).Instances(), (&meta.MonitorComponent{Specification: spec}).Instances()
-	if len(amComponent) > 0 || len(grafanaComponent) > 0 {
+	if len(amComponent) > 0 || len(grafanaComponent) > 0 || len(promComponent) > 0 {
 		// At least a PD server exists
 		var pdEndpoint []string
 		for _, instance := range (&meta.PDComponent{Specification: spec}).Instances() {
@@ -78,13 +78,13 @@ func Start(
 			return err
 		}
 		if len(grafanaComponent) > 0 {
-			registerComponent(etcdClient, grafanaComponent[0].ComponentName(), grafanaComponent[0])
+			_ = registerComponent(etcdClient, grafanaComponent[0].ComponentName(), grafanaComponent[0])
 		}
 		if len(amComponent) > 0 {
-			registerComponent(etcdClient, amComponent[0].ComponentName(), amComponent[0])
+			_ = registerComponent(etcdClient, amComponent[0].ComponentName(), amComponent[0])
 		}
 		if len(promComponent) > 0 {
-			registerComponent(etcdClient, promComponent[0].ComponentName(), promComponent[0])
+			_ = registerComponent(etcdClient, promComponent[0].ComponentName(), promComponent[0])
 		}
 	}
 
