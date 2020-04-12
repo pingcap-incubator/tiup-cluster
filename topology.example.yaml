@@ -153,25 +153,24 @@ tiflash_servers:
 #       syncer.to.port: 3306
 #   - host: 10.0.1.19
 
-
 monitoring_servers:
   - host: 10.0.1.11
-#     ssh_port: 22
-#     port: 9090
-#     deploy_dir: "/tidb-deploy/prometheus-8249"
-#     data_dir: "/tidb-data/prometheus-8249"
-#     log_dir: "/tidb-deploy/prometheus-8249/log"
+    # ssh_port: 22
+    # port: 9090
+    # deploy_dir: "/tidb-deploy/prometheus-8249"
+    # data_dir: "/tidb-data/prometheus-8249"
+    # log_dir: "/tidb-deploy/prometheus-8249/log"
 
 grafana_servers:
   - host: 10.0.1.11
-#     port: 3000
-#     deploy_dir: /tidb-deploy/grafana-3000
+    # port: 3000
+    # deploy_dir: /tidb-deploy/grafana-3000
 
 alertmanager_servers:
   - host: 10.0.1.11
-#     ssh_port: 22
-#     web_port: 9093
-#     cluster_port: 9094
-#     deploy_dir: "/tidb-deploy/alertmanager-9093"
-#     data_dir: "/tidb-data/alertmanager-9093"
-#     log_dir: "/tidb-deploy/alertmanager-9093/log"
+    # ssh_port: 22
+    # web_port: 9093
+    # cluster_port: 9094
+    # deploy_dir: "/tidb-deploy/alertmanager-9093"
+    # data_dir: "/tidb-data/alertmanager-9093"
+    # log_dir: "/tidb-deploy/alertmanager-9093/log"
