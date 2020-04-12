@@ -16,10 +16,13 @@ package operator
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
+
+	"go.etcd.io/etcd/clientv3"
 
 	"github.com/pingcap-incubator/tiup-cluster/pkg/api"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/executor"
@@ -59,7 +62,53 @@ func Start(
 		}
 	}
 
+	// Load from am, grafana
+	amComponent, grafanaComponent, promComponent := (&meta.AlertManagerComponent{Specification: spec}).Instances(), (&meta.GrafanaComponent{Specification: spec}).Instances(), (&meta.MonitorComponent{Specification: spec}).Instances()
+	if len(amComponent) > 0 || len(grafanaComponent) > 0 {
+		// At least a PD server exists
+		var pdEndpoint []string
+		for _, instance := range (&meta.PDComponent{Specification: spec}).Instances() {
+			pdEndpoint = append(pdEndpoint, addr(instance))
+		}
+		etcdClient, err := clientv3.New(clientv3.Config{
+			Endpoints:   pdEndpoint,
+			DialTimeout: time.Second * 5,
+		})
+		if err != nil {
+			return err
+		}
+		if len(grafanaComponent) > 0 {
+			registerComponent(etcdClient, grafanaComponent[0].ComponentName(), grafanaComponent[0])
+		}
+		if len(amComponent) > 0 {
+			registerComponent(etcdClient, amComponent[0].ComponentName(), amComponent[0])
+		}
+		if len(promComponent) > 0 {
+			registerComponent(etcdClient, promComponent[0].ComponentName(), promComponent[0])
+		}
+	}
+
 	return nil
+}
+
+type topologyInfo struct {
+	IP         string `json:"ip"`
+	Port       int    `json:"port"`
+	BinaryPath string `json:"binary_path"`
+}
+
+func registerComponent(etcdClient *clientv3.Client, componentName string, instance meta.Instance) error {
+	info := topologyInfo{
+		IP:         instance.GetHost(),
+		Port:       instance.GetPort(),
+		BinaryPath: instance.DeployDir(),
+	}
+	data, err := json.Marshal(info)
+	if err != nil {
+		return err
+	}
+	_, err = etcdClient.KV.Put(context.Background(), "/topology/"+componentName, string(data))
+	return err
 }
 
 // Stop the cluster.
