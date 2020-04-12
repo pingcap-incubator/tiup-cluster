@@ -11,9 +11,9 @@ global:
 monitored:
   node_exporter_port: 9100
   blackbox_exporter_port: 9115
-  deploy_dir: "/tidb-deploy/monitored-9100"
-  data_dir: "/tidb-data/monitored-9100"
-  log_dir: "/tidb-deploy/monitored-9100/log"
+  # deploy_dir: "/tidb-deploy/monitored-9100"
+  # data_dir: "/tidb-data/monitored-9100"
+  # log_dir: "/tidb-deploy/monitored-9100/log"
 
 # # Server configs are used to specify the runtime configuration of TiDB components
 # # All configuration items can be found in TiDB docs:
