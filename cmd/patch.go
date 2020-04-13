@@ -41,7 +41,7 @@ func newPatchCmd() *cobra.Command {
 	)
 	cmd := &cobra.Command{
 		Use:   "patch <cluster-name> <package-path>",
-		Short: "replace the engine while the plane is flying",
+		Short: "Replace the engine while the plane is flying",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) != 2 {
 				return cmd.Help()

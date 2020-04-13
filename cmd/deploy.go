@@ -327,7 +327,7 @@ func confirmTopology(clusterName, version string, topo *meta.Specification, patc
 	topo.IterInstance(func(instance meta.Instance) {
 		comp := instance.ComponentName()
 		if patchedRoles.Exist(comp) {
-			comp = comp + " *patched*"
+			comp = comp + " (patched)"
 		}
 		clusterTable = append(clusterTable, []string{
 			comp,
