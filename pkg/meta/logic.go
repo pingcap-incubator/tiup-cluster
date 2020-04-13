@@ -682,7 +682,7 @@ server_configs:
     display_name: "TiFlash"
     listen_host: "0.0.0.0"
     mark_cache_size: 5368709120
-    tmp_path: "%[10]s/tmp"
+    tmp_path: "%[10]s/tiflash/data/tmp"
     path: "%[1]s"
     tcp_port: %[3]d
     http_port: %[4]d
@@ -748,7 +748,7 @@ server_configs:
     server.addr: "0.0.0.0:%[4]d"
     server.advertise-addr: "%[2]s:%[4]d"
     server.status-addr: "%[2]s:%[5]d"
-    storage.data-dir: "%[6]s/tiflash"
+    storage.data-dir: "%[6]s/flash"
     rocksdb.wal-dir: ""
     security.ca-path: ""
     security.cert-path: ""
