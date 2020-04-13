@@ -1,4 +1,5 @@
-# tips: PD 优先级需要手工使用 pd-ctl 客户端工具 member leader_priority PD-name number 进行设置。
+
+# Tip: PD priority needs to be manually set using the PD-ctl client tool. such as, member Leader_priority PD-name numbers.
 global:
   user: "tidb"
   ssh_port: 22
