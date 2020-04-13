@@ -286,6 +286,18 @@ func parseInventory(dir string, inv *aini.InventoryData, sshTimeout int64) (stri
 			if httpPort, ok := grpVars["http_port"]; ok {
 				tmpIns.HTTPPort, _ = strconv.Atoi(httpPort)
 			}
+			if flashServicePort, ok := grpVars["flash_service_port"]; ok {
+				tmpIns.FlashServicePort, _ = strconv.Atoi(flashServicePort)
+			}
+			if flashProxyPort, ok := grpVars["flash_proxy_port"]; ok {
+				tmpIns.FlashProxyPort, _ = strconv.Atoi(flashProxyPort)
+			}
+			if flashProxyStatusPort, ok := grpVars["flash_proxy_status_port"]; ok {
+				tmpIns.FlashProxyStatusPort, _ = strconv.Atoi(flashProxyStatusPort)
+			}
+			if statusPort, ok := grpVars["metrics_port"]; ok {
+				tmpIns.StatusPort, _ = strconv.Atoi(statusPort)
+			}
 
 			// apply values from the host
 			if tcpPort, ok := srv.Vars["tcp_port"]; ok {
@@ -311,6 +323,9 @@ func parseInventory(dir string, inv *aini.InventoryData, sshTimeout int64) (stri
 			}
 			if logDir, ok := srv.Vars["tiflash_log_dir"]; ok {
 				tmpIns.LogDir = logDir
+			}
+			if tmpDir, ok := srv.Vars["tmp_path"]; ok {
+				tmpIns.TmpDir = tmpDir
 			}
 
 			log.Debugf("Imported %s node %s:%d.", tmpIns.Role(), tmpIns.Host, tmpIns.GetMainPort())
