@@ -41,7 +41,7 @@ func newPatchCmd() *cobra.Command {
 	)
 	cmd := &cobra.Command{
 		Use:   "patch <cluster-name> <package-path>",
-		Short: "Replace the engine while the plane is flying",
+		Short: "Replace remote package with local one",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) != 2 {
 				return cmd.Help()
@@ -99,7 +99,7 @@ func patch(clusterName, packagePath string, options operator.Options, overwrite 
 			meta.ClusterPath(clusterName, "ssh", "id_rsa.pub")).
 		ClusterSSH(metadata.Topology, metadata.User, sshTimeout).
 		Parallel(replacePackageTasks...).
-		ClusterOperate(metadata.Topology, operator.RestartOperation, options).
+		ClusterOperate(metadata.Topology, operator.UpgradeOperation, options).
 		Build()
 
 	if err := t.Execute(task.NewContext()); err != nil {
