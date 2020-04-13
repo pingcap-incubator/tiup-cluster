@@ -15,6 +15,7 @@ package cmd
 
 import (
 	"path/filepath"
+	"strings"
 
 	"github.com/joomcode/errorx"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/bindversion"
@@ -103,6 +104,26 @@ func scaleOut(clusterName, topoFile string, opt scaleOutOptions) error {
 	sshConnProps, err := cliutil.ReadIdentityFileOrPassword(opt.identityFile)
 	if err != nil {
 		return err
+	}
+
+	// patchedRoles are components that have been patched and overwrited
+	patchedRoles := set.NewStringSet()
+	patchedList := []string{}
+	newPart.IterInstance(func(instance meta.Instance) {
+		if exists, _ := utils.FileExist(meta.ClusterPath(clusterName, meta.PatchDirName, instance.Role()+".tar.gz")); exists {
+			patchedRoles.Insert(instance.Role())
+		}
+	})
+	for r := range patchedRoles {
+		patchedList = append(patchedList, r)
+	}
+	if len(patchedList) != 0 {
+		if err := cliutil.PromptForConfirmOrAbortError(
+			"The following components have been replaced by the previous patch operation:\n- %s\nDo you want to continue? [y/N]: ",
+			strings.Join(patchedList, "\n- "),
+		); err != nil {
+			return errors.New("operation canceled")
+		}
 	}
 
 	// Build the scale out tasks

@@ -27,6 +27,7 @@ import (
 const (
 	// MetaFileName is the file name of the meta file.
 	MetaFileName = "meta.yaml"
+	PatchDirName = "patch"
 )
 
 var (
