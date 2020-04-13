@@ -15,7 +15,6 @@ package cmd
 
 import (
 	"path/filepath"
-	"strings"
 
 	"github.com/joomcode/errorx"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/bindversion"
@@ -90,8 +89,15 @@ func scaleOut(clusterName, topoFile string, opt scaleOutOptions) error {
 		return err
 	}
 
+	patchedRoles := set.NewStringSet()
+	newPart.IterInstance(func(instance meta.Instance) {
+		if exists, _ := utils.FileExist(meta.ClusterPath(clusterName, meta.PatchDirName, instance.Role()+".tar.gz")); exists {
+			patchedRoles.Insert(instance.Role())
+		}
+	})
 	if !opt.skipConfirm {
-		if err := confirmTopology(clusterName, metadata.Version, &newPart); err != nil {
+		// patchedRoles are components that have been patched and overwrited
+		if err := confirmTopology(clusterName, metadata.Version, &newPart, patchedRoles); err != nil {
 			return err
 		}
 	}
@@ -106,28 +112,8 @@ func scaleOut(clusterName, topoFile string, opt scaleOutOptions) error {
 		return err
 	}
 
-	// patchedRoles are components that have been patched and overwrited
-	patchedRoles := set.NewStringSet()
-	patchedList := []string{}
-	newPart.IterInstance(func(instance meta.Instance) {
-		if exists, _ := utils.FileExist(meta.ClusterPath(clusterName, meta.PatchDirName, instance.Role()+".tar.gz")); exists {
-			patchedRoles.Insert(instance.Role())
-		}
-	})
-	for r := range patchedRoles {
-		patchedList = append(patchedList, r)
-	}
-	if len(patchedList) != 0 {
-		if err := cliutil.PromptForConfirmOrAbortError(
-			"The following components have been replaced by the previous patch operation:\n- %s\nDo you want to continue? [y/N]: ",
-			strings.Join(patchedList, "\n- "),
-		); err != nil {
-			return errors.New("operation canceled")
-		}
-	}
-
 	// Build the scale out tasks
-	t, err := buildScaleOutTask(clusterName, metadata, mergedTopo, opt, sshConnProps, &newPart)
+	t, err := buildScaleOutTask(clusterName, metadata, mergedTopo, opt, sshConnProps, &newPart, patchedRoles)
 	if err != nil {
 		return err
 	}
@@ -160,7 +146,8 @@ func buildScaleOutTask(
 	mergedTopo *meta.Specification,
 	opt scaleOutOptions,
 	sshConnProps *cliutil.SSHConnectionProps,
-	newPart *meta.TopologySpecification) (task.Task, error) {
+	newPart *meta.TopologySpecification,
+	patchedRoles set.StringSet) (task.Task, error) {
 	var (
 		envInitTasks       []task.Task // tasks which are used to initialize environment
 		downloadCompTasks  []task.Task // tasks which are used to download components
@@ -221,25 +208,29 @@ func buildScaleOutTask(
 		logDir := clusterutil.Abs(metadata.User, inst.LogDir())
 
 		// Deploy component
-		t := task.NewBuilder().
+		tb := task.NewBuilder().
 			UserSSH(inst.GetHost(), inst.GetSSHPort(), metadata.User, sshTimeout).
 			Mkdir(metadata.User, inst.GetHost(),
 				deployDir, dataDir, logDir,
 				filepath.Join(deployDir, "bin"),
 				filepath.Join(deployDir, "conf"),
-				filepath.Join(deployDir, "scripts")).
-			CopyComponent(inst.ComponentName(), version, inst.GetHost(), deployDir).
-			ScaleConfig(clusterName,
-				metadata.Version,
-				metadata.Topology,
-				inst,
-				metadata.User,
-				meta.DirPaths{
-					Deploy: deployDir,
-					Data:   dataDir,
-					Log:    logDir,
-				},
-			).Build()
+				filepath.Join(deployDir, "scripts"))
+		if patchedRoles.Exist(inst.ComponentName()) {
+			tb.InstallPackage(meta.ClusterPath(clusterName, meta.PatchDirName, inst.ComponentName()+".tar.gz"), inst.GetHost(), deployDir)
+		} else {
+			tb.CopyComponent(inst.ComponentName(), version, inst.GetHost(), deployDir)
+		}
+		t := tb.ScaleConfig(clusterName,
+			metadata.Version,
+			metadata.Topology,
+			inst,
+			metadata.User,
+			meta.DirPaths{
+				Deploy: deployDir,
+				Data:   dataDir,
+				Log:    logDir,
+			},
+		).Build()
 		deployCompTasks = append(deployCompTasks, t)
 	})
 
