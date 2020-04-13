@@ -167,7 +167,7 @@ func (i *instance) mergeServerConfig(e executor.TiOpsExecutor, globalConf, insta
 	return e.Transfer(fp, dst, false)
 }
 
-// mergeServerConfig merges the server configuration and overwrite the global configuration
+// mergeTiFlashLearnerServerConfig merges the server configuration and overwrite the global configuration
 func (i *instance) mergeTiFlashLearnerServerConfig(e executor.TiOpsExecutor, globalConf, instanceConf map[string]interface{}, paths DirPaths) error {
 	fp := filepath.Join(paths.Cache, fmt.Sprintf("%s-learner-%s-%d.toml", i.ComponentName(), i.GetHost(), i.GetPort()))
 	conf, err := merge2Toml(i.ComponentName()+"-learner", globalConf, instanceConf)
@@ -335,7 +335,32 @@ func (i *TiDBInstance) InitConfig(e executor.TiOpsExecutor, clusterName, cluster
 	if _, _, err := e.Execute("chmod +x "+dst, false); err != nil {
 		return err
 	}
-	return i.mergeServerConfig(e, i.topo.ServerConfigs.TiDB, spec.Config, paths)
+
+	specConfig := spec.Config
+	// merge config files for imported instance
+	if i.IsImported() {
+		configPath := ClusterPath(
+			clusterName,
+			"config",
+			fmt.Sprintf(
+				"%s-%s-%d.toml",
+				i.ComponentName(),
+				i.GetHost(),
+				i.GetPort(),
+			),
+		)
+		importConfig, err := ioutil.ReadFile(configPath)
+		if err != nil {
+			return err
+		}
+		mergedConfig, err := mergeImported(importConfig, spec.Config)
+		if err != nil {
+			return err
+		}
+		specConfig = mergedConfig
+	}
+
+	return i.mergeServerConfig(e, i.topo.ServerConfigs.TiDB, specConfig, paths)
 }
 
 // ScaleConfig deploy temporary config on scaling
@@ -415,7 +440,31 @@ func (i *TiKVInstance) InitConfig(e executor.TiOpsExecutor, clusterName, cluster
 		return err
 	}
 
-	return i.mergeServerConfig(e, i.topo.ServerConfigs.TiKV, spec.Config, paths)
+	specConfig := spec.Config
+	// merge config files for imported instance
+	if i.IsImported() {
+		configPath := ClusterPath(
+			clusterName,
+			"config",
+			fmt.Sprintf(
+				"%s-%s-%d.toml",
+				i.ComponentName(),
+				i.GetHost(),
+				i.GetPort(),
+			),
+		)
+		importConfig, err := ioutil.ReadFile(configPath)
+		if err != nil {
+			return err
+		}
+		mergedConfig, err := mergeImported(importConfig, spec.Config)
+		if err != nil {
+			return err
+		}
+		specConfig = mergedConfig
+	}
+
+	return i.mergeServerConfig(e, i.topo.ServerConfigs.TiKV, specConfig, paths)
 }
 
 // ScaleConfig deploy temporary config on scaling
@@ -515,7 +564,31 @@ func (i *PDInstance) InitConfig(e executor.TiOpsExecutor, clusterName, clusterVe
 		spec.Config["pd-server.metric-storage"] = fmt.Sprintf("http://%s:%d", prom.Host, prom.Port)
 	}
 
-	return i.mergeServerConfig(e, i.topo.ServerConfigs.PD, spec.Config, paths)
+	specConfig := spec.Config
+	// merge config files for imported instance
+	if i.IsImported() {
+		configPath := ClusterPath(
+			clusterName,
+			"config",
+			fmt.Sprintf(
+				"%s-%s-%d.toml",
+				i.ComponentName(),
+				i.GetHost(),
+				i.GetPort(),
+			),
+		)
+		importConfig, err := ioutil.ReadFile(configPath)
+		if err != nil {
+			return err
+		}
+		mergedConfig, err := mergeImported(importConfig, spec.Config)
+		if err != nil {
+			return err
+		}
+		specConfig = mergedConfig
+	}
+
+	return i.mergeServerConfig(e, i.topo.ServerConfigs.PD, specConfig, paths)
 }
 
 // ScaleConfig deploy temporary config on scaling
@@ -665,6 +738,8 @@ server_configs:
 func (i *TiFlashInstance) InitTiFlashLearnerConfig(cfg *scripts.TiFlashScript, src map[string]interface{}) (map[string]interface{}, error) {
 	topo := TopologySpecification{}
 
+	firstDataDir := strings.Split(cfg.DataDir, ",")[0]
+
 	err := yaml.Unmarshal([]byte(fmt.Sprintf(`
 server_configs:
   tiflash-learner:
@@ -678,7 +753,7 @@ server_configs:
     security.ca-path: ""
     security.cert-path: ""
     security.key-path: ""
-`, cfg.LogDir, cfg.IP, cfg.FlashServicePort, cfg.FlashProxyPort, cfg.FlashProxyStatusPort, cfg.DeployDir)), &topo)
+`, cfg.LogDir, cfg.IP, cfg.FlashServicePort, cfg.FlashProxyPort, cfg.FlashProxyStatusPort, firstDataDir)), &topo)
 
 	if err != nil {
 		return nil, err
@@ -712,6 +787,18 @@ func (i *TiFlashInstance) InitConfig(e executor.TiOpsExecutor, clusterName, clus
 	}
 	pdStr := strings.Join(pdAddrs, ",")
 
+	// replication.enable-placement-rules should be set to true to enable TiFlash
+	// TODO: Move this logic to an independent checkConfig procedure
+	const key = "replication.enable-placement-rules"
+	globalEnabled, ok1 := i.topo.ServerConfigs.PD[key].(bool)
+	for _, pd := range i.topo.PDServers {
+		// if instance config exists AND the config is false, throw an error.
+		// if instance config does not exist, if global config does not exist OR the config is false, throw an error
+		if instanceEnabled, ok2 := pd.Config[key].(bool); (ok2 && !instanceEnabled) || (!ok2 && (!ok1 || !globalEnabled)) {
+			return fmt.Errorf("must set replication.enable-placement-rules to true in pd conf to enable TiFlash")
+		}
+	}
+
 	cfg := scripts.NewTiFlashScript(
 		i.GetHost(),
 		paths.Deploy,
@@ -735,22 +822,69 @@ func (i *TiFlashInstance) InitConfig(e executor.TiOpsExecutor, clusterName, clus
 		return err
 	}
 
-	confLearner, err := i.InitTiFlashLearnerConfig(cfg, i.topo.ServerConfigs.TiFlashLearner)
+	conf, err := i.InitTiFlashLearnerConfig(cfg, i.topo.ServerConfigs.TiFlashLearner)
 	if err != nil {
 		return err
 	}
 
-	err = i.mergeTiFlashLearnerServerConfig(e, confLearner, spec.LearnerConfig, paths)
+	specLernerConfig := spec.LearnerConfig
+	// merge config files for imported instance
+	if i.IsImported() {
+		configPath := ClusterPath(
+			clusterName,
+			"config",
+			fmt.Sprintf(
+				"%s-learner-%s-%d.toml",
+				i.ComponentName(),
+				i.GetHost(),
+				i.GetPort(),
+			),
+		)
+		importConfig, err := ioutil.ReadFile(configPath)
+		if err != nil {
+			return err
+		}
+		mergedConfig, err := mergeImported(importConfig, spec.LearnerConfig)
+		if err != nil {
+			return err
+		}
+		specLernerConfig = mergedConfig
+	}
+
+	err = i.mergeTiFlashLearnerServerConfig(e, conf, specLernerConfig, paths)
 	if err != nil {
 		return err
 	}
 
-	conf, err := i.InitTiFlashConfig(cfg, i.topo.ServerConfigs.TiFlash)
+	conf, err = i.InitTiFlashConfig(cfg, i.topo.ServerConfigs.TiFlash)
 	if err != nil {
 		return err
 	}
 
-	return i.mergeServerConfig(e, conf, spec.Config, paths)
+	specConfig := spec.Config
+	// merge config files for imported instance
+	if i.IsImported() {
+		configPath := ClusterPath(
+			clusterName,
+			"config",
+			fmt.Sprintf(
+				"%s-%s-%d.toml",
+				i.ComponentName(),
+				i.GetHost(),
+				i.GetPort(),
+			),
+		)
+		importConfig, err := ioutil.ReadFile(configPath)
+		if err != nil {
+			return err
+		}
+		specConfig, err = mergeImported(importConfig, spec.Config)
+		if err != nil {
+			return err
+		}
+	}
+
+	return i.mergeServerConfig(e, conf, specConfig, paths)
 }
 
 // ScaleConfig deploy temporary config on scaling
