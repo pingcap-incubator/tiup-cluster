@@ -46,8 +46,18 @@ func Start(
 	components := spec.ComponentsByStartOrder()
 	components = filterComponent(components, roleFilter)
 
+	var amComponent, grafanaComponent, promComponent []meta.Instance
+
 	for _, com := range components {
 		insts := filterInstance(com.Instances(), nodeFilter)
+		switch com.Name() {
+		case meta.ComponentAlertManager:
+			amComponent = insts
+		case meta.ComponentGrafana:
+			grafanaComponent = insts
+		case meta.ComponentPrometheus:
+			promComponent = insts
+		}
 		err := StartComponent(getter, insts)
 		if err != nil {
 			return errors.Annotatef(err, "failed to start %s", com.Name())
@@ -62,8 +72,6 @@ func Start(
 		}
 	}
 
-	// Load from am, grafana
-	amComponent, grafanaComponent, promComponent := (&meta.AlertManagerComponent{Specification: spec}).Instances(), (&meta.GrafanaComponent{Specification: spec}).Instances(), (&meta.MonitorComponent{Specification: spec}).Instances()
 	if len(amComponent) > 0 || len(grafanaComponent) > 0 || len(promComponent) > 0 {
 		// At least a PD server exists
 		var pdEndpoint []string
