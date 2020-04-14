@@ -100,16 +100,16 @@ func Start(
 }
 
 type topologyInfo struct {
-	IP         string `json:"ip"`
-	Port       int    `json:"port"`
-	DeployPath string `json:"deploy_dir"`
+	IP        string `json:"ip"`
+	Port      int    `json:"port"`
+	DeployDir string `json:"deploy_dir"`
 }
 
 func registerComponent(etcdClient *clientv3.Client, componentName string, instance meta.Instance) error {
 	info := topologyInfo{
-		IP:         instance.GetHost(),
-		Port:       instance.GetPort(),
-		DeployPath: instance.DeployDir(),
+		IP:        instance.GetHost(),
+		Port:      instance.GetPort(),
+		DeployDir: instance.DeployDir(),
 	}
 	data, err := json.Marshal(info)
 	if err != nil {
