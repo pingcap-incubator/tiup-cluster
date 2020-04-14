@@ -72,17 +72,6 @@ func Move(src, dst string) error {
 	return os.Rename(src, dst)
 }
 
-// FileExist check if a file exists in in local file system
-func FileExist(path string) (bool, error) {
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		return false, nil
-	} else if err != nil {
-		return false, err
-	} else {
-		return true, nil
-	}
-}
-
 // Checksum returns the sha1 sum of target file
 func Checksum(file string) (string, error) {
 	tarball, err := os.OpenFile(file, os.O_RDONLY, 0)

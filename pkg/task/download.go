@@ -51,11 +51,14 @@ func (d *Downloader) Execute(_ *Context) error {
 		}
 		defer mirror.Close()
 
-		repo := repository.NewRepository(mirror, repository.Options{
+		repo, err := repository.NewRepository(mirror, repository.Options{
 			GOOS:              "linux",
 			GOARCH:            "amd64",
 			DisableDecompress: true,
 		})
+		if err != nil {
+			return err
+		}
 
 		versions, err := repo.ComponentVersions(d.component)
 		if err != nil {
@@ -65,7 +68,7 @@ func (d *Downloader) Execute(_ *Context) error {
 			return errors.Errorf("component '%s' doesn't contains version '%s'", d.component, d.version)
 		}
 
-		err = repo.DownloadFile(meta.ProfilePath(meta.TiOpsPackageCacheDir), resName)
+		err = repo.DownloadComponent(meta.ProfilePath(meta.TiOpsPackageCacheDir), d.component, d.version)
 		if err != nil {
 			return errors.Trace(err)
 		}

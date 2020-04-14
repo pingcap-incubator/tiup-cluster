@@ -89,15 +89,15 @@ func scaleOut(clusterName, topoFile string, opt scaleOutOptions) error {
 		return err
 	}
 
-	patchedRoles := set.NewStringSet()
+	patchedComponents := set.NewStringSet()
 	newPart.IterInstance(func(instance meta.Instance) {
-		if exists, _ := utils.FileExist(meta.ClusterPath(clusterName, meta.PatchDirName, instance.Role()+".tar.gz")); exists {
-			patchedRoles.Insert(instance.Role())
+		if exists := tiuputils.IsExist(meta.ClusterPath(clusterName, meta.PatchDirName, instance.ComponentName()+".tar.gz")); exists {
+			patchedComponents.Insert(instance.ComponentName())
 		}
 	})
 	if !opt.skipConfirm {
-		// patchedRoles are components that have been patched and overwrited
-		if err := confirmTopology(clusterName, metadata.Version, &newPart, patchedRoles); err != nil {
+		// patchedComponents are components that have been patched and overwrited
+		if err := confirmTopology(clusterName, metadata.Version, &newPart, patchedComponents); err != nil {
 			return err
 		}
 	}
@@ -113,7 +113,7 @@ func scaleOut(clusterName, topoFile string, opt scaleOutOptions) error {
 	}
 
 	// Build the scale out tasks
-	t, err := buildScaleOutTask(clusterName, metadata, mergedTopo, opt, sshConnProps, &newPart, patchedRoles)
+	t, err := buildScaleOutTask(clusterName, metadata, mergedTopo, opt, sshConnProps, &newPart, patchedComponents)
 	if err != nil {
 		return err
 	}
@@ -147,7 +147,7 @@ func buildScaleOutTask(
 	opt scaleOutOptions,
 	sshConnProps *cliutil.SSHConnectionProps,
 	newPart *meta.TopologySpecification,
-	patchedRoles set.StringSet) (task.Task, error) {
+	patchedComponents set.StringSet) (task.Task, error) {
 	var (
 		envInitTasks       []task.Task // tasks which are used to initialize environment
 		downloadCompTasks  []task.Task // tasks which are used to download components
@@ -215,7 +215,7 @@ func buildScaleOutTask(
 				filepath.Join(deployDir, "bin"),
 				filepath.Join(deployDir, "conf"),
 				filepath.Join(deployDir, "scripts"))
-		if patchedRoles.Exist(inst.ComponentName()) {
+		if patchedComponents.Exist(inst.ComponentName()) {
 			tb.InstallPackage(meta.ClusterPath(clusterName, meta.PatchDirName, inst.ComponentName()+".tar.gz"), inst.GetHost(), deployDir)
 		} else {
 			tb.CopyComponent(inst.ComponentName(), version, inst.GetHost(), deployDir)
