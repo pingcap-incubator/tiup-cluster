@@ -16,7 +16,9 @@ package cmd
 import (
 	"sort"
 
+	"github.com/fatih/color"
 	"github.com/joomcode/errorx"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/log"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/logger"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/meta"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/task"
@@ -88,13 +90,35 @@ func newExecCmd() *cobra.Command {
 				Parallel(shellTasks...).
 				Build()
 
-			if err := t.Execute(task.NewContext()); err != nil {
+			execCtx := task.NewContext()
+			if err := t.Execute(execCtx); err != nil {
 				if errorx.Cast(err) != nil {
 					// FIXME: Map possible task errors and give suggestions.
 					return err
 				}
 				return errors.Trace(err)
 			}
+
+			// print outputs
+			for i := 0; i < len(hosts); i++ {
+				if i > 0 && hosts[i] == hosts[i-1] {
+					continue
+				}
+				stdout, stderr, ok := execCtx.GetOutputs(hosts[i])
+				if !ok {
+					continue
+				}
+				log.Infof("Outputs of %s on %s:",
+					color.CyanString(opt.command),
+					color.CyanString(hosts[i]))
+				if len(stdout) > 0 {
+					log.Infof("%s:\n%s", color.GreenString("stdout"), stdout)
+				}
+				if len(stderr) > 0 {
+					log.Infof("%s:\n%s", color.RedString("stderr"), stderr)
+				}
+			}
+
 			return nil
 		},
 	}

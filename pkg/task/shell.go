@@ -34,9 +34,9 @@ func (m *Shell) Execute(ctx *Context) error {
 		return ErrNoExecutor
 	}
 
-	log.Infof("Run command on %s(sudo:%v): %s", m.host, m.sudo, m.cmd)
+	log.Infof("Run command on %s(sudo:%v): %s", m.host, m.sudo, m.command)
 
-	stdout, stderr, err := exec.Execute(m.cmd, m.sudo)
+	stdout, stderr, err := exec.Execute(m.command, m.sudo)
 	if err != nil {
 		return errors.Trace(err)
 	}
