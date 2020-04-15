@@ -12,7 +12,13 @@ do
 	echo $h
 	mkdir $out_dir/$h
 
-	logs=$(ssh -o "StrictHostKeyChecking no" root@$h "find /home/tidb | grep '.*log/.*\.log'")
+	if [ "$h" == "172.19.0.100" ]
+	then
+  	logs=$(ssh -o "StrictHostKeyChecking no" root@$h "find /tiup-cluster/logs | grep '.*log/.*\.log'")
+	else
+  	logs=$(ssh -o "StrictHostKeyChecking no" root@$h "find /home/tidb | grep '.*log/.*\.log'")
+  fi
+
 
 	for log in $logs
 	do
