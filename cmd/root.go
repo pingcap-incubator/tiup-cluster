@@ -16,7 +16,6 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/fatih/color"
@@ -52,7 +51,7 @@ func init() {
 	cobra.EnableCommandSorting = false
 
 	rootCmd = &cobra.Command{
-		Use:           filepath.Base(os.Args[0]),
+		Use:           cliutil.OsArgs0(),
 		Short:         "Deploy a TiDB cluster for production",
 		SilenceUsage:  true,
 		SilenceErrors: true,

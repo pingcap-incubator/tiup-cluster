@@ -65,7 +65,8 @@ func newImportCmd() *cobra.Command {
 			if tiuputils.IsExist(meta.ClusterPath(clsName, meta.MetaFileName)) {
 				return errDeployNameDuplicate.
 					New("Cluster name '%s' is duplicated", clsName).
-					WithProperty(cliutil.SuggestionFromFormat("Please use --rename `NAME` to specify another name (You can use `tiup cluster list` to see all clusters)"))
+					WithProperty(cliutil.SuggestionFromFormat(
+						fmt.Sprintf("Please use --rename `NAME` to specify another name (You can use `%s list` to see all clusters)", cliutil.OsArgs0())))
 			}
 
 			// prompt for backups
@@ -74,11 +75,7 @@ func newImportCmd() *cobra.Command {
 			prompt := fmt.Sprintf("The ansible directory will be moved to %s after import.", backupDir)
 			if noBackup {
 				log.Infof("The '--no-backup' flag is set, the ansible directory will be kept at its current location.")
-				prompt = fmt.Sprintf(
-					"The inventory file %s will be renamed to %s after import.",
-					inventoryFileName,
-					backupFile,
-				)
+				prompt = fmt.Sprintf("The inventory file will be renamed to %s after import.", backupFile)
 			}
 			log.Warnf("TiDB-Ansible and TiUP Cluster can NOT be used together, please DO NOT try to use ansible to manage the imported cluster anymore to avoid metadata conflict.")
 			log.Infof(prompt)
@@ -139,7 +136,7 @@ func newImportCmd() *cobra.Command {
 
 			log.Infof("Cluster %s imported.", clsName)
 			fmt.Printf("Try `%s` to show node list and status of the cluster.\n",
-				color.HiYellowString("%s display %s", cmd.Parent().Use, clsName))
+				color.HiYellowString("%s display %s", cliutil.OsArgs0(), clsName))
 			return nil
 		},
 	}

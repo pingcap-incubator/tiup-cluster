@@ -493,7 +493,7 @@ func deploy(clusterName, clusterVersion, topoFile string, opt deployOptions) err
 		return errors.Trace(err)
 	}
 
-	hint := color.New(color.Bold).Sprintf("tiup cluster start %s", clusterName)
+	hint := color.New(color.Bold).Sprintf("%s start %s", cliutil.OsArgs0(), clusterName)
 	log.Infof("Deployed cluster `%s` successfully, you can start the cluster via `%s`", clusterName, hint)
 	return nil
 }
