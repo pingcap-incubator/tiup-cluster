@@ -64,7 +64,7 @@ func newScaleInCmd() *cobra.Command {
 	cmd.Flags().StringSliceVarP(&options.Nodes, "node", "N", nil, "Specify the nodes")
 	cmd.Flags().BoolVarP(&skipConfirm, "yes", "y", false, "Skip the confirmation of destroying")
 	cmd.Flags().Int64Var(&options.Timeout, "transfer-timeout", 300, "Timeout in seconds when transferring PD and TiKV store leaders")
-	cmd.Flags().BoolVar(&options.Force, "force", false, "Force just remove the instance from topo")
+	cmd.Flags().BoolVar(&options.Force, "force", false, "Force just try stop and destroy instance before removing the instance from topo")
 
 	_ = cmd.MarkFlagRequired("node")
 
@@ -133,7 +133,8 @@ func scaleIn(clusterName string, options operator.Options) error {
 		b.ClusterOperate(metadata.Topology, operator.ScaleInOperation, options).
 			UpdateMeta(clusterName, metadata, operator.AsyncNodes(metadata.Topology, options.Nodes, false))
 	} else {
-		b.UpdateMeta(clusterName, metadata, options.Nodes)
+		b.ClusterOperate(metadata.Topology, operator.ScaleInOperation, options).
+			UpdateMeta(clusterName, metadata, options.Nodes)
 	}
 
 	t := b.Parallel(regenConfigTasks...).Build()
