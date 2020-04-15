@@ -24,8 +24,8 @@ import (
 	"github.com/relex/aini"
 )
 
-// ImportAnsible imports a TiDB cluster deployed by TiDB-Ansible
-func ImportAnsible(dir, inventoryFileName string, sshTimeout int64) (string, *meta.ClusterMeta, error) {
+// ReadInventory reads the inventory files of a TiDB cluster deployed by TiDB-Ansible
+func ReadInventory(dir, inventoryFileName string, sshTimeout int64) (string, *meta.ClusterMeta, error) {
 	if inventoryFileName == "" {
 		inventoryFileName = AnsibleInventoryFile
 	}
