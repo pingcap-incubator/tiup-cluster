@@ -240,6 +240,16 @@ func (b *Builder) Mkdir(user, host string, dirs ...string) *Builder {
 	return b
 }
 
+// Rmdir appends a Rmdir task to the current task collection
+func (b *Builder) Rmdir(user, host string, dirs ...string) *Builder {
+	b.tasks = append(b.tasks, &Rmdir{
+		user: user,
+		host: host,
+		dirs: dirs,
+	})
+	return b
+}
+
 // Chown appends a Chown task to the current task collection
 func (b *Builder) Chown(user, host string, dirs ...string) *Builder {
 	if len(dirs) == 0 {

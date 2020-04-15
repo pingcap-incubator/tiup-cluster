@@ -14,14 +14,19 @@
 package cmd
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"strconv"
 
+	"github.com/joomcode/errorx"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/bindversion"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/cliutil"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/clusterutil"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/logger"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/meta"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/task"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/utils"
 	tiuputils "github.com/pingcap-incubator/tiup/pkg/utils"
 	"github.com/pingcap/errors"
@@ -29,13 +34,32 @@ import (
 	"go.uber.org/zap"
 )
 
+const (
+	collectorPathDir = "/tmp/tiup"
+)
+
+type checkOptions struct {
+	user         string // username to login to the SSH server
+	identityFile string // path to the private key file
+
+	// checks that are enabled by default, use flag to disable one
+	//disableSysTime bool
+	//disableNTP     bool
+
+	// checks that are disabled by default
+
+	// pre-defined goups of checks
+	//groupMinimal bool // a minimal set of checks
+}
+
 func newCheckCmd() *cobra.Command {
+	opt := checkOptions{}
 	cmd := &cobra.Command{
-		Use:    "check <topology.yml>",
+		Use:    "check <version> <topology.yml>",
 		Short:  "Perform preflight checks of the cluster.",
 		Hidden: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if len(args) < 1 {
+			if len(args) < 2 {
 				return cmd.Help()
 			}
 
@@ -52,9 +76,67 @@ func newCheckCmd() *cobra.Command {
 			if err := checkClusterDirConflict("tidb-cluster", &topo); err != nil {
 				return err
 			}
+
+			sshConnProps, err := cliutil.ReadIdentityFileOrPassword(opt.identityFile)
+			if err != nil {
+				return err
+			}
+
+			var collectTasks []*task.StepDisplay
+			insightVer := bindversion.ComponentVersion(bindversion.ComponentCheckCollector, args[0])
+
+			uniqueHosts := map[string]int{} // host -> ssh-port
+			topo.IterInstance(func(inst meta.Instance) {
+				if _, found := uniqueHosts[inst.GetHost()]; !found {
+					uniqueHosts[inst.GetHost()] = inst.GetSSHPort()
+
+					t := task.NewBuilder().
+						RootSSH(
+							inst.GetHost(),
+							inst.GetSSHPort(),
+							opt.user,
+							sshConnProps.Password,
+							sshConnProps.IdentityFile,
+							sshConnProps.IdentityFilePassphrase,
+							sshTimeout,
+						).
+						Mkdir(opt.user, inst.GetHost(), filepath.Join(collectorPathDir, "bin")).
+						Chown(opt.user, inst.GetHost(), collectorPathDir).
+						CopyComponent(bindversion.ComponentCheckCollector, insightVer, inst.GetHost(), collectorPathDir).
+						Shell(
+							inst.GetHost(),
+							filepath.Join(collectorPathDir, "bin", "insight"),
+							false,
+						).
+						Rmdir(opt.user, inst.GetHost(), collectorPathDir).
+						BuildAsStep(fmt.Sprintf("  - Getting system info of %s:%d", inst.GetHost(), inst.GetSSHPort()))
+					collectTasks = append(collectTasks, t)
+				}
+			})
+
+			t := task.NewBuilder().
+				Download(bindversion.ComponentCheckCollector, insightVer).
+				ParallelStep("+ Collect basic system information", collectTasks...).
+				Build()
+
+			checkCtx := task.NewContext()
+			if err := t.Execute(checkCtx); err != nil {
+				if errorx.Cast(err) != nil {
+					// FIXME: Map possible task errors and give suggestions.
+					return err
+				}
+				return errors.Trace(err)
+			}
+			//for host := range uniqueHosts {
+			//	stdout, stderr, _ := checkCtx.GetOutputs(host)
+			//}
+
 			return nil
 		},
 	}
+
+	cmd.Flags().StringVar(&opt.user, "user", "root", "The user name to login via SSH. The user must has root (or sudo) privilege.")
+	cmd.Flags().StringVarP(&opt.identityFile, "identity_file", "i", "", "The path of the SSH identity file. If specified, public key authentication will be used.")
 
 	return cmd
 }
