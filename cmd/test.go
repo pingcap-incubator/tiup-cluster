@@ -30,8 +30,9 @@ import (
 
 func newTestCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "_test <cluster-name>",
-		Short: "test toolkit",
+		Use:    "_test <cluster-name>",
+		Short:  "test toolkit",
+		Hidden: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) < 1 {
 				return cmd.Help()
