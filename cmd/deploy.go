@@ -54,7 +54,6 @@ type componentInfo struct {
 type deployOptions struct {
 	user         string // username to login to the SSH server
 	identityFile string // path to the private key file
-	skipConfirm  bool   // skip the confirmation of topology
 }
 
 func newDeploy() *cobra.Command {
@@ -80,7 +79,6 @@ func newDeploy() *cobra.Command {
 
 	cmd.Flags().StringVar(&opt.user, "user", "root", "The user name to login via SSH. The user must has root (or sudo) privilege.")
 	cmd.Flags().StringVarP(&opt.identityFile, "identity_file", "i", "", "The path of the SSH identity file. If specified, public key authentication will be used.")
-	cmd.Flags().BoolVarP(&opt.skipConfirm, "yes", "y", false, "Skip confirming the topology")
 
 	return cmd
 }
@@ -364,7 +362,7 @@ func deploy(clusterName, clusterVersion, topoFile string, opt deployOptions) err
 		return err
 	}
 
-	if !opt.skipConfirm {
+	if !skipConfirm {
 		if err := confirmTopology(clusterName, clusterVersion, &topo); err != nil {
 			return err
 		}

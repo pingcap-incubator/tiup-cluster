@@ -37,8 +37,9 @@ import (
 var rootCmd *cobra.Command
 
 var (
-	errNS      = errorx.NewNamespace("cmd")
-	sshTimeout int64 // timeout in seconds when connecting an SSH server
+	errNS       = errorx.NewNamespace("cmd")
+	sshTimeout  int64 // timeout in seconds when connecting an SSH server
+	skipConfirm bool
 )
 
 func init() {
@@ -76,6 +77,7 @@ func init() {
 	beautifyCobraUsageAndHelp(rootCmd)
 
 	rootCmd.PersistentFlags().Int64Var(&sshTimeout, "ssh-timeout", 5, "Timeout in seconds to connect host via SSH, ignored for operations that don't need an SSH connection.")
+	rootCmd.PersistentFlags().BoolVarP(&skipConfirm, "yes", "y", false, "Skip all confirmations and assumes 'yes'")
 
 	rootCmd.AddCommand(
 		newDeploy(),

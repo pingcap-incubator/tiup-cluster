@@ -79,15 +79,21 @@ func newImportCmd() *cobra.Command {
 			}
 			log.Warnf("TiDB-Ansible and TiUP Cluster can NOT be used together, please DO NOT try to use ansible to manage the imported cluster anymore to avoid metadata conflict.")
 			log.Infof(prompt)
-			if err := cliutil.PromptForConfirmOrAbortError("Do you want to continue? [y/N]: "); err != nil {
-				return err
+			if !skipConfirm {
+				err = cliutil.PromptForConfirmOrAbortError("Do you want to continue? [y/N]: ")
+				if err != nil {
+					return err
+				}
 			}
 
-			if err := cliutil.PromptForConfirmOrAbortError(
-				"Prepared to import TiDB %s cluster %s.\nDo you want to continue? [y/N]:",
-				clsMeta.Version,
-				clsName); err != nil {
-				return err
+			if !skipConfirm {
+				err = cliutil.PromptForConfirmOrAbortError(
+					"Prepared to import TiDB %s cluster %s.\nDo you want to continue? [y/N]:",
+					clsMeta.Version,
+					clsName)
+				if err != nil {
+					return err
+				}
 			}
 
 			// parse config and import nodes
