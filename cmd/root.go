@@ -95,6 +95,7 @@ func init() {
 		newEditConfigCmd(),
 		newReloadCmd(),
 		newPatchCmd(),
+		newTestCmd(), // hidden command for test internally
 	)
 }
 
