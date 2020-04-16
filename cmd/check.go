@@ -26,6 +26,7 @@ import (
 	"github.com/pingcap-incubator/tiup-cluster/pkg/clusterutil"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/logger"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/meta"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/operation"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/task"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/utils"
 	tiuputils "github.com/pingcap-incubator/tiup/pkg/utils"
@@ -41,31 +42,25 @@ const (
 type checkOptions struct {
 	user         string // username to login to the SSH server
 	identityFile string // path to the private key file
-
-	// checks that are enabled by default, use flag to disable one
-	//disableSysTime bool
-	//disableNTP     bool
-
-	// checks that are disabled by default
-
-	// pre-defined goups of checks
-	//groupMinimal bool // a minimal set of checks
+	opr          *operator.CheckOptions
 }
 
 func newCheckCmd() *cobra.Command {
-	opt := checkOptions{}
+	opt := checkOptions{
+		opr: &operator.CheckOptions{},
+	}
 	cmd := &cobra.Command{
-		Use:    "check <version> <topology.yml>",
+		Use:    "check <topology.yml>",
 		Short:  "Perform preflight checks of the cluster.",
 		Hidden: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if len(args) < 2 {
+			if len(args) < 1 {
 				return cmd.Help()
 			}
 
 			logger.EnableAuditLog()
 			var topo meta.TopologySpecification
-			if err := utils.ParseTopologyYaml(args[1], &topo); err != nil {
+			if err := utils.ParseTopologyYaml(args[0], &topo); err != nil {
 				return err
 			}
 
@@ -82,15 +77,19 @@ func newCheckCmd() *cobra.Command {
 				return err
 			}
 
-			var collectTasks []*task.StepDisplay
-			insightVer := bindversion.ComponentVersion(bindversion.ComponentCheckCollector, args[0])
+			var (
+				collectTasks  []*task.StepDisplay
+				checkSysTasks []*task.StepDisplay
+			)
+			insightVer := bindversion.ComponentVersion(bindversion.ComponentCheckCollector, "")
 
 			uniqueHosts := map[string]int{} // host -> ssh-port
 			topo.IterInstance(func(inst meta.Instance) {
 				if _, found := uniqueHosts[inst.GetHost()]; !found {
 					uniqueHosts[inst.GetHost()] = inst.GetSSHPort()
 
-					t := task.NewBuilder().
+					// build system info collecting tasks
+					t1 := task.NewBuilder().
 						RootSSH(
 							inst.GetHost(),
 							inst.GetSSHPort(),
@@ -110,26 +109,29 @@ func newCheckCmd() *cobra.Command {
 						).
 						Rmdir(opt.user, inst.GetHost(), collectorPathDir).
 						BuildAsStep(fmt.Sprintf("  - Getting system info of %s:%d", inst.GetHost(), inst.GetSSHPort()))
-					collectTasks = append(collectTasks, t)
+					collectTasks = append(collectTasks, t1)
+
+					// build system info checking tasks
+					t2 := task.NewBuilder().
+						CheckSys(inst.GetHost(), opt.opr).
+						BuildAsStep(fmt.Sprintf("  - Checking system info of %s", inst.GetHost()))
+					checkSysTasks = append(checkSysTasks, t2)
 				}
 			})
 
 			t := task.NewBuilder().
 				Download(bindversion.ComponentCheckCollector, insightVer).
 				ParallelStep("+ Collect basic system information", collectTasks...).
+				ParallelStep("+ Check basic system information", checkSysTasks...).
 				Build()
 
-			checkCtx := task.NewContext()
-			if err := t.Execute(checkCtx); err != nil {
+			if err := t.Execute(task.NewContext()); err != nil {
 				if errorx.Cast(err) != nil {
 					// FIXME: Map possible task errors and give suggestions.
 					return err
 				}
 				return errors.Trace(err)
 			}
-			//for host := range uniqueHosts {
-			//	stdout, stderr, _ := checkCtx.GetOutputs(host)
-			//}
 
 			return nil
 		},
@@ -137,6 +139,12 @@ func newCheckCmd() *cobra.Command {
 
 	cmd.Flags().StringVar(&opt.user, "user", "root", "The user name to login via SSH. The user must has root (or sudo) privilege.")
 	cmd.Flags().StringVarP(&opt.identityFile, "identity_file", "i", "", "The path of the SSH identity file. If specified, public key authentication will be used.")
+
+	cmd.Flags().BoolVar(&opt.opr.DisableNTP, "disable-ntp", false, "Disable NTP sync status check")
+	cmd.Flags().BoolVar(&opt.opr.DisableOSVersion, "disable-os", false, "Disable OS version check")
+
+	cmd.Flags().BoolVar(&opt.opr.EnableCPU, "enable-cpu", false, "Enable CPU thread count check")
+	cmd.Flags().BoolVar(&opt.opr.EnableMem, "enable-mem", false, "Enable memory size check")
 
 	return cmd
 }

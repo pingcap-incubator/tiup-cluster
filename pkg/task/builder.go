@@ -273,6 +273,15 @@ func (b *Builder) Shell(host, command string, sudo bool) *Builder {
 	return b
 }
 
+// CheckSys checks basic system information
+func (b *Builder) CheckSys(host string, opt *operator.CheckOptions) *Builder {
+	b.tasks = append(b.tasks, &CheckSys{
+		host: host,
+		opt:  opt,
+	})
+	return b
+}
+
 // Parallel appends a parallel task to the current task collection
 func (b *Builder) Parallel(tasks ...Task) *Builder {
 	b.tasks = append(b.tasks, &Parallel{inner: tasks})
