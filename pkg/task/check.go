@@ -19,9 +19,11 @@ import (
 	"github.com/pingcap-incubator/tiup-cluster/pkg/operation"
 )
 
+// the check types
 var (
 	CheckTypeSystemInfo   = "insight"
 	CheckTypeSystemLimits = "limits"
+	CheckTypeKernelParam  = "sysctl"
 )
 
 // CheckSys performs checks of system information
@@ -35,7 +37,7 @@ type CheckSys struct {
 // Execute implements the Task interface
 func (c *CheckSys) Execute(ctx *Context) error {
 	stdout, stderr, _ := ctx.GetOutputs(c.host)
-	if len(stderr) > 0 {
+	if len(stderr) > 0 && len(stdout) == 0 {
 		return fmt.Errorf("error getting output of %s: %s", c.host, stderr)
 	}
 
@@ -45,7 +47,7 @@ func (c *CheckSys) Execute(ctx *Context) error {
 			return fmt.Errorf("check fails for %s: %s", c.host, err)
 		}
 	case CheckTypeSystemLimits:
-		if err != operator.CheckSysLimits(c.opt, c.user, stdout); err != nil {
+		if err := operator.CheckSysLimits(c.opt, c.user, stdout); err != nil {
 			return err
 		}
 	}
@@ -60,5 +62,5 @@ func (c *CheckSys) Rollback(ctx *Context) error {
 
 // String implements the fmt.Stringer interface
 func (c *CheckSys) String() string {
-	return fmt.Sprintf("CheckSys: host=%s", c.host)
+	return fmt.Sprintf("CheckSys: host=%s type=%s", c.host, c.check)
 }

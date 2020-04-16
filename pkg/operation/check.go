@@ -38,6 +38,7 @@ type CheckOptions struct {
 	DisableOSVersion bool
 	DisableSwap      bool
 	DisableLimits    bool
+	DisableSysctl    bool
 
 	// checks that are disabled by default
 	EnableCPU bool
@@ -175,14 +176,14 @@ func CheckSysLimits(opt *CheckOptions, user string, l []byte) error {
 		nofileHard int
 	)
 
-	for line := range strings.Split(string(l), "\n") {
+	for _, line := range strings.Split(string(l), "\n") {
 		line = strings.TrimSpace(line)
 		if strings.HasPrefix(line, "#") {
 			continue
 		}
 
 		fields := strings.Fields(line)
-		if fields[0] != user {
+		if len(fields) < 3 || fields[0] != user {
 			continue
 		}
 
@@ -201,14 +202,60 @@ func CheckSysLimits(opt *CheckOptions, user string, l []byte) error {
 	}
 
 	if nofileSoft < 1000000 {
-		return fmt.Errorf("soft limit of nofile for %s is too low", user)
+		return fmt.Errorf("soft limit of nofile for user %s is not set or too low", user)
 	}
 	if nofileHard < 1000000 {
-		return fmt.Errorf("hard limit of nofile for %s is too low", user)
+		return fmt.Errorf("hard limit of nofile for user %s is not set or too low", user)
 	}
 	if stackSoft < 10240 {
-		return fmt.Errorf("soft limit of stack for %s is too low", user)
+		return fmt.Errorf("soft limit of stack for user %s is not set or too low", user)
 	}
 
+	return nil
+}
+
+// CheckKernelParameters checks kernel parameter values
+func CheckKernelParameters(opt *CheckOptions, p []byte) error {
+	if opt.DisableSysctl {
+		return nil
+	}
+
+	for _, line := range strings.Split(string(p), "\n") {
+		line = strings.TrimSpace(line)
+		fields := strings.Fields(line)
+
+		switch fields[0] {
+		case "fs.file-max":
+			val, _ := strconv.Atoi(fields[2])
+			if !opt.DisableLimits && val < 1000000 {
+				return fmt.Errorf("fs.file-max = %d, should be greater than 1000000", val)
+			}
+		case "net.core.somaxconn":
+			val, _ := strconv.Atoi(fields[2])
+			if !opt.DisableLimits && val < 32768 {
+				return fmt.Errorf("net.core.somaxconn = %d, should be greater than 32768", val)
+			}
+		case "net.ipv4.tcp_tw_recycle":
+			val, _ := strconv.Atoi(fields[2])
+			if val != 0 {
+				return fmt.Errorf("net.ipv4.tcp_tw_recycle = %d, should be 0", val)
+			}
+		case "net.ipv4.tcp_syncookies":
+			val, _ := strconv.Atoi(fields[2])
+			if val != 0 {
+				return fmt.Errorf("net.ipv4.tcp_syncookies = %d, should be 0", val)
+			}
+		case "vm.overcommit_memory":
+			val, _ := strconv.Atoi(fields[2])
+			if opt.EnableMem && val != 0 && val != 1 {
+				return fmt.Errorf("vm.overcommit_memory = %d, should be 0 or 1", val)
+			}
+		case "vm.swappiness":
+			val, _ := strconv.Atoi(fields[2])
+			if !opt.DisableSwap && val != 0 {
+				return fmt.Errorf("vm.swappiness = %d, should be 0", val)
+			}
+		}
+	}
 	return nil
 }

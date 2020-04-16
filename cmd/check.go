@@ -130,6 +130,17 @@ func newCheckCmd() *cobra.Command {
 							task.CheckTypeSystemLimits,
 							opt.opr,
 						).
+						Shell(
+							inst.GetHost(),
+							"sysctl -a",
+							false,
+						).
+						CheckSys(
+							inst.GetHost(),
+							topo.GlobalOptions.User,
+							task.CheckTypeKernelParam,
+							opt.opr,
+						).
 						BuildAsStep(fmt.Sprintf("  - Checking node %s", inst.GetHost()))
 					checkSysTasks = append(checkSysTasks, t2)
 				}
@@ -160,6 +171,7 @@ func newCheckCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&opt.opr.DisableOSVersion, "disable-os", false, "Disable OS version check")
 	cmd.Flags().BoolVar(&opt.opr.DisableSwap, "disable-swap", false, "Disable Swap check")
 	cmd.Flags().BoolVar(&opt.opr.DisableLimits, "disable-limits", false, "Disable kernel limit checks")
+	cmd.Flags().BoolVar(&opt.opr.DisableSysctl, "disable-sysctl", false, "Disable kernel parameter checks")
 
 	cmd.Flags().BoolVar(&opt.opr.EnableCPU, "enable-cpu", false, "Enable CPU thread count check")
 	cmd.Flags().BoolVar(&opt.opr.EnableMem, "enable-mem", false, "Enable memory size check")
