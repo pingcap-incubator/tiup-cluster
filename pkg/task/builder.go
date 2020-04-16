@@ -274,10 +274,12 @@ func (b *Builder) Shell(host, command string, sudo bool) *Builder {
 }
 
 // CheckSys checks basic system information
-func (b *Builder) CheckSys(host string, opt *operator.CheckOptions) *Builder {
+func (b *Builder) CheckSys(host, user, checkType string, opt *operator.CheckOptions) *Builder {
 	b.tasks = append(b.tasks, &CheckSys{
-		host: host,
-		opt:  opt,
+		host:  host,
+		user:  user,
+		opt:   opt,
+		check: checkType,
 	})
 	return b
 }

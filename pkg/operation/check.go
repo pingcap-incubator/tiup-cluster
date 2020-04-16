@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"math"
 	"strconv"
+	"strings"
 
 	//"github.com/pingcap-incubator/tiup-cluster/pkg/api"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/log"
@@ -35,6 +36,8 @@ type CheckOptions struct {
 	//DisableSysTime bool
 	DisableNTP       bool
 	DisableOSVersion bool
+	DisableSwap      bool
+	DisableLimits    bool
 
 	// checks that are disabled by default
 	EnableCPU bool
@@ -87,12 +90,10 @@ func checkSysInfo(opt *CheckOptions, sysInfo *sysinfo.SysInfo) error {
 		}
 	}
 
-	// check total memory size
-	if opt.EnableMem {
-		err := checkMem(&sysInfo.Memory)
-		if err != nil {
-			return err
-		}
+	// check memory size
+	err := checkMem(opt, &sysInfo.Memory)
+	if err != nil {
+		return err
 	}
 
 	return nil
@@ -149,10 +150,65 @@ func checkCPU(cpuInfo *sysinfo.CPU) error {
 	return nil
 }
 
-func checkMem(memInfo *sysinfo.Memory) error {
-	// 32Gb
-	if memInfo.Size < 1024*32 {
-		return fmt.Errorf("memory size %dMb too low, needs 32Gb or more", memInfo.Size)
+func checkMem(opt *CheckOptions, memInfo *sysinfo.Memory) error {
+	if !opt.DisableSwap && memInfo.Swap > 0 {
+		return fmt.Errorf("swap is enabled, please disable for best performance")
 	}
+
+	// 32GB
+	if opt.EnableMem && memInfo.Size < 1024*32 {
+		return fmt.Errorf("memory size %dMB too low, needs 32GB or more", memInfo.Size)
+	}
+
+	return nil
+}
+
+// CheckSysLimits checks limits in /etc/security/limits.conf
+func CheckSysLimits(opt *CheckOptions, user string, l []byte) error {
+	if opt.DisableLimits {
+		return nil
+	}
+
+	var (
+		stackSoft  int
+		nofileSoft int
+		nofileHard int
+	)
+
+	for line := range strings.Split(string(l), "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "#") {
+			continue
+		}
+
+		fields := strings.Fields(line)
+		if fields[0] != user {
+			continue
+		}
+
+		switch fields[2] {
+		case "nofile":
+			if fields[1] == "soft" {
+				nofileSoft, _ = strconv.Atoi(fields[3])
+			} else {
+				nofileHard, _ = strconv.Atoi(fields[3])
+			}
+		case "stack":
+			if fields[1] == "soft" {
+				stackSoft, _ = strconv.Atoi(fields[3])
+			}
+		}
+	}
+
+	if nofileSoft < 1000000 {
+		return fmt.Errorf("soft limit of nofile for %s is too low", user)
+	}
+	if nofileHard < 1000000 {
+		return fmt.Errorf("hard limit of nofile for %s is too low", user)
+	}
+	if stackSoft < 10240 {
+		return fmt.Errorf("soft limit of stack for %s is too low", user)
+	}
+
 	return nil
 }

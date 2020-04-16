@@ -111,10 +111,26 @@ func newCheckCmd() *cobra.Command {
 						BuildAsStep(fmt.Sprintf("  - Getting system info of %s:%d", inst.GetHost(), inst.GetSSHPort()))
 					collectTasks = append(collectTasks, t1)
 
-					// build system info checking tasks
+					// build checking tasks
 					t2 := task.NewBuilder().
-						CheckSys(inst.GetHost(), opt.opr).
-						BuildAsStep(fmt.Sprintf("  - Checking system info of %s", inst.GetHost()))
+						CheckSys(
+							inst.GetHost(),
+							topo.GlobalOptions.User,
+							task.CheckTypeSystemInfo,
+							opt.opr,
+						).
+						Shell(
+							inst.GetHost(),
+							"cat /etc/security/limits.conf",
+							false,
+						).
+						CheckSys(
+							inst.GetHost(),
+							topo.GlobalOptions.User,
+							task.CheckTypeSystemLimits,
+							opt.opr,
+						).
+						BuildAsStep(fmt.Sprintf("  - Checking node %s", inst.GetHost()))
 					checkSysTasks = append(checkSysTasks, t2)
 				}
 			})
@@ -122,7 +138,7 @@ func newCheckCmd() *cobra.Command {
 			t := task.NewBuilder().
 				Download(bindversion.ComponentCheckCollector, insightVer).
 				ParallelStep("+ Collect basic system information", collectTasks...).
-				ParallelStep("+ Check basic system information", checkSysTasks...).
+				ParallelStep("+ Check system requirements", checkSysTasks...).
 				Build()
 
 			if err := t.Execute(task.NewContext()); err != nil {
@@ -142,6 +158,8 @@ func newCheckCmd() *cobra.Command {
 
 	cmd.Flags().BoolVar(&opt.opr.DisableNTP, "disable-ntp", false, "Disable NTP sync status check")
 	cmd.Flags().BoolVar(&opt.opr.DisableOSVersion, "disable-os", false, "Disable OS version check")
+	cmd.Flags().BoolVar(&opt.opr.DisableSwap, "disable-swap", false, "Disable Swap check")
+	cmd.Flags().BoolVar(&opt.opr.DisableLimits, "disable-limits", false, "Disable kernel limit checks")
 
 	cmd.Flags().BoolVar(&opt.opr.EnableCPU, "enable-cpu", false, "Enable CPU thread count check")
 	cmd.Flags().BoolVar(&opt.opr.EnableMem, "enable-mem", false, "Enable memory size check")

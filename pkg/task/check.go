@@ -19,21 +19,37 @@ import (
 	"github.com/pingcap-incubator/tiup-cluster/pkg/operation"
 )
 
+var (
+	CheckTypeSystemInfo   = "insight"
+	CheckTypeSystemLimits = "limits"
+)
+
 // CheckSys performs checks of system information
 type CheckSys struct {
-	host string
-	opt  *operator.CheckOptions
+	host  string
+	user  string
+	opt   *operator.CheckOptions
+	check string
 }
 
 // Execute implements the Task interface
 func (c *CheckSys) Execute(ctx *Context) error {
 	stdout, stderr, _ := ctx.GetOutputs(c.host)
 	if len(stderr) > 0 {
-		return fmt.Errorf("error getting system info of %s: %s", c.host, stderr)
+		return fmt.Errorf("error getting output of %s: %s", c.host, stderr)
 	}
-	if err := operator.CheckSystemInfo(c.opt, stdout); err != nil {
-		return fmt.Errorf("check fails for %s: %s", c.host, err)
+
+	switch c.check {
+	case CheckTypeSystemInfo:
+		if err := operator.CheckSystemInfo(c.opt, stdout); err != nil {
+			return fmt.Errorf("check fails for %s: %s", c.host, err)
+		}
+	case CheckTypeSystemLimits:
+		if err != operator.CheckSysLimits(c.opt, c.user, stdout); err != nil {
+			return err
+		}
 	}
+
 	return nil
 }
 
