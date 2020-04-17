@@ -20,10 +20,10 @@ export old_version=${old_version-v3.0.12}
 # the work dir of tiup-cluster need this
 ln -s ../templates templates || true
 
-# List the case names to run, eg. ("test_cmd" "test_upgrade")
-do_cases=()
+# use run.sh test_cmd test_upgrade to run specify cases
+do_cases=$*
 
-if [ ${#do_cases[@]} -eq 0  ]; then
+if [  "$do_cases" == "" ]; then
 	for script in ./test_*.sh; do
 		echo "run test: $script"
 		. $script
