@@ -9,11 +9,12 @@ topo=./topo/upgrade.yaml
 
 yes | tiup-cluster deploy $name $old_version $topo -i ~/.ssh/id_rsa
 
+tiup-cluster _test $name writable
+
 yes | tiup-cluster start $name
 
 yes | tiup-cluster upgrade $name $version
 
+tiup-cluster _test $name writable
+
 yes | tiup-cluster destroy $name
-
-
-
