@@ -32,14 +32,6 @@ import (
 
 // CheckOptions control the list of checks to be performed
 type CheckOptions struct {
-	// checks that are enabled by default, use flag to disable one
-	//DisableSysTime bool
-	DisableNTP       bool
-	DisableOSVersion bool
-	DisableSwap      bool
-	DisableLimits    bool
-	DisableSysctl    bool
-
 	// checks that are disabled by default
 	EnableCPU bool
 	EnableMem bool
@@ -49,126 +41,170 @@ type CheckOptions struct {
 	//GroupMinimal bool // a minimal set of checks
 }
 
+// Names of checks
+var (
+	CheckTypeGeneral     = "general" // errors that don't fit any specific check
+	CheckTypeNTP         = "ntp"
+	CheckTypeOSVer       = "os-version"
+	CheckTypeSwap        = "swap"
+	CheckTypeSysctl      = "sysctl"
+	CheckTypeCPUThreads  = "cpu-cores"
+	CheckTypeCPUGovernor = "cpu-governor"
+	CheckTypeMem         = "memory"
+	CheckTypeLimits      = "limits"
+	//CheckTypeFio    = "fio"
+)
+
+// CheckResult is the result of a check
+type CheckResult struct {
+	Name string // Name of the check
+	Err  error  // An embedded error
+	Warn bool   // The check didn't pass, but not a big problem
+}
+
+// Error implements the error interface
+func (c CheckResult) Error() string {
+	return fmt.Sprintf("check failed for %s: %s", c.Name, c.Err)
+}
+
+// Unwrap implements the Wrapper interface
+func (c CheckResult) Unwrap() error {
+	return c.Err
+}
+
+// IsWarning checks if the result is a warning error
+func (c CheckResult) IsWarning() bool {
+	return c.Warn
+}
+
+// Passed checks if the result is a success
+func (c CheckResult) Passed() bool {
+	return c.Err == nil
+}
+
 // CheckSystemInfo performs checks with basic system info
-func CheckSystemInfo(opt *CheckOptions, rawData []byte) error {
+func CheckSystemInfo(opt *CheckOptions, rawData []byte) []CheckResult {
+	results := make([]CheckResult, 0)
 	var insightInfo insight.InsightInfo
 	if err := json.Unmarshal(rawData, &insightInfo); err != nil {
-		return err
+		return append(results, CheckResult{
+			Name: CheckTypeGeneral,
+			Err:  err,
+		})
 	}
 
 	// check basic system info
-	if err := checkSysInfo(opt, &insightInfo.SysInfo); err != nil {
-		return err
-	}
+	results = append(results, checkSysInfo(opt, &insightInfo.SysInfo)...)
 
 	// check NTP sync status
-	if !opt.DisableNTP {
-		err := checkNTP(&insightInfo.NTP)
-		if err != nil {
-			return err
-		}
-	}
+	results = append(results, checkNTP(&insightInfo.NTP))
 
-	return nil
+	return results
 }
 
-func checkSysInfo(opt *CheckOptions, sysInfo *sysinfo.SysInfo) error {
-	if err := checkNodeInfo(opt, &sysInfo.Node); err != nil {
-		return err
-	}
+func checkSysInfo(opt *CheckOptions, sysInfo *sysinfo.SysInfo) []CheckResult {
+	results := make([]CheckResult, 0)
 
-	if !opt.DisableOSVersion {
-		if err := checkOSInfo(opt, &sysInfo.OS); err != nil {
-			return err
-		}
-	}
+	results = append(results, checkOSInfo(opt, &sysInfo.OS))
 
 	// check cpu core counts
 	if opt.EnableCPU {
-		err := checkCPU(&sysInfo.CPU)
-		if err != nil {
-			return err
-		}
+		results = append(results, checkCPU(&sysInfo.CPU)...)
 	}
 
 	// check memory size
-	err := checkMem(opt, &sysInfo.Memory)
-	if err != nil {
-		return err
+	results = append(results, checkMem(opt, &sysInfo.Memory)...)
+
+	return results
+}
+
+func checkOSInfo(opt *CheckOptions, osInfo *sysinfo.OS) CheckResult {
+	result := CheckResult{
+		Name: CheckTypeOSVer,
 	}
 
-	return nil
-}
-
-func checkNodeInfo(opt *CheckOptions, nodeInfo *sysinfo.Node) error {
-	return nil
-}
-
-func checkOSInfo(opt *CheckOptions, osInfo *sysinfo.OS) error {
 	// check OS vendor
 	switch osInfo.Vendor {
 	case "centos", "redhat":
 		// check version
 		if ver, _ := strconv.Atoi(osInfo.Version); ver < 7 {
-			return fmt.Errorf("%s %s not supported, use version 7 or higher",
+			result.Err = fmt.Errorf("%s %s not supported, use version 7 or higher",
 				osInfo.Name, osInfo.Release)
+			return result
 		}
 	case "debian", "ubuntu":
 		// check version
 	default:
-		return fmt.Errorf("os vendor %s not supported", osInfo.Vendor)
+		result.Err = fmt.Errorf("os vendor %s not supported", osInfo.Vendor)
+		return result
 	}
 
 	// TODO: check OS architecture
 
-	return nil
+	return result
 }
 
-func checkNTP(ntpInfo *insight.TimeStat) error {
+func checkNTP(ntpInfo *insight.TimeStat) CheckResult {
+	result := CheckResult{
+		Name: CheckTypeNTP,
+	}
+
 	if ntpInfo.Status == "none" {
 		log.Infof("The NTPd daemon may be not installed, skip.")
-		return nil
+		return result
 	}
 
 	// check if time offset greater than +- 500ms
 	if math.Abs(ntpInfo.Offset) >= 500 {
-		return fmt.Errorf("time offet %fms too high", ntpInfo.Offset)
+		result.Err = fmt.Errorf("time offet %fms too high", ntpInfo.Offset)
 	}
 
-	return nil
+	return result
 }
 
-func checkCPU(cpuInfo *sysinfo.CPU) error {
+func checkCPU(cpuInfo *sysinfo.CPU) []CheckResult {
+	results := make([]CheckResult, 0)
 	if cpuInfo.Threads < 16 {
-		return fmt.Errorf("CPU thread count %d too low, needs 16 or more", cpuInfo.Threads)
+		results = append(results, CheckResult{
+			Name: CheckTypeCPUThreads,
+			Err:  fmt.Errorf("CPU thread count %d too low, needs 16 or more", cpuInfo.Threads),
+		})
 	}
 
 	// check for CPU frequency governor
 	if cpuInfo.Governor != "" && cpuInfo.Governor != "performance" {
-		return fmt.Errorf("CPU frequency governor is %s, should use performance", cpuInfo.Governor)
+		results = append(results, CheckResult{
+			Name: CheckTypeCPUGovernor,
+			Err:  fmt.Errorf("CPU frequency governor is %s, should use performance", cpuInfo.Governor),
+		})
 	}
 
-	return nil
+	return results
 }
 
-func checkMem(opt *CheckOptions, memInfo *sysinfo.Memory) error {
-	if !opt.DisableSwap && memInfo.Swap > 0 {
-		return fmt.Errorf("swap is enabled, please disable for best performance")
+func checkMem(opt *CheckOptions, memInfo *sysinfo.Memory) []CheckResult {
+	results := make([]CheckResult, 0)
+	if memInfo.Swap > 0 {
+		results = append(results, CheckResult{
+			Name: CheckTypeSwap,
+			Err:  fmt.Errorf("swap is enabled, please disable for best performance"),
+		})
 	}
 
 	// 32GB
 	if opt.EnableMem && memInfo.Size < 1024*32 {
-		return fmt.Errorf("memory size %dMB too low, needs 32GB or more", memInfo.Size)
+		results = append(results, CheckResult{
+			Name: CheckTypeMem,
+			Err:  fmt.Errorf("memory size %dMB too low, needs 32GB or more", memInfo.Size),
+		})
 	}
 
-	return nil
+	return results
 }
 
 // CheckSysLimits checks limits in /etc/security/limits.conf
-func CheckSysLimits(opt *CheckOptions, user string, l []byte) error {
-	if opt.DisableLimits {
-		return nil
-	}
+func CheckSysLimits(opt *CheckOptions, user string, l []byte) []CheckResult {
+	results := make([]CheckResult, 0)
 
 	var (
 		stackSoft  int
@@ -202,60 +238,103 @@ func CheckSysLimits(opt *CheckOptions, user string, l []byte) error {
 	}
 
 	if nofileSoft < 1000000 {
-		return fmt.Errorf("soft limit of nofile for user %s is not set or too low", user)
+		results = append(results, CheckResult{
+			Name: CheckTypeLimits,
+			Err:  fmt.Errorf("soft limit of nofile for user %s is not set or too low", user),
+		})
 	}
 	if nofileHard < 1000000 {
-		return fmt.Errorf("hard limit of nofile for user %s is not set or too low", user)
+		results = append(results, CheckResult{
+			Name: CheckTypeLimits,
+			Err:  fmt.Errorf("hard limit of nofile for user %s is not set or too low", user),
+		})
 	}
 	if stackSoft < 10240 {
-		return fmt.Errorf("soft limit of stack for user %s is not set or too low", user)
+		results = append(results, CheckResult{
+			Name: CheckTypeLimits,
+			Err:  fmt.Errorf("soft limit of stack for user %s is not set or too low", user),
+		})
 	}
 
-	return nil
+	// all pass
+	if len(results) < 1 {
+		results = append(results, CheckResult{
+			Name: CheckTypeLimits,
+		})
+	}
+
+	return results
 }
 
 // CheckKernelParameters checks kernel parameter values
-func CheckKernelParameters(opt *CheckOptions, p []byte) error {
-	if opt.DisableSysctl {
-		return nil
-	}
+func CheckKernelParameters(opt *CheckOptions, p []byte) []CheckResult {
+	results := make([]CheckResult, 0)
 
 	for _, line := range strings.Split(string(p), "\n") {
 		line = strings.TrimSpace(line)
 		fields := strings.Fields(line)
+		if len(fields) < 3 {
+			continue
+		}
 
 		switch fields[0] {
 		case "fs.file-max":
 			val, _ := strconv.Atoi(fields[2])
-			if !opt.DisableLimits && val < 1000000 {
-				return fmt.Errorf("fs.file-max = %d, should be greater than 1000000", val)
+			if val < 1000000 {
+				results = append(results, CheckResult{
+					Name: CheckTypeSysctl,
+					Err:  fmt.Errorf("fs.file-max = %d, should be greater than 1000000", val),
+				})
 			}
 		case "net.core.somaxconn":
 			val, _ := strconv.Atoi(fields[2])
-			if !opt.DisableLimits && val < 32768 {
-				return fmt.Errorf("net.core.somaxconn = %d, should be greater than 32768", val)
+			if val < 32768 {
+				results = append(results, CheckResult{
+					Name: CheckTypeSysctl,
+					Err:  fmt.Errorf("net.core.somaxconn = %d, should be greater than 32768", val),
+				})
 			}
 		case "net.ipv4.tcp_tw_recycle":
 			val, _ := strconv.Atoi(fields[2])
 			if val != 0 {
-				return fmt.Errorf("net.ipv4.tcp_tw_recycle = %d, should be 0", val)
+				results = append(results, CheckResult{
+					Name: CheckTypeSysctl,
+					Err:  fmt.Errorf("net.ipv4.tcp_tw_recycle = %d, should be 0", val),
+				})
 			}
 		case "net.ipv4.tcp_syncookies":
 			val, _ := strconv.Atoi(fields[2])
 			if val != 0 {
-				return fmt.Errorf("net.ipv4.tcp_syncookies = %d, should be 0", val)
+				results = append(results, CheckResult{
+					Name: CheckTypeSysctl,
+					Err:  fmt.Errorf("net.ipv4.tcp_syncookies = %d, should be 0", val),
+				})
 			}
 		case "vm.overcommit_memory":
 			val, _ := strconv.Atoi(fields[2])
 			if opt.EnableMem && val != 0 && val != 1 {
-				return fmt.Errorf("vm.overcommit_memory = %d, should be 0 or 1", val)
+				results = append(results, CheckResult{
+					Name: CheckTypeSysctl,
+					Err:  fmt.Errorf("vm.overcommit_memory = %d, should be 0 or 1", val),
+				})
 			}
 		case "vm.swappiness":
 			val, _ := strconv.Atoi(fields[2])
-			if !opt.DisableSwap && val != 0 {
-				return fmt.Errorf("vm.swappiness = %d, should be 0", val)
+			if val != 0 {
+				results = append(results, CheckResult{
+					Name: CheckTypeSysctl,
+					Err:  fmt.Errorf("vm.swappiness = %d, should be 0", val),
+				})
 			}
 		}
 	}
-	return nil
+
+	// all pass
+	if len(results) < 1 {
+		results = append(results, CheckResult{
+			Name: CheckTypeSysctl,
+		})
+	}
+
+	return results
 }

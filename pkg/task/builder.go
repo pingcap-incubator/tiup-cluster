@@ -273,13 +273,23 @@ func (b *Builder) Shell(host, command string, sudo bool) *Builder {
 	return b
 }
 
-// CheckSys checks basic system information
+// CheckSys checks system information of deploy server
 func (b *Builder) CheckSys(host, user, checkType string, opt *operator.CheckOptions) *Builder {
 	b.tasks = append(b.tasks, &CheckSys{
 		host:  host,
 		user:  user,
 		opt:   opt,
 		check: checkType,
+	})
+	return b
+}
+
+// HandleCheckResult parses the check results and optionally try to fix them
+func (b *Builder) HandleCheckResult(host, user string, applyFix bool) *Builder {
+	b.tasks = append(b.tasks, &HandleCheckResults{
+		host:  host,
+		user:  user,
+		apply: applyFix,
 	})
 	return b
 }
