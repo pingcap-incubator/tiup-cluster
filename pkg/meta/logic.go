@@ -14,6 +14,8 @@
 package meta
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -77,6 +79,7 @@ type Instance interface {
 	Status(pdList ...string) string
 	DataDir() string
 	LogDir() string
+	UpdateTopology() error
 }
 
 // PortStarted wait until a port is being listened
@@ -340,6 +343,11 @@ type TiDBInstance struct {
 	instance
 }
 
+// UpdateTopology implements Instance interface
+func (i *TiDBInstance) UpdateTopology() error {
+	panic("implement me")
+}
+
 // InitConfig implement Instance interface
 func (i *TiDBInstance) InitConfig(e executor.TiOpsExecutor, clusterName, clusterVersion, deployUser string, paths DirPaths) error {
 	if err := i.instance.InitConfig(e, clusterName, clusterVersion, deployUser, paths); err != nil {
@@ -440,6 +448,11 @@ func (c *TiKVComponent) Instances() []Instance {
 // TiKVInstance represent the TiDB instance
 type TiKVInstance struct {
 	instance
+}
+
+// UpdateTopology implements Instance interface
+func (i *TiKVInstance) UpdateTopology() error {
+	panic("implement me")
 }
 
 // InitConfig implement Instance interface
@@ -548,6 +561,12 @@ func (c *PDComponent) Instances() []Instance {
 type PDInstance struct {
 	Name string
 	instance
+}
+
+// UpdateTopology implements Instance interface
+// Note: PD will maintain itself's topology, so we don't need to implement it ourselves.
+func (i *PDInstance) UpdateTopology() error {
+	return nil
 }
 
 // InitConfig implement Instance interface
@@ -698,6 +717,12 @@ func (c *TiFlashComponent) Instances() []Instance {
 // TiFlashInstance represent the TiFlash instance
 type TiFlashInstance struct {
 	instance
+}
+
+// UpdateTopology implements Instance interface
+// TODO: TiFlash maintainer please add this function.
+func (i *TiFlashInstance) UpdateTopology() error {
+	return nil
 }
 
 // InitTiFlashConfig initializes TiFlash config file
@@ -970,6 +995,11 @@ type MonitorInstance struct {
 	instance
 }
 
+// UpdateTopology implements Instance interface
+func (i *MonitorInstance) UpdateTopology() error {
+	panic("implement me")
+}
+
 // InitConfig implement Instance interface
 func (i *MonitorInstance) InitConfig(e executor.TiOpsExecutor, clusterName, clusterVersion, deployUser string, paths DirPaths) error {
 	if err := i.instance.InitConfig(e, clusterName, clusterVersion, deployUser, paths); err != nil {
@@ -1092,6 +1122,31 @@ type GrafanaInstance struct {
 	instance
 }
 
+type grafanaTopology struct {
+	IP         string `json:"ip"`
+	Port       int    `json:"port"`
+	DeployPath string `json:"deploy_path"`
+}
+
+// UpdateTopology implements Instance interface
+func (i *GrafanaInstance) UpdateTopology() error {
+	etcdClient, err := i.topo.GetEtcdClient()
+	if err != nil {
+		return err
+	}
+	am := grafanaTopology{
+		IP:         i.host,
+		Port:       i.port,
+		DeployPath: i.DeployDir(),
+	}
+	topologyData, err := json.Marshal(am)
+	if err != nil {
+		return err
+	}
+	_, err = etcdClient.KV.Put(context.Background(), "/topology/grafana", string(topologyData))
+	return err
+}
+
 // InitConfig implement Instance interface
 func (i *GrafanaInstance) InitConfig(e executor.TiOpsExecutor, clusterName, clusterVersion, deployUser string, paths DirPaths) error {
 	if err := i.instance.InitConfig(e, clusterName, clusterVersion, deployUser, paths); err != nil {
@@ -1193,6 +1248,31 @@ func (c *AlertManagerComponent) Instances() []Instance {
 // AlertManagerInstance represent the alert manager instance
 type AlertManagerInstance struct {
 	instance
+}
+
+type alertManagerTopology struct {
+	IP         string `json:"ip"`
+	Port       int    `json:"port"`
+	DeployPath string `json:"deploy_path"`
+}
+
+// UpdateTopology implements Instance interface
+func (i *AlertManagerInstance) UpdateTopology() error {
+	etcdClient, err := i.topo.GetEtcdClient()
+	if err != nil {
+		return err
+	}
+	am := alertManagerTopology{
+		IP:         i.host,
+		Port:       i.port,
+		DeployPath: i.DeployDir(),
+	}
+	topologyData, err := json.Marshal(am)
+	if err != nil {
+		return err
+	}
+	_, err = etcdClient.KV.Put(context.Background(), "/topology/alertmanager", string(topologyData))
+	return err
 }
 
 // InitConfig implement Instance interface

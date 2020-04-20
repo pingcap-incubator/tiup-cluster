@@ -65,6 +65,11 @@ type PumpInstance struct {
 	instance
 }
 
+// UpdateTopology implements Instance interface
+func (i *PumpInstance) UpdateTopology() error {
+	return nil
+}
+
 // ScaleConfig deploy temporary config on scaling
 func (i *PumpInstance) ScaleConfig(e executor.TiOpsExecutor, b *Specification, clusterName, clusterVersion, deployUser string, paths DirPaths) error {
 	s := i.instance.topo

@@ -42,6 +42,7 @@ const (
 	ScaleInOperation
 	ScaleOutOperation
 	DestroyTombsomeOperation
+	UpdateTopologyOperation
 )
 
 var opStringify = [...]string{
@@ -53,6 +54,7 @@ var opStringify = [...]string{
 	"ScaleInOperation",
 	"ScaleOutOperation",
 	"DestroyTombsomeOperation",
+	"UpdateTopologyOperation",
 }
 
 func (op Operation) String() string {
