@@ -23,7 +23,7 @@ import (
 var (
 	CheckTypeSystemInfo   = "insight"
 	CheckTypeSystemLimits = "limits"
-	CheckTypeKernelParam  = "sysctl"
+	CheckTypeSystemConfig = "system"
 	CheckTypeService      = "service"
 )
 
@@ -47,8 +47,17 @@ func (c *CheckSys) Execute(ctx *Context) error {
 		ctx.SetCheckResults(c.host, operator.CheckSystemInfo(c.opt, stdout))
 	case CheckTypeSystemLimits:
 		ctx.SetCheckResults(c.host, operator.CheckSysLimits(c.opt, c.user, stdout))
-	case CheckTypeKernelParam:
-		ctx.SetCheckResults(c.host, operator.CheckKernelParameters(c.opt, stdout))
+	case CheckTypeSystemConfig:
+		results := operator.CheckKernelParameters(c.opt, stdout)
+		e, ok := ctx.GetExecutor(c.host)
+		if !ok {
+			return fmt.Errorf("can not get executor for %s", c.host)
+		}
+		results = append(
+			results,
+			operator.CheckSELinux(e),
+		)
+		ctx.SetCheckResults(c.host, results)
 	case CheckTypeService:
 		e, ok := ctx.GetExecutor(c.host)
 		if !ok {

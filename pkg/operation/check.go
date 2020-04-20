@@ -23,6 +23,7 @@ import (
 	"github.com/AstroProfundis/sysinfo"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/executor"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/log"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/module"
 	"github.com/pingcap/tidb-insight/collector/insight"
 )
 
@@ -50,6 +51,7 @@ var (
 	CheckTypeMem         = "memory"
 	CheckTypeLimits      = "limits"
 	CheckTypeSysService  = "service"
+	CheckTypeSELinux     = "selinux"
 	//CheckTypeFio    = "fio"
 )
 
@@ -365,5 +367,27 @@ func CheckServices(e executor.TiOpsExecutor, host, service string, disable bool)
 		}
 	}
 
+	return result
+}
+
+// CheckSELinux checks if SELinux is enabled on the host
+func CheckSELinux(e executor.TiOpsExecutor) *CheckResult {
+	result := &CheckResult{
+		Name: CheckTypeSELinux,
+	}
+	m := module.NewShellModule(module.ShellModuleConfig{
+		// ignore grep errors, the file may not exist for some systems
+		Command: "grep 'SELINUX=enforcing' /etc/selinux/config 2>/dev/null | wc -l",
+		Sudo:    true,
+	})
+	stdout, stderr, err := m.Execute(e)
+	if err != nil {
+		result.Err = fmt.Errorf("%w %s", err, stderr)
+		return result
+	}
+	out := strings.Trim(string(stdout), "\n")
+	if lines, err := strconv.Atoi(out); err != nil || lines > 0 {
+		result.Err = fmt.Errorf("SELinux is not disabled, %d %s", lines, err)
+	}
 	return result
 }

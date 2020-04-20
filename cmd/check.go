@@ -139,7 +139,7 @@ func newCheckCmd() *cobra.Command {
 						CheckSys(
 							inst.GetHost(),
 							topo.GlobalOptions.User,
-							task.CheckTypeKernelParam,
+							task.CheckTypeSystemConfig,
 							opt.opr,
 						).
 						CheckSys(
