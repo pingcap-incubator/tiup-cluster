@@ -20,6 +20,7 @@ import (
 	"path/filepath"
 	"strconv"
 
+	"github.com/fatih/color"
 	"github.com/joomcode/errorx"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/bindversion"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/cliutil"
@@ -116,8 +117,14 @@ func newCheckCmd() *cobra.Command {
 					t2 := task.NewBuilder().
 						CheckSys(
 							inst.GetHost(),
-							topo.GlobalOptions.User,
 							task.CheckTypeSystemInfo,
+							&topo,
+							opt.opr,
+						).
+						CheckSys(
+							inst.GetHost(),
+							task.CheckTypePartitions,
+							&topo,
 							opt.opr,
 						).
 						Shell(
@@ -127,8 +134,8 @@ func newCheckCmd() *cobra.Command {
 						).
 						CheckSys(
 							inst.GetHost(),
-							topo.GlobalOptions.User,
 							task.CheckTypeSystemLimits,
+							&topo,
 							opt.opr,
 						).
 						Shell(
@@ -138,14 +145,14 @@ func newCheckCmd() *cobra.Command {
 						).
 						CheckSys(
 							inst.GetHost(),
-							topo.GlobalOptions.User,
 							task.CheckTypeSystemConfig,
+							&topo,
 							opt.opr,
 						).
 						CheckSys(
 							inst.GetHost(),
-							topo.GlobalOptions.User,
 							task.CheckTypeService,
+							&topo,
 							opt.opr,
 						).
 						BuildAsStep(fmt.Sprintf("  - Checking node %s", inst.GetHost()))
@@ -420,7 +427,7 @@ func handleCheckResults(ctx *task.Context, host string) error {
 		return fmt.Errorf("no check results found for %s", host)
 	}
 
-	log.Infof("Check results of %s: (only errors are displayed)", host)
+	log.Infof("Check results of %s: (only errors are displayed)", color.CyanString(host))
 	for _, r := range results {
 		if r.Err != nil {
 			if r.IsWarning() {

@@ -35,7 +35,7 @@ func ComponentVersion(comp, version string) repository.Version {
 	case meta.ComponentPushwaygate:
 		return "v0.7.0"
 	case ComponentCheckCollector:
-		return "v0.2.5-13-g51b3cf9"
+		return "v0.3.0"
 	default:
 		return repository.Version(version)
 	}

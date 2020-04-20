@@ -17,12 +17,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"sort"
 	"strconv"
 	"strings"
 
 	"github.com/AstroProfundis/sysinfo"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/clusterutil"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/executor"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/log"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/meta"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/module"
 	"github.com/pingcap/tidb-insight/collector/insight"
 )
@@ -40,19 +43,20 @@ type CheckOptions struct {
 
 // Names of checks
 var (
-	CheckTypeGeneral     = "general" // errors that don't fit any specific check
-	CheckTypeNTP         = "ntp"
-	CheckTypeOSVer       = "os-version"
-	CheckTypeSwap        = "swap"
-	CheckTypeSysctl      = "sysctl"
-	CheckTypeCPUThreads  = "cpu-cores"
-	CheckTypeCPUGovernor = "cpu-governor"
-	CheckTypeEpoll       = "epoll-exclusive"
-	CheckTypeMem         = "memory"
-	CheckTypeLimits      = "limits"
-	CheckTypeSysService  = "service"
-	CheckTypeSELinux     = "selinux"
-	//CheckTypeFio    = "fio"
+	CheckNameGeneral     = "general" // errors that don't fit any specific check
+	CheckNameNTP         = "ntp"
+	CheckNameOSVer       = "os-version"
+	CheckNameSwap        = "swap"
+	CheckNameSysctl      = "sysctl"
+	CheckNameCPUThreads  = "cpu-cores"
+	CheckNameCPUGovernor = "cpu-governor"
+	CheckNameDisks       = "disk"
+	CheckNameEpoll       = "epoll-exclusive"
+	CheckNameMem         = "memory"
+	CheckNameLimits      = "limits"
+	CheckNameSysService  = "service"
+	CheckNameSELinux     = "selinux"
+	//CheckNameFio    = "fio"
 )
 
 // CheckResult is the result of a check
@@ -88,7 +92,7 @@ func CheckSystemInfo(opt *CheckOptions, rawData []byte) []*CheckResult {
 	var insightInfo insight.InsightInfo
 	if err := json.Unmarshal(rawData, &insightInfo); err != nil {
 		return append(results, &CheckResult{
-			Name: CheckTypeGeneral,
+			Name: CheckNameGeneral,
 			Err:  err,
 		})
 	}
@@ -100,7 +104,7 @@ func CheckSystemInfo(opt *CheckOptions, rawData []byte) []*CheckResult {
 	results = append(results, checkNTP(&insightInfo.NTP))
 
 	epollResult := &CheckResult{
-		Name: CheckTypeEpoll,
+		Name: CheckNameEpoll,
 	}
 	if !insightInfo.EpollExcl {
 		epollResult.Err = fmt.Errorf("epoll exclusive is not supported")
@@ -126,7 +130,7 @@ func checkSysInfo(opt *CheckOptions, sysInfo *sysinfo.SysInfo) []*CheckResult {
 
 func checkOSInfo(opt *CheckOptions, osInfo *sysinfo.OS) *CheckResult {
 	result := &CheckResult{
-		Name: CheckTypeOSVer,
+		Name: CheckNameOSVer,
 	}
 
 	// check OS vendor
@@ -152,7 +156,7 @@ func checkOSInfo(opt *CheckOptions, osInfo *sysinfo.OS) *CheckResult {
 
 func checkNTP(ntpInfo *insight.TimeStat) *CheckResult {
 	result := &CheckResult{
-		Name: CheckTypeNTP,
+		Name: CheckNameNTP,
 	}
 
 	if ntpInfo.Status == "none" {
@@ -172,7 +176,7 @@ func checkCPU(opt *CheckOptions, cpuInfo *sysinfo.CPU) []*CheckResult {
 	var results []*CheckResult
 	if opt.EnableCPU && cpuInfo.Threads < 16 {
 		results = append(results, &CheckResult{
-			Name: CheckTypeCPUThreads,
+			Name: CheckNameCPUThreads,
 			Err:  fmt.Errorf("CPU thread count %d too low, needs 16 or more", cpuInfo.Threads),
 		})
 	}
@@ -180,7 +184,7 @@ func checkCPU(opt *CheckOptions, cpuInfo *sysinfo.CPU) []*CheckResult {
 	// check for CPU frequency governor
 	if cpuInfo.Governor != "" && cpuInfo.Governor != "performance" {
 		results = append(results, &CheckResult{
-			Name: CheckTypeCPUGovernor,
+			Name: CheckNameCPUGovernor,
 			Err:  fmt.Errorf("CPU frequency governor is %s, should use performance", cpuInfo.Governor),
 		})
 	}
@@ -192,7 +196,7 @@ func checkMem(opt *CheckOptions, memInfo *sysinfo.Memory) []*CheckResult {
 	var results []*CheckResult
 	if memInfo.Swap > 0 {
 		results = append(results, &CheckResult{
-			Name: CheckTypeSwap,
+			Name: CheckNameSwap,
 			Err:  fmt.Errorf("swap is enabled, please disable for best performance"),
 		})
 	}
@@ -200,7 +204,7 @@ func checkMem(opt *CheckOptions, memInfo *sysinfo.Memory) []*CheckResult {
 	// 32GB
 	if opt.EnableMem && memInfo.Size < 1024*32 {
 		results = append(results, &CheckResult{
-			Name: CheckTypeMem,
+			Name: CheckNameMem,
 			Err:  fmt.Errorf("memory size %dMB too low, needs 32GB or more", memInfo.Size),
 		})
 	}
@@ -245,19 +249,19 @@ func CheckSysLimits(opt *CheckOptions, user string, l []byte) []*CheckResult {
 
 	if nofileSoft < 1000000 {
 		results = append(results, &CheckResult{
-			Name: CheckTypeLimits,
+			Name: CheckNameLimits,
 			Err:  fmt.Errorf("soft limit of nofile for user %s is not set or too low", user),
 		})
 	}
 	if nofileHard < 1000000 {
 		results = append(results, &CheckResult{
-			Name: CheckTypeLimits,
+			Name: CheckNameLimits,
 			Err:  fmt.Errorf("hard limit of nofile for user %s is not set or too low", user),
 		})
 	}
 	if stackSoft < 10240 {
 		results = append(results, &CheckResult{
-			Name: CheckTypeLimits,
+			Name: CheckNameLimits,
 			Err:  fmt.Errorf("soft limit of stack for user %s is not set or too low", user),
 		})
 	}
@@ -265,7 +269,7 @@ func CheckSysLimits(opt *CheckOptions, user string, l []byte) []*CheckResult {
 	// all pass
 	if len(results) < 1 {
 		results = append(results, &CheckResult{
-			Name: CheckTypeLimits,
+			Name: CheckNameLimits,
 		})
 	}
 
@@ -288,7 +292,7 @@ func CheckKernelParameters(opt *CheckOptions, p []byte) []*CheckResult {
 			val, _ := strconv.Atoi(fields[2])
 			if val < 1000000 {
 				results = append(results, &CheckResult{
-					Name: CheckTypeSysctl,
+					Name: CheckNameSysctl,
 					Err:  fmt.Errorf("fs.file-max = %d, should be greater than 1000000", val),
 				})
 			}
@@ -296,7 +300,7 @@ func CheckKernelParameters(opt *CheckOptions, p []byte) []*CheckResult {
 			val, _ := strconv.Atoi(fields[2])
 			if val < 32768 {
 				results = append(results, &CheckResult{
-					Name: CheckTypeSysctl,
+					Name: CheckNameSysctl,
 					Err:  fmt.Errorf("net.core.somaxconn = %d, should be greater than 32768", val),
 				})
 			}
@@ -304,7 +308,7 @@ func CheckKernelParameters(opt *CheckOptions, p []byte) []*CheckResult {
 			val, _ := strconv.Atoi(fields[2])
 			if val != 0 {
 				results = append(results, &CheckResult{
-					Name: CheckTypeSysctl,
+					Name: CheckNameSysctl,
 					Err:  fmt.Errorf("net.ipv4.tcp_tw_recycle = %d, should be 0", val),
 				})
 			}
@@ -312,7 +316,7 @@ func CheckKernelParameters(opt *CheckOptions, p []byte) []*CheckResult {
 			val, _ := strconv.Atoi(fields[2])
 			if val != 0 {
 				results = append(results, &CheckResult{
-					Name: CheckTypeSysctl,
+					Name: CheckNameSysctl,
 					Err:  fmt.Errorf("net.ipv4.tcp_syncookies = %d, should be 0", val),
 				})
 			}
@@ -320,7 +324,7 @@ func CheckKernelParameters(opt *CheckOptions, p []byte) []*CheckResult {
 			val, _ := strconv.Atoi(fields[2])
 			if opt.EnableMem && val != 0 && val != 1 {
 				results = append(results, &CheckResult{
-					Name: CheckTypeSysctl,
+					Name: CheckNameSysctl,
 					Err:  fmt.Errorf("vm.overcommit_memory = %d, should be 0 or 1", val),
 				})
 			}
@@ -328,7 +332,7 @@ func CheckKernelParameters(opt *CheckOptions, p []byte) []*CheckResult {
 			val, _ := strconv.Atoi(fields[2])
 			if val != 0 {
 				results = append(results, &CheckResult{
-					Name: CheckTypeSysctl,
+					Name: CheckNameSysctl,
 					Err:  fmt.Errorf("vm.swappiness = %d, should be 0", val),
 				})
 			}
@@ -338,7 +342,7 @@ func CheckKernelParameters(opt *CheckOptions, p []byte) []*CheckResult {
 	// all pass
 	if len(results) < 1 {
 		results = append(results, &CheckResult{
-			Name: CheckTypeSysctl,
+			Name: CheckNameSysctl,
 		})
 	}
 
@@ -348,7 +352,7 @@ func CheckKernelParameters(opt *CheckOptions, p []byte) []*CheckResult {
 // CheckServices checks if a service is running on the host
 func CheckServices(e executor.TiOpsExecutor, host, service string, disable bool) *CheckResult {
 	result := &CheckResult{
-		Name: CheckTypeSysService,
+		Name: CheckNameSysService,
 	}
 
 	active, err := GetServiceStatus(e, service+".service")
@@ -373,7 +377,7 @@ func CheckServices(e executor.TiOpsExecutor, host, service string, disable bool)
 // CheckSELinux checks if SELinux is enabled on the host
 func CheckSELinux(e executor.TiOpsExecutor) *CheckResult {
 	result := &CheckResult{
-		Name: CheckTypeSELinux,
+		Name: CheckNameSELinux,
 	}
 	m := module.NewShellModule(module.ShellModuleConfig{
 		// ignore grep errors, the file may not exist for some systems
@@ -390,4 +394,100 @@ func CheckSELinux(e executor.TiOpsExecutor) *CheckResult {
 		result.Err = fmt.Errorf("SELinux is not disabled, %d %s", lines, err)
 	}
 	return result
+}
+
+// CheckPartitions checks partition info of data directories
+func CheckPartitions(opt *CheckOptions, host string, topo *meta.TopologySpecification, rawData []byte) []*CheckResult {
+	var results []*CheckResult
+	var insightInfo insight.InsightInfo
+	if err := json.Unmarshal(rawData, &insightInfo); err != nil {
+		return append(results, &CheckResult{
+			Name: CheckNameDisks,
+			Err:  err,
+		})
+	}
+
+	flt := flatPartitions(insightInfo.Partitions)
+	parts := sortPartitions(flt)
+
+	topo.IterInstance(func(inst meta.Instance) {
+		if inst.GetHost() != host {
+			return
+		}
+		dataDir := inst.DataDir()
+		if dataDir == "" {
+			return
+		}
+		dataDir = clusterutil.Abs(topo.GlobalOptions.User, dataDir)
+
+		blk := getDisk(parts, dataDir)
+		if blk == nil {
+			return
+		}
+
+		switch blk.Mount.FSType {
+		case "ext4":
+			if !strings.Contains(blk.Mount.Options, "nodelalloc") {
+				results = append(results, &CheckResult{
+					Name: CheckNameDisks,
+					Err:  fmt.Errorf("mount point %s does not have nodelalloc option set", blk.Mount.MountPoint),
+				})
+			}
+			fallthrough
+		case "xfs":
+			if !strings.Contains(blk.Mount.Options, "noatime") {
+				results = append(results, &CheckResult{
+					Name: CheckNameDisks,
+					Err:  fmt.Errorf("mount point %s does not have noatime option set", blk.Mount.MountPoint),
+					Warn: true,
+				})
+			}
+		default:
+			results = append(results, &CheckResult{
+				Name: CheckNameDisks,
+				Err: fmt.Errorf("mount point %s has an unsupported filesystem %s",
+					blk.Mount.MountPoint, blk.Mount.FSType),
+			})
+		}
+	})
+
+	return results
+}
+
+func flatPartitions(parts []insight.BlockDev) []insight.BlockDev {
+	var flatBlk []insight.BlockDev
+	for _, blk := range parts {
+		if len(blk.SubDev) > 0 {
+			flatBlk = append(flatBlk, flatPartitions(blk.SubDev)...)
+		}
+		// blocks with empty mount points are ignored
+		if blk.Mount.MountPoint != "" {
+			// blocks with empty mount points are ignored
+			flatBlk = append(flatBlk, blk)
+		}
+	}
+	return flatBlk
+}
+
+func sortPartitions(parts []insight.BlockDev) []insight.BlockDev {
+	// The longest mount point is at top of the list
+	sort.Slice(parts, func(i, j int) bool {
+		return len(parts[i].Mount.MountPoint) < len(parts[j].Mount.MountPoint)
+	})
+	// reverse the list
+	for i := len(parts)/2 - 1; i >= 0; i-- {
+		opp := len(parts) - 1 - i
+		parts[i], parts[opp] = parts[opp], parts[i]
+	}
+	return parts
+}
+
+// getDisk find the first block dev from the list that matches the given path
+func getDisk(parts []insight.BlockDev, fullpath string) *insight.BlockDev {
+	for _, blk := range parts {
+		if strings.HasPrefix(fullpath, blk.Mount.MountPoint) {
+			return &blk
+		}
+	}
+	return nil
 }

@@ -16,6 +16,7 @@ package task
 import (
 	"fmt"
 
+	"github.com/pingcap-incubator/tiup-cluster/pkg/meta"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/operation"
 )
 
@@ -25,14 +26,15 @@ var (
 	CheckTypeSystemLimits = "limits"
 	CheckTypeSystemConfig = "system"
 	CheckTypeService      = "service"
+	CheckTypePartitions   = "partitions"
 )
 
 // CheckSys performs checks of system information
 type CheckSys struct {
 	host  string
-	user  string
+	topo  *meta.TopologySpecification
 	opt   *operator.CheckOptions
-	check string
+	check string // check type name
 }
 
 // Execute implements the Task interface
@@ -46,7 +48,7 @@ func (c *CheckSys) Execute(ctx *Context) error {
 	case CheckTypeSystemInfo:
 		ctx.SetCheckResults(c.host, operator.CheckSystemInfo(c.opt, stdout))
 	case CheckTypeSystemLimits:
-		ctx.SetCheckResults(c.host, operator.CheckSysLimits(c.opt, c.user, stdout))
+		ctx.SetCheckResults(c.host, operator.CheckSysLimits(c.opt, c.topo.GlobalOptions.User, stdout))
 	case CheckTypeSystemConfig:
 		results := operator.CheckKernelParameters(c.opt, stdout)
 		e, ok := ctx.GetExecutor(c.host)
@@ -71,6 +73,9 @@ func (c *CheckSys) Execute(ctx *Context) error {
 			operator.CheckServices(e, c.host, "firewalld", true),
 		)
 		ctx.SetCheckResults(c.host, results)
+	case CheckTypePartitions:
+		// check partition mount options for data_dir
+		ctx.SetCheckResults(c.host, operator.CheckPartitions(c.opt, c.host, c.topo, stdout))
 	}
 
 	return nil
