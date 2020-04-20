@@ -3,7 +3,7 @@ module github.com/pingcap-incubator/tiup-cluster
 go 1.14
 
 require (
-	github.com/AstroProfundis/sysinfo v0.0.0-20200416084652-85d23207fd52
+	github.com/AstroProfundis/sysinfo v0.0.0-20200420051136-d20016611d33
 	github.com/AstroProfundis/tabby v1.1.0-color
 	github.com/BurntSushi/toml v0.3.1
 	github.com/ScaleFT/sshkeys v0.0.0-20181112160850-82451a803681
@@ -25,7 +25,7 @@ require (
 	github.com/pingcap/errors v0.11.5-0.20190809092503-95897b64e011
 	github.com/pingcap/kvproto v0.0.0-20200317095539-c42a1d8db7d3
 	github.com/pingcap/pd/v4 v4.0.0-beta.2
-	github.com/pingcap/tidb-insight v0.2.6-0.20200416095628-58846fc6fe9b
+	github.com/pingcap/tidb-insight v0.2.6-0.20200420061841-51b3cf9d3296
 	github.com/relex/aini v1.1.3
 	github.com/sergi/go-diff v1.0.1-0.20180205163309-da645544ed44
 	github.com/spf13/cobra v0.0.6

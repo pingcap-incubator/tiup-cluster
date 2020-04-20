@@ -50,6 +50,7 @@ var (
 	CheckTypeSysctl      = "sysctl"
 	CheckTypeCPUThreads  = "cpu-cores"
 	CheckTypeCPUGovernor = "cpu-governor"
+	CheckTypeEpoll       = "epoll-exclusive"
 	CheckTypeMem         = "memory"
 	CheckTypeLimits      = "limits"
 	//CheckTypeFio    = "fio"
@@ -98,6 +99,14 @@ func CheckSystemInfo(opt *CheckOptions, rawData []byte) []CheckResult {
 
 	// check NTP sync status
 	results = append(results, checkNTP(&insightInfo.NTP))
+
+	epollResult := CheckResult{
+		Name: CheckTypeEpoll,
+	}
+	if !insightInfo.EpollExcl {
+		epollResult.Err = fmt.Errorf("epoll exclusive is not supported")
+	}
+	results = append(results, epollResult)
 
 	return results
 }

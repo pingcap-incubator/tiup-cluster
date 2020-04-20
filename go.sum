@@ -18,8 +18,8 @@ cloud.google.com/go/storage v1.0.0/go.mod h1:IhtSnM/ZTZV8YYJWCY8RULGVqBDmpoyjwiy
 cloud.google.com/go/storage v1.5.0/go.mod h1:tpKbwo567HUNpVclU5sGELwQWBDZ8gh0ZeosJ0Rtdos=
 collectd.org v0.3.0/go.mod h1:A/8DzQBkF6abtvrT2j/AU/4tiBgJWYyh0y/oB/4MlWE=
 dmitri.shuralyov.com/gpu/mtl v0.0.0-20190408044501-666a987793e9/go.mod h1:H6x//7gZCb22OMCxBHrMx7a5I7Hp++hsVxbQ4BYO7hU=
-github.com/AstroProfundis/sysinfo v0.0.0-20200416084652-85d23207fd52 h1:igHHCAFR+jS91gBVb2qiDY0EmrAjgI4lRgTuqbnI4t8=
-github.com/AstroProfundis/sysinfo v0.0.0-20200416084652-85d23207fd52/go.mod h1:4m15VhW6ZffaqJNAK/HtN3Qvf97aCe1T39u3UXaA2lA=
+github.com/AstroProfundis/sysinfo v0.0.0-20200420051136-d20016611d33 h1:GnqkdP5dsU3jhqvcPY4aNhjWZfVnXH/V0pQzGUsPSEE=
+github.com/AstroProfundis/sysinfo v0.0.0-20200420051136-d20016611d33/go.mod h1:4m15VhW6ZffaqJNAK/HtN3Qvf97aCe1T39u3UXaA2lA=
 github.com/AstroProfundis/tabby v1.1.0-color h1:BZHGFEOUYU2rzBe++BpFs9tvevy8Os3nwoPYT47Pxaw=
 github.com/AstroProfundis/tabby v1.1.0-color/go.mod h1:Wcm+uinH1saEOFGLK2LdY37lAOts8HLevz64Y3y3M3Q=
 github.com/BurntSushi/toml v0.3.1 h1:WXkYYl6Yr3qBf1K79EBnL4mak0OimBfB0XUf9Vl28OQ=
@@ -430,8 +430,8 @@ github.com/pingcap/pd/v4 v4.0.0-beta.2/go.mod h1:TWIuoypUsHkDnxiqRgcSFP6lTC+0PIm
 github.com/pingcap/sysutil v0.0.0-20200206130906-2bfa6dc40bcd/go.mod h1:EB/852NMQ+aRKioCpToQ94Wl7fktV+FNnxf3CX/TTXI=
 github.com/pingcap/sysutil v0.0.0-20200309085538-962fd285f3bb h1:bDbgLaNTRNK6Qw7KjvEqqfCQstY8WMEcXyXTU7yzYKg=
 github.com/pingcap/sysutil v0.0.0-20200309085538-962fd285f3bb/go.mod h1:EB/852NMQ+aRKioCpToQ94Wl7fktV+FNnxf3CX/TTXI=
-github.com/pingcap/tidb-insight v0.2.6-0.20200416095628-58846fc6fe9b h1:mO9hAq5nIvJyKEzHZKMwxUdD5mkrVx6TXNs5HmIJoeI=
-github.com/pingcap/tidb-insight v0.2.6-0.20200416095628-58846fc6fe9b/go.mod h1:aG8QIzs0ebVzaAsV8St6iwLOFOP+N2fPrcCGMkXVq3s=
+github.com/pingcap/tidb-insight v0.2.6-0.20200420061841-51b3cf9d3296 h1:nIjqnDtKN/h/SQT8speBCmU1ZN+bGqk4eErn7AsUjBQ=
+github.com/pingcap/tidb-insight v0.2.6-0.20200420061841-51b3cf9d3296/go.mod h1:w/d9rB1lkKRdG3ChFcUzGUyx8HQl1cXhE2ZnhSHyrgY=
 github.com/pkg/browser v0.0.0-20180916011732-0a3d74bf9ce4/go.mod h1:4OwLy04Bl9Ef3GJJCoec+30X3LQs/0/m4HFRt/2LUSA=
 github.com/pkg/errors v0.8.0/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
 github.com/pkg/errors v0.8.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
