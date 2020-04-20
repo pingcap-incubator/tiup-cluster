@@ -64,6 +64,7 @@ func startCluster(clusterName string, options operator.Options) error {
 			meta.ClusterPath(clusterName, "ssh", "id_rsa.pub")).
 		ClusterSSH(metadata.Topology, metadata.User, sshTimeout).
 		ClusterOperate(metadata.Topology, operator.StartOperation, options).
+		UpdateTopology(clusterName, metadata).
 		Build()
 
 	if err := t.Execute(task.NewContext()); err != nil {
