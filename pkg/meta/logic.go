@@ -344,8 +344,9 @@ type TiDBInstance struct {
 }
 
 // UpdateTopology implements Instance interface
+// Note: TiDB will register itself's topology, but it will not delete it.
 func (i *TiDBInstance) UpdateTopology() error {
-	panic("implement me")
+	return nil
 }
 
 // InitConfig implement Instance interface
@@ -451,8 +452,9 @@ type TiKVInstance struct {
 }
 
 // UpdateTopology implements Instance interface
+// Note: TiKV will register it's topology to PD.
 func (i *TiKVInstance) UpdateTopology() error {
-	panic("implement me")
+	return nil
 }
 
 // InitConfig implement Instance interface
@@ -995,9 +997,29 @@ type MonitorInstance struct {
 	instance
 }
 
+type monitorTopology struct {
+	IP         string `json:"ip"`
+	Port       int    `json:"port"`
+	DeployPath string `json:"deploy_path"`
+}
+
 // UpdateTopology implements Instance interface
 func (i *MonitorInstance) UpdateTopology() error {
-	panic("implement me")
+	etcdClient, err := i.topo.GetEtcdClient()
+	if err != nil {
+		return err
+	}
+	prom := monitorTopology{
+		IP:         i.host,
+		Port:       i.port,
+		DeployPath: i.DeployDir(),
+	}
+	topologyData, err := json.Marshal(prom)
+	if err != nil {
+		return err
+	}
+	_, err = etcdClient.KV.Put(context.Background(), "/topology/prometheus", string(topologyData))
+	return err
 }
 
 // InitConfig implement Instance interface
