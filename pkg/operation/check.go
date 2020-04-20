@@ -20,13 +20,9 @@ import (
 	"strconv"
 	"strings"
 
-	//"github.com/pingcap-incubator/tiup-cluster/pkg/api"
-	"github.com/pingcap-incubator/tiup-cluster/pkg/log"
-	//"github.com/pingcap-incubator/tiup-cluster/pkg/meta"
-	//"github.com/pingcap-incubator/tiup-cluster/pkg/utils"
-	//"github.com/pingcap-incubator/tiup/pkg/set"
-	//"github.com/pingcap/errors"
 	"github.com/AstroProfundis/sysinfo"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/executor"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/log"
 	"github.com/pingcap/tidb-insight/collector/insight"
 )
 
@@ -53,6 +49,7 @@ var (
 	CheckTypeEpoll       = "epoll-exclusive"
 	CheckTypeMem         = "memory"
 	CheckTypeLimits      = "limits"
+	CheckTypeSysService  = "service"
 	//CheckTypeFio    = "fio"
 )
 
@@ -84,11 +81,11 @@ func (c CheckResult) Passed() bool {
 }
 
 // CheckSystemInfo performs checks with basic system info
-func CheckSystemInfo(opt *CheckOptions, rawData []byte) []CheckResult {
-	results := make([]CheckResult, 0)
+func CheckSystemInfo(opt *CheckOptions, rawData []byte) []*CheckResult {
+	var results []*CheckResult
 	var insightInfo insight.InsightInfo
 	if err := json.Unmarshal(rawData, &insightInfo); err != nil {
-		return append(results, CheckResult{
+		return append(results, &CheckResult{
 			Name: CheckTypeGeneral,
 			Err:  err,
 		})
@@ -100,7 +97,7 @@ func CheckSystemInfo(opt *CheckOptions, rawData []byte) []CheckResult {
 	// check NTP sync status
 	results = append(results, checkNTP(&insightInfo.NTP))
 
-	epollResult := CheckResult{
+	epollResult := &CheckResult{
 		Name: CheckTypeEpoll,
 	}
 	if !insightInfo.EpollExcl {
@@ -111,15 +108,13 @@ func CheckSystemInfo(opt *CheckOptions, rawData []byte) []CheckResult {
 	return results
 }
 
-func checkSysInfo(opt *CheckOptions, sysInfo *sysinfo.SysInfo) []CheckResult {
-	results := make([]CheckResult, 0)
+func checkSysInfo(opt *CheckOptions, sysInfo *sysinfo.SysInfo) []*CheckResult {
+	var results []*CheckResult
 
 	results = append(results, checkOSInfo(opt, &sysInfo.OS))
 
-	// check cpu core counts
-	if opt.EnableCPU {
-		results = append(results, checkCPU(&sysInfo.CPU)...)
-	}
+	// check cpu capacities
+	results = append(results, checkCPU(opt, &sysInfo.CPU)...)
 
 	// check memory size
 	results = append(results, checkMem(opt, &sysInfo.Memory)...)
@@ -127,8 +122,8 @@ func checkSysInfo(opt *CheckOptions, sysInfo *sysinfo.SysInfo) []CheckResult {
 	return results
 }
 
-func checkOSInfo(opt *CheckOptions, osInfo *sysinfo.OS) CheckResult {
-	result := CheckResult{
+func checkOSInfo(opt *CheckOptions, osInfo *sysinfo.OS) *CheckResult {
+	result := &CheckResult{
 		Name: CheckTypeOSVer,
 	}
 
@@ -153,8 +148,8 @@ func checkOSInfo(opt *CheckOptions, osInfo *sysinfo.OS) CheckResult {
 	return result
 }
 
-func checkNTP(ntpInfo *insight.TimeStat) CheckResult {
-	result := CheckResult{
+func checkNTP(ntpInfo *insight.TimeStat) *CheckResult {
+	result := &CheckResult{
 		Name: CheckTypeNTP,
 	}
 
@@ -171,10 +166,10 @@ func checkNTP(ntpInfo *insight.TimeStat) CheckResult {
 	return result
 }
 
-func checkCPU(cpuInfo *sysinfo.CPU) []CheckResult {
-	results := make([]CheckResult, 0)
-	if cpuInfo.Threads < 16 {
-		results = append(results, CheckResult{
+func checkCPU(opt *CheckOptions, cpuInfo *sysinfo.CPU) []*CheckResult {
+	var results []*CheckResult
+	if opt.EnableCPU && cpuInfo.Threads < 16 {
+		results = append(results, &CheckResult{
 			Name: CheckTypeCPUThreads,
 			Err:  fmt.Errorf("CPU thread count %d too low, needs 16 or more", cpuInfo.Threads),
 		})
@@ -182,7 +177,7 @@ func checkCPU(cpuInfo *sysinfo.CPU) []CheckResult {
 
 	// check for CPU frequency governor
 	if cpuInfo.Governor != "" && cpuInfo.Governor != "performance" {
-		results = append(results, CheckResult{
+		results = append(results, &CheckResult{
 			Name: CheckTypeCPUGovernor,
 			Err:  fmt.Errorf("CPU frequency governor is %s, should use performance", cpuInfo.Governor),
 		})
@@ -191,10 +186,10 @@ func checkCPU(cpuInfo *sysinfo.CPU) []CheckResult {
 	return results
 }
 
-func checkMem(opt *CheckOptions, memInfo *sysinfo.Memory) []CheckResult {
-	results := make([]CheckResult, 0)
+func checkMem(opt *CheckOptions, memInfo *sysinfo.Memory) []*CheckResult {
+	var results []*CheckResult
 	if memInfo.Swap > 0 {
-		results = append(results, CheckResult{
+		results = append(results, &CheckResult{
 			Name: CheckTypeSwap,
 			Err:  fmt.Errorf("swap is enabled, please disable for best performance"),
 		})
@@ -202,7 +197,7 @@ func checkMem(opt *CheckOptions, memInfo *sysinfo.Memory) []CheckResult {
 
 	// 32GB
 	if opt.EnableMem && memInfo.Size < 1024*32 {
-		results = append(results, CheckResult{
+		results = append(results, &CheckResult{
 			Name: CheckTypeMem,
 			Err:  fmt.Errorf("memory size %dMB too low, needs 32GB or more", memInfo.Size),
 		})
@@ -212,8 +207,8 @@ func checkMem(opt *CheckOptions, memInfo *sysinfo.Memory) []CheckResult {
 }
 
 // CheckSysLimits checks limits in /etc/security/limits.conf
-func CheckSysLimits(opt *CheckOptions, user string, l []byte) []CheckResult {
-	results := make([]CheckResult, 0)
+func CheckSysLimits(opt *CheckOptions, user string, l []byte) []*CheckResult {
+	var results []*CheckResult
 
 	var (
 		stackSoft  int
@@ -247,19 +242,19 @@ func CheckSysLimits(opt *CheckOptions, user string, l []byte) []CheckResult {
 	}
 
 	if nofileSoft < 1000000 {
-		results = append(results, CheckResult{
+		results = append(results, &CheckResult{
 			Name: CheckTypeLimits,
 			Err:  fmt.Errorf("soft limit of nofile for user %s is not set or too low", user),
 		})
 	}
 	if nofileHard < 1000000 {
-		results = append(results, CheckResult{
+		results = append(results, &CheckResult{
 			Name: CheckTypeLimits,
 			Err:  fmt.Errorf("hard limit of nofile for user %s is not set or too low", user),
 		})
 	}
 	if stackSoft < 10240 {
-		results = append(results, CheckResult{
+		results = append(results, &CheckResult{
 			Name: CheckTypeLimits,
 			Err:  fmt.Errorf("soft limit of stack for user %s is not set or too low", user),
 		})
@@ -267,7 +262,7 @@ func CheckSysLimits(opt *CheckOptions, user string, l []byte) []CheckResult {
 
 	// all pass
 	if len(results) < 1 {
-		results = append(results, CheckResult{
+		results = append(results, &CheckResult{
 			Name: CheckTypeLimits,
 		})
 	}
@@ -276,8 +271,8 @@ func CheckSysLimits(opt *CheckOptions, user string, l []byte) []CheckResult {
 }
 
 // CheckKernelParameters checks kernel parameter values
-func CheckKernelParameters(opt *CheckOptions, p []byte) []CheckResult {
-	results := make([]CheckResult, 0)
+func CheckKernelParameters(opt *CheckOptions, p []byte) []*CheckResult {
+	var results []*CheckResult
 
 	for _, line := range strings.Split(string(p), "\n") {
 		line = strings.TrimSpace(line)
@@ -290,7 +285,7 @@ func CheckKernelParameters(opt *CheckOptions, p []byte) []CheckResult {
 		case "fs.file-max":
 			val, _ := strconv.Atoi(fields[2])
 			if val < 1000000 {
-				results = append(results, CheckResult{
+				results = append(results, &CheckResult{
 					Name: CheckTypeSysctl,
 					Err:  fmt.Errorf("fs.file-max = %d, should be greater than 1000000", val),
 				})
@@ -298,7 +293,7 @@ func CheckKernelParameters(opt *CheckOptions, p []byte) []CheckResult {
 		case "net.core.somaxconn":
 			val, _ := strconv.Atoi(fields[2])
 			if val < 32768 {
-				results = append(results, CheckResult{
+				results = append(results, &CheckResult{
 					Name: CheckTypeSysctl,
 					Err:  fmt.Errorf("net.core.somaxconn = %d, should be greater than 32768", val),
 				})
@@ -306,7 +301,7 @@ func CheckKernelParameters(opt *CheckOptions, p []byte) []CheckResult {
 		case "net.ipv4.tcp_tw_recycle":
 			val, _ := strconv.Atoi(fields[2])
 			if val != 0 {
-				results = append(results, CheckResult{
+				results = append(results, &CheckResult{
 					Name: CheckTypeSysctl,
 					Err:  fmt.Errorf("net.ipv4.tcp_tw_recycle = %d, should be 0", val),
 				})
@@ -314,7 +309,7 @@ func CheckKernelParameters(opt *CheckOptions, p []byte) []CheckResult {
 		case "net.ipv4.tcp_syncookies":
 			val, _ := strconv.Atoi(fields[2])
 			if val != 0 {
-				results = append(results, CheckResult{
+				results = append(results, &CheckResult{
 					Name: CheckTypeSysctl,
 					Err:  fmt.Errorf("net.ipv4.tcp_syncookies = %d, should be 0", val),
 				})
@@ -322,7 +317,7 @@ func CheckKernelParameters(opt *CheckOptions, p []byte) []CheckResult {
 		case "vm.overcommit_memory":
 			val, _ := strconv.Atoi(fields[2])
 			if opt.EnableMem && val != 0 && val != 1 {
-				results = append(results, CheckResult{
+				results = append(results, &CheckResult{
 					Name: CheckTypeSysctl,
 					Err:  fmt.Errorf("vm.overcommit_memory = %d, should be 0 or 1", val),
 				})
@@ -330,7 +325,7 @@ func CheckKernelParameters(opt *CheckOptions, p []byte) []CheckResult {
 		case "vm.swappiness":
 			val, _ := strconv.Atoi(fields[2])
 			if val != 0 {
-				results = append(results, CheckResult{
+				results = append(results, &CheckResult{
 					Name: CheckTypeSysctl,
 					Err:  fmt.Errorf("vm.swappiness = %d, should be 0", val),
 				})
@@ -340,10 +335,35 @@ func CheckKernelParameters(opt *CheckOptions, p []byte) []CheckResult {
 
 	// all pass
 	if len(results) < 1 {
-		results = append(results, CheckResult{
+		results = append(results, &CheckResult{
 			Name: CheckTypeSysctl,
 		})
 	}
 
 	return results
+}
+
+// CheckServices checks if a service is running on the host
+func CheckServices(e executor.TiOpsExecutor, host, service string, disable bool) *CheckResult {
+	result := &CheckResult{
+		Name: CheckTypeSysService,
+	}
+
+	active, err := GetServiceStatus(e, service+".service")
+	if err != nil {
+		result.Err = err
+	}
+
+	switch disable {
+	case false:
+		if !strings.Contains(active, "running") {
+			result.Err = fmt.Errorf("service %s is not running", service)
+		}
+	case true:
+		if strings.Contains(active, "running") {
+			result.Err = fmt.Errorf("service %s is running but should be stopped", service)
+		}
+	}
+
+	return result
 }

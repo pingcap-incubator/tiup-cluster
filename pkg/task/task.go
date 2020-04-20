@@ -56,7 +56,7 @@ type (
 			executors    map[string]executor.TiOpsExecutor
 			stdouts      map[string][]byte
 			stderrs      map[string][]byte
-			checkResults map[string][]operator.CheckResult
+			checkResults map[string][]*operator.CheckResult
 		}
 
 		// The public/private key is used to access remote server via the user `tidb`
@@ -88,12 +88,12 @@ func NewContext() *Context {
 			executors    map[string]executor.TiOpsExecutor
 			stdouts      map[string][]byte
 			stderrs      map[string][]byte
-			checkResults map[string][]operator.CheckResult
+			checkResults map[string][]*operator.CheckResult
 		}{
 			executors:    make(map[string]executor.TiOpsExecutor),
 			stdouts:      make(map[string][]byte),
 			stderrs:      make(map[string][]byte),
-			checkResults: make(map[string][]operator.CheckResult),
+			checkResults: make(map[string][]*operator.CheckResult),
 		},
 		manifestCache: manifestCache{
 			manifests: map[string]*repository.VersionManifest{},
@@ -161,7 +161,7 @@ func (ctx *Context) SetManifest(comp string, m *repository.VersionManifest) {
 }
 
 // GetCheckResults get the the check result of a host (if has any)
-func (ctx *Context) GetCheckResults(host string) (results []operator.CheckResult, ok bool) {
+func (ctx *Context) GetCheckResults(host string) (results []*operator.CheckResult, ok bool) {
 	ctx.exec.RLock()
 	results, ok = ctx.exec.checkResults[host]
 	ctx.exec.RUnlock()
@@ -169,7 +169,7 @@ func (ctx *Context) GetCheckResults(host string) (results []operator.CheckResult
 }
 
 // SetCheckResults append the check result of a host to the list
-func (ctx *Context) SetCheckResults(host string, results []operator.CheckResult) {
+func (ctx *Context) SetCheckResults(host string, results []*operator.CheckResult) {
 	ctx.exec.Lock()
 	if currResult, ok := ctx.exec.checkResults[host]; ok {
 		ctx.exec.checkResults[host] = append(currResult, results...)

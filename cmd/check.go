@@ -24,6 +24,7 @@ import (
 	"github.com/pingcap-incubator/tiup-cluster/pkg/bindversion"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/cliutil"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/clusterutil"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/log"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/logger"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/meta"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/operation"
@@ -141,10 +142,11 @@ func newCheckCmd() *cobra.Command {
 							task.CheckTypeKernelParam,
 							opt.opr,
 						).
-						HandleCheckResult(
+						CheckSys(
 							inst.GetHost(),
 							topo.GlobalOptions.User,
-							false,
+							task.CheckTypeService,
+							opt.opr,
 						).
 						BuildAsStep(fmt.Sprintf("  - Checking node %s", inst.GetHost()))
 					checkSysTasks = append(checkSysTasks, t2)
@@ -157,12 +159,19 @@ func newCheckCmd() *cobra.Command {
 				ParallelStep("+ Check system requirements", checkSysTasks...).
 				Build()
 
-			if err := t.Execute(task.NewContext()); err != nil {
+			ctx := task.NewContext()
+			if err := t.Execute(ctx); err != nil {
 				if errorx.Cast(err) != nil {
 					// FIXME: Map possible task errors and give suggestions.
 					return err
 				}
 				return errors.Trace(err)
+			}
+
+			for host := range uniqueHosts {
+				if err := handleCheckResults(ctx, host); err != nil {
+					return err
+				}
 			}
 
 			return nil
@@ -399,6 +408,27 @@ Please change to use another port or another host.
 `, properties))
 			}
 		}
+	}
+
+	return nil
+}
+
+// handleCheckResults parses the result of checks
+func handleCheckResults(ctx *task.Context, host string) error {
+	results, _ := ctx.GetCheckResults(host)
+	if len(results) < 1 {
+		return fmt.Errorf("no check results found for %s", host)
+	}
+
+	log.Infof("Check results of %s: (only errors are displayed)", host)
+	for _, r := range results {
+		if r.Err != nil {
+			if r.IsWarning() {
+				log.Warnf("%s: %s", host, r)
+			} else {
+				log.Errorf("%s: %s", host, r)
+			}
+		} // show errors only
 	}
 
 	return nil

@@ -16,7 +16,6 @@ package task
 import (
 	"fmt"
 
-	"github.com/pingcap-incubator/tiup-cluster/pkg/log"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/operation"
 )
 
@@ -25,6 +24,7 @@ var (
 	CheckTypeSystemInfo   = "insight"
 	CheckTypeSystemLimits = "limits"
 	CheckTypeKernelParam  = "sysctl"
+	CheckTypeService      = "service"
 )
 
 // CheckSys performs checks of system information
@@ -49,6 +49,19 @@ func (c *CheckSys) Execute(ctx *Context) error {
 		ctx.SetCheckResults(c.host, operator.CheckSysLimits(c.opt, c.user, stdout))
 	case CheckTypeKernelParam:
 		ctx.SetCheckResults(c.host, operator.CheckKernelParameters(c.opt, stdout))
+	case CheckTypeService:
+		e, ok := ctx.GetExecutor(c.host)
+		if !ok {
+			return fmt.Errorf("can not get executor for %s", c.host)
+		}
+		var results []*operator.CheckResult
+		results = append(
+			results,
+			operator.CheckServices(e, c.host, "irqbalance", false),
+			// FIXME: set firewalld rules in deploy, and not disabling it anymore
+			operator.CheckServices(e, c.host, "firewalld", true),
+		)
+		ctx.SetCheckResults(c.host, results)
 	}
 
 	return nil
@@ -62,43 +75,4 @@ func (c *CheckSys) Rollback(ctx *Context) error {
 // String implements the fmt.Stringer interface
 func (c *CheckSys) String() string {
 	return fmt.Sprintf("CheckSys: host=%s type=%s", c.host, c.check)
-}
-
-// HandleCheckResults parses the results and optionally try to apply fixes
-type HandleCheckResults struct {
-	host  string
-	user  string
-	apply bool
-}
-
-// Execute implements the Task interface
-func (c *HandleCheckResults) Execute(ctx *Context) error {
-	results, _ := ctx.GetCheckResults(c.host)
-	if len(results) < 1 {
-		return fmt.Errorf("no check results found for %s", c.host)
-	}
-
-	for _, r := range results {
-		if r.Err != nil {
-			if r.IsWarning() {
-				log.Warnf("%s", r)
-			} else {
-				log.Errorf("%s", r)
-			}
-		} else {
-			log.Infof("Pass")
-		}
-	}
-
-	return nil
-}
-
-// Rollback implements the Task interface
-func (c *HandleCheckResults) Rollback(ctx *Context) error {
-	return ErrUnsupportedRollback
-}
-
-// String implements the fmt.Stringer interface
-func (c *HandleCheckResults) String() string {
-	return fmt.Sprintf("CheckSys: host=%s apply=%v", c.host, c.apply)
 }

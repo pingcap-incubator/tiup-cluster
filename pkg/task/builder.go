@@ -284,16 +284,6 @@ func (b *Builder) CheckSys(host, user, checkType string, opt *operator.CheckOpti
 	return b
 }
 
-// HandleCheckResult parses the check results and optionally try to fix them
-func (b *Builder) HandleCheckResult(host, user string, applyFix bool) *Builder {
-	b.tasks = append(b.tasks, &HandleCheckResults{
-		host:  host,
-		user:  user,
-		apply: applyFix,
-	})
-	return b
-}
-
 // Parallel appends a parallel task to the current task collection
 func (b *Builder) Parallel(tasks ...Task) *Builder {
 	b.tasks = append(b.tasks, &Parallel{inner: tasks})

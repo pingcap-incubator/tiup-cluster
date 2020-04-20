@@ -511,7 +511,6 @@ func stopInstance(getter ExecutorGetter, ins meta.Instance) error {
 		Unit:         ins.ServiceName(),
 		Action:       "stop",
 		ReloadDaemon: true, // always reload before operate
-		// Scope: "",
 	}
 	systemd := module.NewSystemdModule(c)
 	stdout, stderr, err := systemd.Execute(e)
