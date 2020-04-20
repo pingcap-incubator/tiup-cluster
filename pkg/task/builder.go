@@ -99,7 +99,8 @@ func (b *Builder) UpdateMeta(cluster string, metadata *meta.ClusterMeta, deleted
 
 // UpdateTopology maintain the topology information
 func (b *Builder) UpdateTopology(cluster string, metadata *meta.ClusterMeta) *Builder {
-	panic("implement me")
+	b.tasks = append(b.tasks, &UpdateTopology{metadata: metadata, cluster: cluster})
+	return b
 }
 
 // CopyFile appends a CopyFile task to the current task collection
