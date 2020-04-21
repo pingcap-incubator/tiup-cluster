@@ -262,19 +262,19 @@ func CheckSysLimits(opt *CheckOptions, user string, l []byte) []*CheckResult {
 	if nofileSoft < 1000000 {
 		results = append(results, &CheckResult{
 			Name: CheckNameLimits,
-			Err:  fmt.Errorf("soft limit of nofile for user %s is not set or too low", user),
+			Err:  fmt.Errorf("soft limit of 'nofile' for user '%s' is not set or too low", user),
 		})
 	}
 	if nofileHard < 1000000 {
 		results = append(results, &CheckResult{
 			Name: CheckNameLimits,
-			Err:  fmt.Errorf("hard limit of nofile for user %s is not set or too low", user),
+			Err:  fmt.Errorf("hard limit of 'nofile' for user '%s' is not set or too low", user),
 		})
 	}
 	if stackSoft < 10240 {
 		results = append(results, &CheckResult{
 			Name: CheckNameLimits,
-			Err:  fmt.Errorf("soft limit of stack for user %s is not set or too low", user),
+			Err:  fmt.Errorf("soft limit of 'stack' for user '%s' is not set or too low", user),
 		})
 	}
 

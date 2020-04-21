@@ -75,133 +75,8 @@ func newCheckCmd() *cobra.Command {
 				return err
 			}
 
-			var (
-				collectTasks  []*task.StepDisplay
-				checkSysTasks []*task.StepDisplay
-				cleanTasks    []*task.StepDisplay
-			)
-			insightVer := bindversion.ComponentVersion(bindversion.ComponentCheckCollector, "")
-
-			uniqueHosts := map[string]int{} // host -> ssh-port
-			topo.IterInstance(func(inst meta.Instance) {
-				if _, found := uniqueHosts[inst.GetHost()]; !found {
-					uniqueHosts[inst.GetHost()] = inst.GetSSHPort()
-
-					// build system info collecting tasks
-					t1 := task.NewBuilder().
-						RootSSH(
-							inst.GetHost(),
-							inst.GetSSHPort(),
-							opt.user,
-							sshConnProps.Password,
-							sshConnProps.IdentityFile,
-							sshConnProps.IdentityFilePassphrase,
-							sshTimeout,
-						).
-						Mkdir(opt.user, inst.GetHost(), filepath.Join(task.CheckToolsPathDir, "bin")).
-						Chown(opt.user, inst.GetHost(), task.CheckToolsPathDir).
-						CopyComponent(bindversion.ComponentCheckCollector, insightVer, inst.GetHost(), task.CheckToolsPathDir).
-						Shell(
-							inst.GetHost(),
-							filepath.Join(task.CheckToolsPathDir, "bin", "insight"),
-							false,
-						).
-						BuildAsStep(fmt.Sprintf("  - Getting system info of %s:%d", inst.GetHost(), inst.GetSSHPort()))
-					collectTasks = append(collectTasks, t1)
-
-					// build checking tasks
-					t2 := task.NewBuilder().
-						CheckSys(
-							inst.GetHost(),
-							inst.DataDir(),
-							task.CheckTypeSystemInfo,
-							&topo,
-							opt.opr,
-						).
-						CheckSys(
-							inst.GetHost(),
-							inst.DataDir(),
-							task.CheckTypePartitions,
-							&topo,
-							opt.opr,
-						).
-						Shell(
-							inst.GetHost(),
-							"cat /etc/security/limits.conf",
-							false,
-						).
-						CheckSys(
-							inst.GetHost(),
-							inst.DataDir(),
-							task.CheckTypeSystemLimits,
-							&topo,
-							opt.opr,
-						).
-						Shell(
-							inst.GetHost(),
-							"sysctl -a",
-							false,
-						).
-						CheckSys(
-							inst.GetHost(),
-							inst.DataDir(),
-							task.CheckTypeSystemConfig,
-							&topo,
-							opt.opr,
-						).
-						CheckSys(
-							inst.GetHost(),
-							inst.DataDir(),
-							task.CheckTypeService,
-							&topo,
-							opt.opr,
-						).
-						CheckSys(
-							inst.GetHost(),
-							inst.DataDir(),
-							task.CheckTypeFIO,
-							&topo,
-							opt.opr,
-						).
-						BuildAsStep(fmt.Sprintf("  - Checking node %s", inst.GetHost()))
-					checkSysTasks = append(checkSysTasks, t2)
-
-					t3 := task.NewBuilder().
-						RootSSH(
-							inst.GetHost(),
-							inst.GetSSHPort(),
-							opt.user,
-							sshConnProps.Password,
-							sshConnProps.IdentityFile,
-							sshConnProps.IdentityFilePassphrase,
-							sshTimeout,
-						).
-						Rmdir(opt.user, inst.GetHost(), task.CheckToolsPathDir).
-						BuildAsStep(fmt.Sprintf("  - Cleanup check files on %s:%d", inst.GetHost(), inst.GetSSHPort()))
-					cleanTasks = append(cleanTasks, t3)
-				}
-			})
-
-			t := task.NewBuilder().
-				Download(bindversion.ComponentCheckCollector, insightVer).
-				ParallelStep("+ Collect basic system information", collectTasks...).
-				ParallelStep("+ Check system requirements", checkSysTasks...).
-				ParallelStep("+ Cleanup check files", cleanTasks...).
-				Build()
-
-			ctx := task.NewContext()
-			if err := t.Execute(ctx); err != nil {
-				if errorx.Cast(err) != nil {
-					// FIXME: Map possible task errors and give suggestions.
-					return err
-				}
-				return errors.Trace(err)
-			}
-
-			for host := range uniqueHosts {
-				if err := handleCheckResults(ctx, host); err != nil {
-					return err
-				}
+			if err := checkSystemInfo(sshConnProps, &topo, &opt); err != nil {
+				return err
 			}
 
 			return nil
@@ -444,6 +319,139 @@ Please change to use another port or another host.
 	return nil
 }
 
+// checkSystemInfo performs series of checks and tests of the deploy server
+func checkSystemInfo(s *cliutil.SSHConnectionProps, topo *meta.TopologySpecification, opt *checkOptions) error {
+	var (
+		collectTasks  []*task.StepDisplay
+		checkSysTasks []*task.StepDisplay
+		cleanTasks    []*task.StepDisplay
+	)
+	insightVer := bindversion.ComponentVersion(bindversion.ComponentCheckCollector, "")
+
+	uniqueHosts := map[string]int{} // host -> ssh-port
+	topo.IterInstance(func(inst meta.Instance) {
+		if _, found := uniqueHosts[inst.GetHost()]; !found {
+			uniqueHosts[inst.GetHost()] = inst.GetSSHPort()
+
+			// build system info collecting tasks
+			t1 := task.NewBuilder().
+				RootSSH(
+					inst.GetHost(),
+					inst.GetSSHPort(),
+					opt.user,
+					s.Password,
+					s.IdentityFile,
+					s.IdentityFilePassphrase,
+					sshTimeout,
+				).
+				Mkdir(opt.user, inst.GetHost(), filepath.Join(task.CheckToolsPathDir, "bin")).
+				Chown(opt.user, inst.GetHost(), task.CheckToolsPathDir).
+				CopyComponent(bindversion.ComponentCheckCollector, insightVer, inst.GetHost(), task.CheckToolsPathDir).
+				Shell(
+					inst.GetHost(),
+					filepath.Join(task.CheckToolsPathDir, "bin", "insight"),
+					false,
+				).
+				BuildAsStep(fmt.Sprintf("  - Getting system info of %s:%d", inst.GetHost(), inst.GetSSHPort()))
+			collectTasks = append(collectTasks, t1)
+
+			// build checking tasks
+			t2 := task.NewBuilder().
+				CheckSys(
+					inst.GetHost(),
+					inst.DataDir(),
+					task.CheckTypeSystemInfo,
+					topo,
+					opt.opr,
+				).
+				CheckSys(
+					inst.GetHost(),
+					inst.DataDir(),
+					task.CheckTypePartitions,
+					topo,
+					opt.opr,
+				).
+				Shell(
+					inst.GetHost(),
+					"cat /etc/security/limits.conf",
+					false,
+				).
+				CheckSys(
+					inst.GetHost(),
+					inst.DataDir(),
+					task.CheckTypeSystemLimits,
+					topo,
+					opt.opr,
+				).
+				Shell(
+					inst.GetHost(),
+					"sysctl -a",
+					false,
+				).
+				CheckSys(
+					inst.GetHost(),
+					inst.DataDir(),
+					task.CheckTypeSystemConfig,
+					topo,
+					opt.opr,
+				).
+				CheckSys(
+					inst.GetHost(),
+					inst.DataDir(),
+					task.CheckTypeService,
+					topo,
+					opt.opr,
+				).
+				CheckSys(
+					inst.GetHost(),
+					inst.DataDir(),
+					task.CheckTypeFIO,
+					topo,
+					opt.opr,
+				).
+				BuildAsStep(fmt.Sprintf("  - Checking node %s", inst.GetHost()))
+			checkSysTasks = append(checkSysTasks, t2)
+
+			t3 := task.NewBuilder().
+				RootSSH(
+					inst.GetHost(),
+					inst.GetSSHPort(),
+					opt.user,
+					s.Password,
+					s.IdentityFile,
+					s.IdentityFilePassphrase,
+					sshTimeout,
+				).
+				Rmdir(opt.user, inst.GetHost(), task.CheckToolsPathDir).
+				BuildAsStep(fmt.Sprintf("  - Cleanup check files on %s:%d", inst.GetHost(), inst.GetSSHPort()))
+			cleanTasks = append(cleanTasks, t3)
+		}
+	})
+
+	t := task.NewBuilder().
+		Download(bindversion.ComponentCheckCollector, insightVer).
+		ParallelStep("+ Collect basic system information", collectTasks...).
+		ParallelStep("+ Check system requirements", checkSysTasks...).
+		ParallelStep("+ Cleanup check files", cleanTasks...).
+		Build()
+
+	ctx := task.NewContext()
+	if err := t.Execute(ctx); err != nil {
+		if errorx.Cast(err) != nil {
+			// FIXME: Map possible task errors and give suggestions.
+			return err
+		}
+		return errors.Trace(err)
+	}
+
+	for host := range uniqueHosts {
+		if err := handleCheckResults(ctx, host); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // handleCheckResults parses the result of checks
 func handleCheckResults(ctx *task.Context, host string) error {
 	results, _ := ctx.GetCheckResults(host)
@@ -451,7 +459,7 @@ func handleCheckResults(ctx *task.Context, host string) error {
 		return fmt.Errorf("no check results found for %s", host)
 	}
 
-	log.Infof("Check results of %s: (only errors and important info are displayed)", color.CyanString(host))
+	log.Infof("Check results of %s: (only errors and important info are displayed)", color.HiCyanString(host))
 	for _, r := range results {
 		if r.Err != nil {
 			if r.IsWarning() {
