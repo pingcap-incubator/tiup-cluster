@@ -132,6 +132,7 @@ func checkSysInfo(opt *CheckOptions, sysInfo *sysinfo.SysInfo) []*CheckResult {
 func checkOSInfo(opt *CheckOptions, osInfo *sysinfo.OS) *CheckResult {
 	result := &CheckResult{
 		Name: CheckNameOSVer,
+		Msg:  fmt.Sprintf("OS is %s %s", osInfo.Name, osInfo.Release),
 	}
 
 	// check OS vendor
@@ -180,6 +181,11 @@ func checkCPU(opt *CheckOptions, cpuInfo *sysinfo.CPU) []*CheckResult {
 			Name: CheckNameCPUThreads,
 			Err:  fmt.Errorf("CPU thread count %d too low, needs 16 or more", cpuInfo.Threads),
 		})
+	} else {
+		results = append(results, &CheckResult{
+			Name: CheckNameCPUThreads,
+			Msg:  fmt.Sprintf("number of CPU cores / threads: %d", cpuInfo.Threads),
+		})
 	}
 
 	// check for CPU frequency governor
@@ -198,7 +204,7 @@ func checkMem(opt *CheckOptions, memInfo *sysinfo.Memory) []*CheckResult {
 	if memInfo.Swap > 0 {
 		results = append(results, &CheckResult{
 			Name: CheckNameSwap,
-			Err:  fmt.Errorf("swap is enabled, please disable for best performance"),
+			Err:  fmt.Errorf("swap is enabled, please disable it for best performance"),
 		})
 	}
 
@@ -207,6 +213,11 @@ func checkMem(opt *CheckOptions, memInfo *sysinfo.Memory) []*CheckResult {
 		results = append(results, &CheckResult{
 			Name: CheckNameMem,
 			Err:  fmt.Errorf("memory size %dMB too low, needs 32GB or more", memInfo.Size),
+		})
+	} else {
+		results = append(results, &CheckResult{
+			Name: CheckNameMem,
+			Msg:  fmt.Sprintf("memory size is %dMB", memInfo.Size),
 		})
 	}
 
@@ -431,7 +442,7 @@ func CheckPartitions(opt *CheckOptions, host string, topo *meta.TopologySpecific
 			if !strings.Contains(blk.Mount.Options, "nodelalloc") {
 				results = append(results, &CheckResult{
 					Name: CheckNameDisks,
-					Err:  fmt.Errorf("mount point %s does not have nodelalloc option set", blk.Mount.MountPoint),
+					Err:  fmt.Errorf("mount point %s does not have 'nodelalloc' option set", blk.Mount.MountPoint),
 				})
 			}
 			fallthrough
@@ -439,14 +450,14 @@ func CheckPartitions(opt *CheckOptions, host string, topo *meta.TopologySpecific
 			if !strings.Contains(blk.Mount.Options, "noatime") {
 				results = append(results, &CheckResult{
 					Name: CheckNameDisks,
-					Err:  fmt.Errorf("mount point %s does not have noatime option set", blk.Mount.MountPoint),
+					Err:  fmt.Errorf("mount point %s does not have 'noatime' option set", blk.Mount.MountPoint),
 					Warn: true,
 				})
 			}
 		default:
 			results = append(results, &CheckResult{
 				Name: CheckNameDisks,
-				Err: fmt.Errorf("mount point %s has an unsupported filesystem %s",
+				Err: fmt.Errorf("mount point %s has an unsupported filesystem '%s'",
 					blk.Mount.MountPoint, blk.Mount.FSType),
 			})
 		}

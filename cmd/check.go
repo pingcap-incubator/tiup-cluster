@@ -451,7 +451,7 @@ func handleCheckResults(ctx *task.Context, host string) error {
 		return fmt.Errorf("no check results found for %s", host)
 	}
 
-	log.Infof("Check results of %s: (only errors are displayed)", color.CyanString(host))
+	log.Infof("Check results of %s: (only errors and important info are displayed)", color.CyanString(host))
 	for _, r := range results {
 		if r.Err != nil {
 			if r.IsWarning() {
