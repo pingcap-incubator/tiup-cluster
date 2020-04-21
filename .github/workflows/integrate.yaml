@@ -87,12 +87,10 @@ jobs:
           "cat ./tests/*.log" || true
 
       - name: Upload cover files
-        working-directory: ${{env.working-directory}}
         uses: actions/upload-artifact@v1
         with:
           name: ${{matrix.cases}}-cover
-          path: path/to/artifact
-
+          path: ${{env.working-directory}}/cover
 
 
       # - name: Setup tmate session
@@ -141,11 +139,10 @@ jobs:
           path: ${{env.working-directory}}/cover
 
       - name: Upload coverage to Codecov
-        working-directory: ${{env.working-directory}}
         uses: codecov/codecov-action@v1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          file: cover/all_cov.out
+          file: ${{env.working-directory}}/cover/all_cov.out
           flags: coverage
           name: codecov-umbrella
           fail_ci_if_error: true
