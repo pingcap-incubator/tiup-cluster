@@ -686,9 +686,10 @@ func (c *TiFlashComponent) Instances() []Instance {
 				s.FlashProxyStatusPort,
 				s.StatusPort,
 			},
-			usedDirs: append([]string{
+			usedDirs: []string{
 				s.DeployDir,
-			}, strings.Split(s.DataDir, ",")...),
+				s.DataDir,
+			},
 			statusFn: s.Status,
 		}})
 	}
