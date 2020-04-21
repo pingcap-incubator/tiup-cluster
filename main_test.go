@@ -17,8 +17,6 @@ import (
 	"os"
 	"strings"
 	"testing"
-
-	"github.com/pingcap-incubator/tiup-cluster/cmd"
 )
 
 // To build:
@@ -47,6 +45,6 @@ func TestMain(t *testing.T) {
 	// fmt.Println(os.Args)
 
 	if run {
-		cmd.Execute()
+		main()
 	}
 }
