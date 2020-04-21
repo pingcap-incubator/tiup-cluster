@@ -113,13 +113,11 @@ jobs:
           make unit-test
 
       - uses: actions/download-artifact@v1
-        working-directory: ${{env.working-directory}}
         with:
           name: test_cmd-cover
           path: ${{env.working-directory}}/cover
 
       - uses: actions/download-artifact@v1
-        working-directory: ${{env.working-directory}}
         with:
           name: test_upgrade-cover
           path: ${{env.working-directory}}/cover
@@ -132,7 +130,6 @@ jobs:
           make coverage
 
       - name: Upload all cover files
-        working-directory: ${{env.working-directory}}
         uses: actions/upload-artifact@v1
         with:
           name: all-cover
