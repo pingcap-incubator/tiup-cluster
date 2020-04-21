@@ -90,7 +90,7 @@ jobs:
         uses: actions/upload-artifact@v1
         with:
           name: ${{matrix.cases}}-cover
-          path: ${{env.working-directory}}/cover
+          path: ${{env.working-directory}}/tests/cover
 
 
       # - name: Setup tmate session
