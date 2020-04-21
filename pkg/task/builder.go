@@ -274,12 +274,13 @@ func (b *Builder) Shell(host, command string, sudo bool) *Builder {
 }
 
 // CheckSys checks system information of deploy server
-func (b *Builder) CheckSys(host, checkType string, topo *meta.TopologySpecification, opt *operator.CheckOptions) *Builder {
+func (b *Builder) CheckSys(host, dataDir, checkType string, topo *meta.TopologySpecification, opt *operator.CheckOptions) *Builder {
 	b.tasks = append(b.tasks, &CheckSys{
-		host:  host,
-		topo:  topo,
-		opt:   opt,
-		check: checkType,
+		host:    host,
+		topo:    topo,
+		opt:     opt,
+		dataDir: dataDir,
+		check:   checkType,
 	})
 	return b
 }

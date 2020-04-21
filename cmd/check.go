@@ -37,10 +37,6 @@ import (
 	"go.uber.org/zap"
 )
 
-const (
-	collectorPathDir = "/tmp/tiup"
-)
-
 type checkOptions struct {
 	user         string // username to login to the SSH server
 	identityFile string // path to the private key file
@@ -82,6 +78,7 @@ func newCheckCmd() *cobra.Command {
 			var (
 				collectTasks  []*task.StepDisplay
 				checkSysTasks []*task.StepDisplay
+				cleanTasks    []*task.StepDisplay
 			)
 			insightVer := bindversion.ComponentVersion(bindversion.ComponentCheckCollector, "")
 
@@ -101,15 +98,14 @@ func newCheckCmd() *cobra.Command {
 							sshConnProps.IdentityFilePassphrase,
 							sshTimeout,
 						).
-						Mkdir(opt.user, inst.GetHost(), filepath.Join(collectorPathDir, "bin")).
-						Chown(opt.user, inst.GetHost(), collectorPathDir).
-						CopyComponent(bindversion.ComponentCheckCollector, insightVer, inst.GetHost(), collectorPathDir).
+						Mkdir(opt.user, inst.GetHost(), filepath.Join(task.CheckToolsPathDir, "bin")).
+						Chown(opt.user, inst.GetHost(), task.CheckToolsPathDir).
+						CopyComponent(bindversion.ComponentCheckCollector, insightVer, inst.GetHost(), task.CheckToolsPathDir).
 						Shell(
 							inst.GetHost(),
-							filepath.Join(collectorPathDir, "bin", "insight"),
+							filepath.Join(task.CheckToolsPathDir, "bin", "insight"),
 							false,
 						).
-						Rmdir(opt.user, inst.GetHost(), collectorPathDir).
 						BuildAsStep(fmt.Sprintf("  - Getting system info of %s:%d", inst.GetHost(), inst.GetSSHPort()))
 					collectTasks = append(collectTasks, t1)
 
@@ -117,12 +113,14 @@ func newCheckCmd() *cobra.Command {
 					t2 := task.NewBuilder().
 						CheckSys(
 							inst.GetHost(),
+							inst.DataDir(),
 							task.CheckTypeSystemInfo,
 							&topo,
 							opt.opr,
 						).
 						CheckSys(
 							inst.GetHost(),
+							inst.DataDir(),
 							task.CheckTypePartitions,
 							&topo,
 							opt.opr,
@@ -134,6 +132,7 @@ func newCheckCmd() *cobra.Command {
 						).
 						CheckSys(
 							inst.GetHost(),
+							inst.DataDir(),
 							task.CheckTypeSystemLimits,
 							&topo,
 							opt.opr,
@@ -145,18 +144,41 @@ func newCheckCmd() *cobra.Command {
 						).
 						CheckSys(
 							inst.GetHost(),
+							inst.DataDir(),
 							task.CheckTypeSystemConfig,
 							&topo,
 							opt.opr,
 						).
 						CheckSys(
 							inst.GetHost(),
+							inst.DataDir(),
 							task.CheckTypeService,
+							&topo,
+							opt.opr,
+						).
+						CheckSys(
+							inst.GetHost(),
+							inst.DataDir(),
+							task.CheckTypeFIO,
 							&topo,
 							opt.opr,
 						).
 						BuildAsStep(fmt.Sprintf("  - Checking node %s", inst.GetHost()))
 					checkSysTasks = append(checkSysTasks, t2)
+
+					t3 := task.NewBuilder().
+						RootSSH(
+							inst.GetHost(),
+							inst.GetSSHPort(),
+							opt.user,
+							sshConnProps.Password,
+							sshConnProps.IdentityFile,
+							sshConnProps.IdentityFilePassphrase,
+							sshTimeout,
+						).
+						Rmdir(opt.user, inst.GetHost(), task.CheckToolsPathDir).
+						BuildAsStep(fmt.Sprintf("  - Cleanup check files on %s:%d", inst.GetHost(), inst.GetSSHPort()))
+					cleanTasks = append(cleanTasks, t3)
 				}
 			})
 
@@ -164,6 +186,7 @@ func newCheckCmd() *cobra.Command {
 				Download(bindversion.ComponentCheckCollector, insightVer).
 				ParallelStep("+ Collect basic system information", collectTasks...).
 				ParallelStep("+ Check system requirements", checkSysTasks...).
+				ParallelStep("+ Cleanup check files", cleanTasks...).
 				Build()
 
 			ctx := task.NewContext()
@@ -190,6 +213,7 @@ func newCheckCmd() *cobra.Command {
 
 	cmd.Flags().BoolVar(&opt.opr.EnableCPU, "enable-cpu", false, "Enable CPU thread count check")
 	cmd.Flags().BoolVar(&opt.opr.EnableMem, "enable-mem", false, "Enable memory size check")
+	cmd.Flags().BoolVar(&opt.opr.EnableDisk, "enable-disk", false, "Enable disk IO (fio) check")
 
 	return cmd
 }
@@ -435,7 +459,9 @@ func handleCheckResults(ctx *task.Context, host string) error {
 			} else {
 				log.Errorf("%s: %s", host, r)
 			}
-		} // show errors only
+		} else if r.Msg != "" {
+			log.Infof("%s: %s", host, color.CyanString(r.Msg))
+		} // show errors and messages only
 	}
 
 	return nil

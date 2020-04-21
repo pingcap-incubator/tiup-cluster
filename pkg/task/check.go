@@ -15,7 +15,11 @@ package task
 
 import (
 	"fmt"
+	"path/filepath"
+	"strings"
+	"time"
 
+	"github.com/pingcap-incubator/tiup-cluster/pkg/clusterutil"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/meta"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/operation"
 )
@@ -27,14 +31,21 @@ var (
 	CheckTypeSystemConfig = "system"
 	CheckTypeService      = "service"
 	CheckTypePartitions   = "partitions"
+	CheckTypeFIO          = "fio"
+)
+
+// place the check utilities are stored
+const (
+	CheckToolsPathDir = "/tmp/tiup"
 )
 
 // CheckSys performs checks of system information
 type CheckSys struct {
-	host  string
-	topo  *meta.TopologySpecification
-	opt   *operator.CheckOptions
-	check string // check type name
+	host    string
+	topo    *meta.TopologySpecification
+	opt     *operator.CheckOptions
+	check   string // check type name
+	dataDir string
 }
 
 // Execute implements the Task interface
@@ -76,6 +87,17 @@ func (c *CheckSys) Execute(ctx *Context) error {
 	case CheckTypePartitions:
 		// check partition mount options for data_dir
 		ctx.SetCheckResults(c.host, operator.CheckPartitions(c.opt, c.host, c.topo, stdout))
+	case CheckTypeFIO:
+		if !c.opt.EnableDisk || c.dataDir == "" {
+			break
+		}
+
+		rr, rw, lat, err := c.runFIO(ctx)
+		if err != nil {
+			return err
+		}
+
+		ctx.SetCheckResults(c.host, operator.CheckFIOResult(rr, rw, lat))
 	}
 
 	return nil
@@ -89,4 +111,149 @@ func (c *CheckSys) Rollback(ctx *Context) error {
 // String implements the fmt.Stringer interface
 func (c *CheckSys) String() string {
 	return fmt.Sprintf("CheckSys: host=%s type=%s", c.host, c.check)
+}
+
+// runFIO performs FIO checks
+func (c *CheckSys) runFIO(ctx *Context) (outRR []byte, outRW []byte, outLat []byte, err error) {
+	e, ok := ctx.GetExecutor(c.host)
+	if !ok {
+		err = fmt.Errorf("can not get executor for %s", c.host)
+		return
+	}
+
+	dataDir := clusterutil.Abs(c.topo.GlobalOptions.User, c.dataDir)
+	testWd := filepath.Join(dataDir, "tiup-fio-test")
+	fioBin := filepath.Join(CheckToolsPathDir, "bin", "fio")
+
+	var stderr []byte
+
+	// rand read
+	var (
+		fileRR = "fio_randread_test.txt"
+		resRR  = "fio_randread_result.json"
+	)
+	cmdRR := strings.Join([]string{
+		fmt.Sprintf("mkdir -p %s && cd %s", testWd, testWd),
+		fmt.Sprintf("rm -f %s %s", fileRR, resRR), // cleanup any legancy files
+		strings.Join([]string{
+			fioBin,
+			"-ioengine=psync",
+			"-bs=32k",
+			"-fdatasync=1",
+			"-thread",
+			"-rw=randread",
+			"-name='fio randread test'",
+			"-iodepth=4",
+			"-runtime=60",
+			"-numjobs=4",
+			fmt.Sprintf("-filename=%s", fileRR),
+			"-size=1G",
+			"-group_reporting",
+			"--output-format=json",
+			fmt.Sprintf("--output=%s", resRR),
+			"> /dev/null", // ignore output
+		}, " "),
+		fmt.Sprintf("cat %s", resRR),
+	}, " && ")
+
+	outRR, stderr, err = e.Execute(cmdRR, false, time.Second*600)
+	if err != nil {
+		return
+	}
+	if len(stderr) > 0 {
+		err = fmt.Errorf("%s", stderr)
+		return
+	}
+
+	// rand read write
+	var (
+		fileRW = "fio_randread_write_test.txt"
+		resRW  = "fio_randread_write_test.json"
+	)
+	cmdRW := strings.Join([]string{
+		fmt.Sprintf("mkdir -p %s && cd %s", testWd, testWd),
+		fmt.Sprintf("rm -f %s %s", fileRW, resRW), // cleanup any legancy files
+		strings.Join([]string{
+			fioBin,
+			"-ioengine=psync",
+			"-bs=32k",
+			"-fdatasync=1",
+			"-thread",
+			"-rw=randrw",
+			"-percentage_random=100,0",
+			"-name='fio mixed randread and sequential write test'",
+			"-iodepth=4",
+			"-runtime=60",
+			"-numjobs=4",
+			fmt.Sprintf("-filename=%s", fileRW),
+			"-size=1G",
+			"-group_reporting",
+			"--output-format=json",
+			fmt.Sprintf("--output=%s", resRW),
+			"> /dev/null", // ignore output
+		}, " "),
+		fmt.Sprintf("cat %s", resRW),
+	}, " && ")
+
+	outRW, stderr, err = e.Execute(cmdRW, false, time.Second*600)
+	if err != nil {
+		return
+	}
+	if len(stderr) > 0 {
+		err = fmt.Errorf("%s", stderr)
+		return
+	}
+
+	// rand read write
+	var (
+		fileLat = "fio_randread_write_latency_test.txt"
+		resLat  = "fio_randread_write_latency_test.json"
+	)
+	cmdLat := strings.Join([]string{
+		fmt.Sprintf("mkdir -p %s && cd %s", testWd, testWd),
+		fmt.Sprintf("rm -f %s %s", fileLat, resLat), // cleanup any legancy files
+		strings.Join([]string{
+			fioBin,
+			"-ioengine=psync",
+			"-bs=32k",
+			"-fdatasync=1",
+			"-thread",
+			"-rw=randrw",
+			"-percentage_random=100,0",
+			"-name='fio mixed randread and sequential write test'",
+			"-iodepth=1",
+			"-runtime=60",
+			"-numjobs=1",
+			fmt.Sprintf("-filename=%s", fileLat),
+			"-size=1G",
+			"-group_reporting",
+			"--output-format=json",
+			fmt.Sprintf("--output=%s", resLat),
+			"> /dev/null", // ignore output
+		}, " "),
+		fmt.Sprintf("cat %s", resLat),
+	}, " && ")
+
+	outLat, stderr, err = e.Execute(cmdLat, false, time.Second*600)
+	if err != nil {
+		return
+	}
+	if len(stderr) > 0 {
+		err = fmt.Errorf("%s", stderr)
+		return
+	}
+
+	// cleanup
+	_, stderr, err = e.Execute(
+		fmt.Sprintf("rm -rf %s", testWd),
+		false,
+	)
+	if err != nil {
+		return
+	}
+	if len(stderr) > 0 {
+		err = fmt.Errorf("%s", stderr)
+	}
+
+	return
 }

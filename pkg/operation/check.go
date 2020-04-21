@@ -33,9 +33,9 @@ import (
 // CheckOptions control the list of checks to be performed
 type CheckOptions struct {
 	// checks that are disabled by default
-	EnableCPU bool
-	EnableMem bool
-	//EnableDisk bool
+	EnableCPU  bool
+	EnableMem  bool
+	EnableDisk bool
 
 	// pre-defined goups of checks
 	//GroupMinimal bool // a minimal set of checks
@@ -56,7 +56,7 @@ var (
 	CheckNameLimits      = "limits"
 	CheckNameSysService  = "service"
 	CheckNameSELinux     = "selinux"
-	//CheckNameFio    = "fio"
+	CheckNameFio         = "fio"
 )
 
 // CheckResult is the result of a check
@@ -64,6 +64,7 @@ type CheckResult struct {
 	Name string // Name of the check
 	Err  error  // An embedded error
 	Warn bool   // The check didn't pass, but not a big problem
+	Msg  string // A message or description
 }
 
 // Error implements the error interface
@@ -490,4 +491,85 @@ func getDisk(parts []insight.BlockDev, fullpath string) *insight.BlockDev {
 		}
 	}
 	return nil
+}
+
+// CheckFIOResult parses and checks the result of fio test
+func CheckFIOResult(rr, rw, lat []byte) []*CheckResult {
+	var results []*CheckResult
+
+	// check results for rand read test
+	var rrRes map[string]interface{}
+	if err := json.Unmarshal(rr, &rrRes); err != nil {
+		results = append(results, &CheckResult{
+			Name: CheckNameFio,
+			Err:  fmt.Errorf("error parsing result of random read test, %s", err),
+		})
+	} else if jobs, ok := rrRes["jobs"]; ok {
+		readRes := jobs.([]interface{})[0].(map[string]interface{})["read"]
+		readIOPS := readRes.(map[string]interface{})["iops"]
+
+		results = append(results, &CheckResult{
+			Name: CheckNameFio,
+			Msg:  fmt.Sprintf("IOPS of random read: %f", readIOPS.(float64)),
+		})
+	} else {
+		results = append(results, &CheckResult{
+			Name: CheckNameFio,
+			Err:  fmt.Errorf("error parsing result of random read test"),
+		})
+	}
+
+	// check results for rand read write
+	var rwRes map[string]interface{}
+	if err := json.Unmarshal(rw, &rwRes); err != nil {
+		results = append(results, &CheckResult{
+			Name: CheckNameFio,
+			Err:  fmt.Errorf("error parsing result of random read write test, %s", err),
+		})
+	} else if jobs, ok := rwRes["jobs"]; ok {
+		readRes := jobs.([]interface{})[0].(map[string]interface{})["read"]
+		readIOPS := readRes.(map[string]interface{})["iops"]
+
+		writeRes := jobs.([]interface{})[0].(map[string]interface{})["write"]
+		writeIOPS := writeRes.(map[string]interface{})["iops"]
+
+		results = append(results, &CheckResult{
+			Name: CheckNameFio,
+			Msg:  fmt.Sprintf("IOPS of random read: %f, write: %f", readIOPS.(float64), writeIOPS.(float64)),
+		})
+	} else {
+		results = append(results, &CheckResult{
+			Name: CheckNameFio,
+			Err:  fmt.Errorf("error parsing result of random read write test"),
+		})
+	}
+
+	// check results for read write latency
+	var latRes map[string]interface{}
+	if err := json.Unmarshal(lat, &latRes); err != nil {
+		results = append(results, &CheckResult{
+			Name: CheckNameFio,
+			Err:  fmt.Errorf("error parsing result of read write latency test, %s", err),
+		})
+	} else if jobs, ok := latRes["jobs"]; ok {
+		readRes := jobs.([]interface{})[0].(map[string]interface{})["read"]
+		readLat := readRes.(map[string]interface{})["lat_ns"]
+		readLatAvg := readLat.(map[string]interface{})["mean"]
+
+		writeRes := jobs.([]interface{})[0].(map[string]interface{})["write"]
+		writeLat := writeRes.(map[string]interface{})["lat_ns"]
+		writeLatAvg := writeLat.(map[string]interface{})["mean"]
+
+		results = append(results, &CheckResult{
+			Name: CheckNameFio,
+			Msg:  fmt.Sprintf("Latency of random read: %fns, write: %fns", readLatAvg.(float64), writeLatAvg.(float64)),
+		})
+	} else {
+		results = append(results, &CheckResult{
+			Name: CheckNameFio,
+			Err:  fmt.Errorf("error parsing result of read write latency test"),
+		})
+	}
+
+	return results
 }
