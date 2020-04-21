@@ -273,6 +273,26 @@ func (b *Builder) Shell(host, command string, sudo bool) *Builder {
 	return b
 }
 
+// SystemCtl run systemctl on host
+func (b *Builder) SystemCtl(host, unit, action string) *Builder {
+	b.tasks = append(b.tasks, &SystemCtl{
+		host:   host,
+		unit:   unit,
+		action: action,
+	})
+	return b
+}
+
+// Sysctl set a kernel parameter
+func (b *Builder) Sysctl(host, key, val string) *Builder {
+	b.tasks = append(b.tasks, &Sysctl{
+		host: host,
+		key:  key,
+		val:  val,
+	})
+	return b
+}
+
 // CheckSys checks system information of deploy server
 func (b *Builder) CheckSys(host, dataDir, checkType string, topo *meta.TopologySpecification, opt *operator.CheckOptions) *Builder {
 	b.tasks = append(b.tasks, &CheckSys{

@@ -306,6 +306,7 @@ func CheckKernelParameters(opt *CheckOptions, p []byte) []*CheckResult {
 				results = append(results, &CheckResult{
 					Name: CheckNameSysctl,
 					Err:  fmt.Errorf("fs.file-max = %d, should be greater than 1000000", val),
+					Msg:  "fs.file-max = 1000000",
 				})
 			}
 		case "net.core.somaxconn":
@@ -314,6 +315,7 @@ func CheckKernelParameters(opt *CheckOptions, p []byte) []*CheckResult {
 				results = append(results, &CheckResult{
 					Name: CheckNameSysctl,
 					Err:  fmt.Errorf("net.core.somaxconn = %d, should be greater than 32768", val),
+					Msg:  "net.core.somaxconn = 32768",
 				})
 			}
 		case "net.ipv4.tcp_tw_recycle":
@@ -322,6 +324,7 @@ func CheckKernelParameters(opt *CheckOptions, p []byte) []*CheckResult {
 				results = append(results, &CheckResult{
 					Name: CheckNameSysctl,
 					Err:  fmt.Errorf("net.ipv4.tcp_tw_recycle = %d, should be 0", val),
+					Msg:  "net.ipv4.tcp_tw_recycle = 0",
 				})
 			}
 		case "net.ipv4.tcp_syncookies":
@@ -330,6 +333,7 @@ func CheckKernelParameters(opt *CheckOptions, p []byte) []*CheckResult {
 				results = append(results, &CheckResult{
 					Name: CheckNameSysctl,
 					Err:  fmt.Errorf("net.ipv4.tcp_syncookies = %d, should be 0", val),
+					Msg:  "net.ipv4.tcp_syncookies = 0",
 				})
 			}
 		case "vm.overcommit_memory":
@@ -338,6 +342,7 @@ func CheckKernelParameters(opt *CheckOptions, p []byte) []*CheckResult {
 				results = append(results, &CheckResult{
 					Name: CheckNameSysctl,
 					Err:  fmt.Errorf("vm.overcommit_memory = %d, should be 0 or 1", val),
+					Msg:  "vm.overcommit_memory = 1",
 				})
 			}
 		case "vm.swappiness":
@@ -346,6 +351,7 @@ func CheckKernelParameters(opt *CheckOptions, p []byte) []*CheckResult {
 				results = append(results, &CheckResult{
 					Name: CheckNameSysctl,
 					Err:  fmt.Errorf("vm.swappiness = %d, should be 0", val),
+					Msg:  "vm.swappiness = 0",
 				})
 			}
 		}
@@ -376,10 +382,12 @@ func CheckServices(e executor.TiOpsExecutor, host, service string, disable bool)
 	case false:
 		if !strings.Contains(active, "running") {
 			result.Err = fmt.Errorf("service %s is not running", service)
+			result.Msg = fmt.Sprintf("start %s.service", service)
 		}
 	case true:
 		if strings.Contains(active, "running") {
 			result.Err = fmt.Errorf("service %s is running but should be stopped", service)
+			result.Msg = fmt.Sprintf("stop %s.service", service)
 		}
 	}
 

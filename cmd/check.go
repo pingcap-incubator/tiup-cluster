@@ -19,6 +19,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/fatih/color"
 	"github.com/joomcode/errorx"
@@ -41,6 +42,7 @@ type checkOptions struct {
 	user         string // username to login to the SSH server
 	identityFile string // path to the private key file
 	opr          *operator.CheckOptions
+	applyFix     bool // try to apply fixes of failed checks
 }
 
 func newCheckCmd() *cobra.Command {
@@ -89,6 +91,7 @@ func newCheckCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&opt.opr.EnableCPU, "enable-cpu", false, "Enable CPU thread count check")
 	cmd.Flags().BoolVar(&opt.opr.EnableMem, "enable-mem", false, "Enable memory size check")
 	cmd.Flags().BoolVar(&opt.opr.EnableDisk, "enable-disk", false, "Enable disk IO (fio) check")
+	cmd.Flags().BoolVar(&opt.applyFix, "apply", false, "Try to fix failed checks")
 
 	return cmd
 }
@@ -325,6 +328,7 @@ func checkSystemInfo(s *cliutil.SSHConnectionProps, topo *meta.TopologySpecifica
 		collectTasks  []*task.StepDisplay
 		checkSysTasks []*task.StepDisplay
 		cleanTasks    []*task.StepDisplay
+		applyFixTasks []*task.StepDisplay
 	)
 	insightVer := bindversion.ComponentVersion(bindversion.ComponentCheckCollector, "")
 
@@ -386,7 +390,7 @@ func checkSystemInfo(s *cliutil.SSHConnectionProps, topo *meta.TopologySpecifica
 				Shell(
 					inst.GetHost(),
 					"sysctl -a",
-					false,
+					true,
 				).
 				CheckSys(
 					inst.GetHost(),
@@ -445,15 +449,40 @@ func checkSystemInfo(s *cliutil.SSHConnectionProps, topo *meta.TopologySpecifica
 	}
 
 	for host := range uniqueHosts {
-		if err := handleCheckResults(ctx, host); err != nil {
-			return err
+		tf := task.NewBuilder().
+			RootSSH(
+				host,
+				uniqueHosts[host],
+				opt.user,
+				s.Password,
+				s.IdentityFile,
+				s.IdentityFilePassphrase,
+				sshTimeout,
+			)
+		if err := handleCheckResults(ctx, host, opt, tf); err != nil {
+			continue
+		}
+		applyFixTasks = append(applyFixTasks, tf.BuildAsStep(fmt.Sprintf("  - Applying changes on %s", host)))
+	}
+
+	if opt.applyFix {
+		tc := task.NewBuilder().
+			ParallelStep("+ Try to apply changes to fix failed checks", applyFixTasks...).
+			Build()
+		if err := tc.Execute(ctx); err != nil {
+			if errorx.Cast(err) != nil {
+				// FIXME: Map possible task errors and give suggestions.
+				return err
+			}
+			return errors.Trace(err)
 		}
 	}
+
 	return nil
 }
 
 // handleCheckResults parses the result of checks
-func handleCheckResults(ctx *task.Context, host string) error {
+func handleCheckResults(ctx *task.Context, host string, opt *checkOptions, t *task.Builder) error {
 	results, _ := ctx.GetCheckResults(host)
 	if len(results) < 1 {
 		return fmt.Errorf("no check results found for %s", host)
@@ -467,10 +496,37 @@ func handleCheckResults(ctx *task.Context, host string) error {
 			} else {
 				log.Errorf("%s: %s", host, r)
 			}
+			if !opt.applyFix {
+				continue
+			}
+			if err := fixFailedChecks(ctx, host, r, t); err != nil {
+				log.Warnf("%s: %s failed to auto apply changes, you'll need to manually fix the failed check. (%s)", host, r.Name, err)
+			}
 		} else if r.Msg != "" {
 			log.Infof("%s: %s", host, color.CyanString(r.Msg))
 		} // show errors and messages only
 	}
 
+	return nil
+}
+
+// fixFailedChecks tries to automatically apply changes to fix failed checks
+func fixFailedChecks(ctx *task.Context, host string, res *operator.CheckResult, t *task.Builder) error {
+	switch res.Name {
+	case operator.CheckNameSysService:
+		msg := strings.Fields(res.Msg)
+		if len(msg) < 2 {
+			return fmt.Errorf("can not perform action of service, %s", msg)
+		}
+		t.SystemCtl(host, msg[1], msg[0])
+	case operator.CheckNameSysctl:
+		msg := strings.Fields(res.Msg)
+		if len(msg) < 3 {
+			return fmt.Errorf("can not set kernel parameter, %s", msg)
+		}
+		t.Sysctl(host, msg[0], msg[2])
+	default:
+		log.Infof("%s: auto fixing of check '%s' not supported, skip.", host, res.Name)
+	}
 	return nil
 }
