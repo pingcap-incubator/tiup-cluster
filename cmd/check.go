@@ -516,21 +516,24 @@ func fixFailedChecks(ctx *task.Context, host string, res *operator.CheckResult, 
 	case operator.CheckNameSysService:
 		msg := strings.Fields(res.Msg)
 		if len(msg) < 2 {
-			return fmt.Errorf("can not perform action of service, %s", msg)
+			return fmt.Errorf("can not perform action of service, %s", res.Msg)
 		}
 		t.SystemCtl(host, msg[1], msg[0])
+		log.Infof("%s: will try to '%s'", host, color.HiBlueString(res.Msg))
 	case operator.CheckNameSysctl:
 		msg := strings.Fields(res.Msg)
 		if len(msg) < 3 {
-			return fmt.Errorf("can not set kernel parameter, %s", msg)
+			return fmt.Errorf("can not set kernel parameter, %s", res.Msg)
 		}
 		t.Sysctl(host, msg[0], msg[2])
+		log.Infof("%s: will try to set '%s'", host, color.HiBlueString(res.Msg))
 	case operator.CheckNameLimits:
 		msg := strings.Fields(res.Msg)
 		if len(msg) < 4 {
-			return fmt.Errorf("can not set limits, %s", msg)
+			return fmt.Errorf("can not set limits, %s", res.Msg)
 		}
 		t.Limit(host, msg[0], msg[1], msg[2], msg[3])
+		log.Infof("%s: will try to set '%s'", host, color.HiBlueString(res.Msg))
 	case operator.CheckNameSELinux:
 		t.Shell(host,
 			fmt.Sprintf(
@@ -539,6 +542,7 @@ func fixFailedChecks(ctx *task.Context, host string, res *operator.CheckResult, 
 				"setenforce 0",
 			),
 			true)
+		log.Infof("%s: will try to %s, reboot might be needed", host, color.HiBlueString("disable SELinux"))
 	case operator.CheckNameOSVer,
 		operator.CheckNameCPUThreads,
 		operator.CheckNameDisks,
