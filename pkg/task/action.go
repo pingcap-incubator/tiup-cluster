@@ -23,7 +23,7 @@ import (
 
 // ClusterOperate represents the cluster operation task.
 type ClusterOperate struct {
-	spec    *meta.Specification
+	spec    *meta.ClusterSpecification
 	op      operator.Operation
 	options operator.Options
 }

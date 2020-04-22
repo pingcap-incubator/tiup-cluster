@@ -28,7 +28,7 @@ import (
 // Upgrade the cluster.
 func Upgrade(
 	getter ExecutorGetter,
-	spec *meta.Specification,
+	spec *meta.ClusterSpecification,
 	options Options,
 ) error {
 	roleFilter := set.NewStringSet(options.Roles...)

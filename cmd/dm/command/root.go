@@ -11,11 +11,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package cmd
+package command
 
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/fatih/color"
@@ -29,6 +30,7 @@ import (
 	"github.com/pingcap-incubator/tiup-cluster/pkg/version"
 	"github.com/pingcap-incubator/tiup/pkg/localdata"
 	tiupmeta "github.com/pingcap-incubator/tiup/pkg/meta"
+
 	"github.com/pingcap-incubator/tiup/pkg/repository"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
@@ -37,9 +39,8 @@ import (
 var rootCmd *cobra.Command
 
 var (
-	errNS       = errorx.NewNamespace("cmd")
-	sshTimeout  int64 // timeout in seconds when connecting an SSH server
-	skipConfirm bool
+	errNS      = errorx.NewNamespace("cmd")
+	sshTimeout int64 // timeout in seconds when connecting an SSH server
 )
 
 func init() {
@@ -52,13 +53,13 @@ func init() {
 	cobra.EnableCommandSorting = false
 
 	rootCmd = &cobra.Command{
-		Use:           cliutil.OsArgs0(),
-		Short:         "Deploy a TiDB cluster for production",
+		Use:           filepath.Base(os.Args[0]),
+		Short:         "Deploy a DM cluster for production",
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		Version:       version.NewTiOpsVersion().FullInfo(),
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			if err := meta.Initialize(); err != nil {
+			if err := meta.Initialize("dm"); err != nil {
 				return err
 			}
 			return tiupmeta.InitRepository(repository.Options{
@@ -77,26 +78,12 @@ func init() {
 	beautifyCobraUsageAndHelp(rootCmd)
 
 	rootCmd.PersistentFlags().Int64Var(&sshTimeout, "ssh-timeout", 5, "Timeout in seconds to connect host via SSH, ignored for operations that don't need an SSH connection.")
-	rootCmd.PersistentFlags().BoolVarP(&skipConfirm, "yes", "y", false, "Skip all confirmations and assumes 'yes'")
 
 	rootCmd.AddCommand(
 		newDeploy(),
 		newStartCmd(),
 		newStopCmd(),
-		newRestartCmd(),
-		newScaleInCmd(),
-		newScaleOutCmd(),
 		newDestroyCmd(),
-		newUpgradeCmd(),
-		newExecCmd(),
-		newDisplayCmd(),
-		newListCmd(),
-		newAuditCmd(),
-		newImportCmd(),
-		newEditConfigCmd(),
-		newReloadCmd(),
-		newPatchCmd(),
-		newTestCmd(), // hidden command for test internally
 	)
 }
 

@@ -28,7 +28,7 @@ import (
 // Destroy the cluster.
 func Destroy(
 	getter ExecutorGetter,
-	spec *meta.Specification,
+	spec *meta.ClusterSpecification,
 ) error {
 	uniqueHosts := set.NewStringSet()
 	coms := spec.ComponentsByStopOrder()

@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package cmd
+package command
 
 import (
 	"fmt"
@@ -33,7 +33,6 @@ import (
 	"github.com/pingcap-incubator/tiup-cluster/pkg/task"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/utils"
 	"github.com/pingcap-incubator/tiup/pkg/repository"
-	"github.com/pingcap-incubator/tiup/pkg/set"
 	tiuputils "github.com/pingcap-incubator/tiup/pkg/utils"
 	"github.com/pingcap/errors"
 	"github.com/spf13/cobra"
@@ -55,14 +54,15 @@ type componentInfo struct {
 type deployOptions struct {
 	user         string // username to login to the SSH server
 	identityFile string // path to the private key file
+	skipConfirm  bool   // skip the confirmation of topology
 }
 
 func newDeploy() *cobra.Command {
 	opt := deployOptions{}
 	cmd := &cobra.Command{
 		Use:          "deploy <cluster-name> <version> <topology.yaml>",
-		Short:        "Deploy a cluster for production",
-		Long:         "Deploy a cluster for production. SSH connection will be used to deploy files, as well as creating system users for running the service.",
+		Short:        "Deploy a DM cluster for production",
+		Long:         "Deploy a DM cluster for production. SSH connection will be used to deploy files, as well as creating system users for running the service.",
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			shouldContinue, err := cliutil.CheckCommandArgsAndMayPrintHelp(cmd, args, 3)
@@ -80,11 +80,12 @@ func newDeploy() *cobra.Command {
 
 	cmd.Flags().StringVar(&opt.user, "user", "root", "The user name to login via SSH. The user must has root (or sudo) privilege.")
 	cmd.Flags().StringVarP(&opt.identityFile, "identity_file", "i", "", "The path of the SSH identity file. If specified, public key authentication will be used.")
+	cmd.Flags().BoolVarP(&opt.skipConfirm, "yes", "y", false, "Skip confirming the topology")
 
 	return cmd
 }
 
-func fixDir(topo *meta.Specification) func(string) string {
+func fixDir(topo *meta.DMSpecification) func(string) string {
 	return func(dir string) string {
 		if dir != "" {
 			return clusterutil.Abs(topo.GlobalOptions.User, dir)
@@ -93,25 +94,25 @@ func fixDir(topo *meta.Specification) func(string) string {
 	}
 }
 
-func checkClusterDirConflict(clusterName string, topo *meta.Specification) error {
+func checkClusterDirConflict(clusterName string, topo *meta.DMSpecification) error {
 	type DirAccessor struct {
 		dirKind  string
-		accessor func(meta.Instance, *meta.TopologySpecification) string
+		accessor func(meta.Instance, *meta.DMTopologySpecification) string
 	}
 
 	instanceDirAccessor := []DirAccessor{
-		{dirKind: "deploy directory", accessor: func(instance meta.Instance, topo *meta.TopologySpecification) string { return instance.DeployDir() }},
-		{dirKind: "data directory", accessor: func(instance meta.Instance, topo *meta.TopologySpecification) string { return instance.DataDir() }},
-		{dirKind: "log directory", accessor: func(instance meta.Instance, topo *meta.TopologySpecification) string { return instance.LogDir() }},
+		{dirKind: "deploy directory", accessor: func(instance meta.Instance, topo *meta.DMTopologySpecification) string { return instance.DeployDir() }},
+		{dirKind: "data directory", accessor: func(instance meta.Instance, topo *meta.DMTopologySpecification) string { return instance.DataDir() }},
+		{dirKind: "log directory", accessor: func(instance meta.Instance, topo *meta.DMTopologySpecification) string { return instance.LogDir() }},
 	}
 	hostDirAccessor := []DirAccessor{
-		{dirKind: "monitor deploy directory", accessor: func(instance meta.Instance, topo *meta.TopologySpecification) string {
+		{dirKind: "monitor deploy directory", accessor: func(instance meta.Instance, topo *meta.DMTopologySpecification) string {
 			return topo.MonitoredOptions.DeployDir
 		}},
-		{dirKind: "monitor data directory", accessor: func(instance meta.Instance, topo *meta.TopologySpecification) string {
+		{dirKind: "monitor data directory", accessor: func(instance meta.Instance, topo *meta.DMTopologySpecification) string {
 			return topo.MonitoredOptions.DataDir
 		}},
-		{dirKind: "monitor log directory", accessor: func(instance meta.Instance, topo *meta.TopologySpecification) string {
+		{dirKind: "monitor log directory", accessor: func(instance meta.Instance, topo *meta.DMTopologySpecification) string {
 			return topo.MonitoredOptions.LogDir
 		}},
 	}
@@ -139,7 +140,7 @@ func checkClusterDirConflict(clusterName string, topo *meta.Specification) error
 		if tiuputils.IsNotExist(meta.ClusterPath(fi.Name(), meta.MetaFileName)) {
 			continue
 		}
-		metadata, err := meta.ClusterMetadata(fi.Name())
+		metadata, err := meta.DMMetadata(fi.Name())
 		if err != nil {
 			return errors.Trace(err)
 		}
@@ -225,7 +226,7 @@ Please change to use another directory or another host.
 	return nil
 }
 
-func checkClusterPortConflict(clusterName string, topo *meta.Specification) error {
+func checkClusterPortConflict(clusterName string, topo *meta.DMTopologySpecification) error {
 	clusterDir := meta.ProfilePath(meta.TiOpsClusterDir)
 	fileInfos, err := ioutil.ReadDir(clusterDir)
 	if err != nil && !os.IsNotExist(err) {
@@ -310,12 +311,12 @@ Please change to use another port or another host.
 	return nil
 }
 
-func confirmTopology(clusterName, version string, topo *meta.Specification, patchedRoles set.StringSet) error {
+func confirmTopology(clusterName, version string, topo *meta.DMTopologySpecification) error {
 	log.Infof("Please confirm your topology:")
 
 	cyan := color.New(color.FgCyan, color.Bold)
-	fmt.Printf("TiDB Cluster: %s\n", cyan.Sprint(clusterName))
-	fmt.Printf("TiDB Version: %s\n", cyan.Sprint(version))
+	fmt.Printf("DM Cluster: %s\n", cyan.Sprint(clusterName))
+	fmt.Printf("DM Version: %s\n", cyan.Sprint(version))
 
 	clusterTable := [][]string{
 		// Header
@@ -323,12 +324,8 @@ func confirmTopology(clusterName, version string, topo *meta.Specification, patc
 	}
 
 	topo.IterInstance(func(instance meta.Instance) {
-		comp := instance.ComponentName()
-		if patchedRoles.Exist(comp) {
-			comp = comp + " (patched)"
-		}
 		clusterTable = append(clusterTable, []string{
-			comp,
+			instance.ComponentName(),
 			instance.GetHost(),
 			utils.JoinInt(instance.UsedPorts(), "/"),
 			strings.Join(instance.UsedDirs(), ","),
@@ -339,10 +336,7 @@ func confirmTopology(clusterName, version string, topo *meta.Specification, patc
 
 	log.Warnf("Attention:")
 	log.Warnf("    1. If the topology is not what you expected, check your yaml file.")
-	log.Warnf("    2. Please confirm there is no port/directory conflicts in same host.")
-	if len(patchedRoles) != 0 {
-		log.Errorf("    3. The component marked as `patched` has been replaced by previours patch command.")
-	}
+	log.Warnf("    1. Please confirm there is no port/directory conflicts in same host.")
 
 	return cliutil.PromptForConfirmOrAbortError("Do you want to continue? [y/N]: ")
 }
@@ -358,7 +352,7 @@ func deploy(clusterName, clusterVersion, topoFile string, opt deployOptions) err
 			WithProperty(cliutil.SuggestionFromFormat("Please specify another cluster name"))
 	}
 
-	var topo meta.TopologySpecification
+	var topo meta.DMTopologySpecification
 	if err := utils.ParseTopologyYaml(topoFile, &topo); err != nil {
 		return err
 	}
@@ -370,8 +364,8 @@ func deploy(clusterName, clusterVersion, topoFile string, opt deployOptions) err
 		return err
 	}
 
-	if !skipConfirm {
-		if err := confirmTopology(clusterName, clusterVersion, &topo, set.NewStringSet()); err != nil {
+	if !opt.skipConfirm {
+		if err := confirmTopology(clusterName, clusterVersion, &topo); err != nil {
 			return err
 		}
 	}
@@ -463,21 +457,10 @@ func deploy(clusterName, clusterVersion, topoFile string, opt deployOptions) err
 		deployCompTasks = append(deployCompTasks, t)
 	})
 
-	// Deploy monitor relevant components to remote
-	dlTasks, dpTasks := buildMonitoredDeployTask(
-		clusterName,
-		uniqueHosts,
-		globalOptions,
-		topo.MonitoredOptions,
-		clusterVersion,
-	)
-	downloadCompTasks = append(downloadCompTasks, dlTasks...)
-	deployCompTasks = append(deployCompTasks, dpTasks...)
-
 	t := task.NewBuilder().
 		Step("+ Generate SSH keys",
 			task.NewBuilder().SSHKeyGen(meta.ClusterPath(clusterName, "ssh", "id_rsa")).Build()).
-		ParallelStep("+ Download TiDB components", downloadCompTasks...).
+		ParallelStep("+ Download DM components", downloadCompTasks...).
 		ParallelStep("+ Initialize target host environments", envInitTasks...).
 		ParallelStep("+ Copy files", deployCompTasks...).
 		Build()
@@ -490,7 +473,7 @@ func deploy(clusterName, clusterVersion, topoFile string, opt deployOptions) err
 		return errors.Trace(err)
 	}
 
-	err = meta.SaveClusterMeta(clusterName, &meta.ClusterMeta{
+	err = meta.SaveDMMeta(clusterName, &meta.DMMeta{
 		User:     globalOptions.User,
 		Version:  clusterVersion,
 		Topology: &topo,
@@ -499,12 +482,12 @@ func deploy(clusterName, clusterVersion, topoFile string, opt deployOptions) err
 		return errors.Trace(err)
 	}
 
-	hint := color.New(color.Bold).Sprintf("%s start %s", cliutil.OsArgs0(), clusterName)
+	hint := color.New(color.Bold).Sprintf("tiup dm start %s", clusterName)
 	log.Infof("Deployed cluster `%s` successfully, you can start the cluster via `%s`", clusterName, hint)
 	return nil
 }
 
-func buildDownloadCompTasks(version string, topo *meta.Specification) []*task.StepDisplay {
+func buildDownloadCompTasks(version string, topo *meta.DMTopologySpecification) []*task.StepDisplay {
 	var tasks []*task.StepDisplay
 	topo.IterComponent(func(comp meta.Component) {
 		if len(comp.Instances()) < 1 {
@@ -518,57 +501,4 @@ func buildDownloadCompTasks(version string, topo *meta.Specification) []*task.St
 		tasks = append(tasks, t)
 	})
 	return tasks
-}
-
-func buildMonitoredDeployTask(
-	clusterName string,
-	uniqueHosts map[string]int, // host -> ssh-port
-	globalOptions meta.GlobalOptions,
-	monitoredOptions meta.MonitoredOptions,
-	version string) (downloadCompTasks []*task.StepDisplay, deployCompTasks []*task.StepDisplay) {
-	for _, comp := range []string{meta.ComponentNodeExporter, meta.ComponentBlackboxExporter} {
-		version := bindversion.ComponentVersion(comp, version)
-		t := task.NewBuilder().
-			Download(comp, version).
-			BuildAsStep(fmt.Sprintf("  - Download %s:%s", comp, version))
-		downloadCompTasks = append(downloadCompTasks, t)
-
-		for host, sshPort := range uniqueHosts {
-			deployDir := clusterutil.Abs(globalOptions.User, monitoredOptions.DeployDir)
-			// data dir would be empty for components which don't need it
-			dataDir := monitoredOptions.DataDir
-			if dataDir != "" {
-				clusterutil.Abs(globalOptions.User, dataDir)
-			}
-			// log dir will always be with values, but might not used by the component
-			logDir := clusterutil.Abs(globalOptions.User, monitoredOptions.LogDir)
-
-			// Deploy component
-			t := task.NewBuilder().
-				UserSSH(host, sshPort, globalOptions.User, sshTimeout).
-				Mkdir(globalOptions.User, host,
-					deployDir, dataDir, logDir,
-					filepath.Join(deployDir, "bin"),
-					filepath.Join(deployDir, "conf"),
-					filepath.Join(deployDir, "scripts")).
-				CopyComponent(comp, version, host, deployDir).
-				MonitoredConfig(
-					clusterName,
-					comp,
-					host,
-					globalOptions.ResourceControl,
-					monitoredOptions,
-					globalOptions.User,
-					meta.DirPaths{
-						Deploy: deployDir,
-						Data:   dataDir,
-						Log:    logDir,
-						Cache:  meta.ClusterPath(clusterName, "config"),
-					},
-				).
-				BuildAsStep(fmt.Sprintf("  - Copy %s -> %s", comp, host))
-			deployCompTasks = append(deployCompTasks, t)
-		}
-	}
-	return
 }

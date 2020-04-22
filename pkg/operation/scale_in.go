@@ -29,7 +29,7 @@ import (
 var asyncOfflineComps = set.NewStringSet(meta.ComponentPump, meta.ComponentTiKV, meta.ComponentDrainer)
 
 // AsyncNodes return all nodes async destroy or not.
-func AsyncNodes(spec *meta.Specification, nodes []string, async bool) []string {
+func AsyncNodes(spec *meta.ClusterSpecification, nodes []string, async bool) []string {
 	var asyncNodes []string
 	var notAsyncNodes []string
 
@@ -66,7 +66,7 @@ func AsyncNodes(spec *meta.Specification, nodes []string, async bool) []string {
 // ScaleIn scales in the cluster
 func ScaleIn(
 	getter ExecutorGetter,
-	spec *meta.Specification,
+	spec *meta.ClusterSpecification,
 	options Options,
 ) error {
 	// instances by uuid
@@ -127,7 +127,7 @@ func ScaleIn(
 	// At least a PD server exists
 	var pdClient *api.PDClient
 	var pdEndpoint []string
-	for _, instance := range (&meta.PDComponent{Specification: spec}).Instances() {
+	for _, instance := range (&meta.PDComponent{ClusterSpecification: spec}).Instances() {
 		if !deletedNodes.Exist(instance.ID()) {
 			pdEndpoint = append(pdEndpoint, addr(instance))
 		}

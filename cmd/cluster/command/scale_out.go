@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package cmd
+package command
 
 import (
 	"path/filepath"
@@ -141,7 +141,7 @@ func convertStepDisplaysToTasks(t []*task.StepDisplay) []task.Task {
 func buildScaleOutTask(
 	clusterName string,
 	metadata *meta.ClusterMeta,
-	mergedTopo *meta.Specification,
+	mergedTopo *meta.ClusterSpecification,
 	opt scaleOutOptions,
 	sshConnProps *cliutil.SSHConnectionProps,
 	newPart *meta.TopologySpecification,
