@@ -1246,6 +1246,7 @@ func (i *AlertManagerInstance) InitConfig(e executor.TiOpsExecutor, clusterName,
 	return nil
 }
 
+// GetGlobalOptions returns GlobalOptions
 func (topo *ClusterSpecification) GetGlobalOptions() GlobalOptions {
 	return topo.GlobalOptions
 }

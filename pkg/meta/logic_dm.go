@@ -402,7 +402,7 @@ func (i *DMWorkerInstance) ScaleConfig(e executor.TiOpsExecutor, b Specification
 	return i.InitConfig(e, clusterName, clusterVersion, deployUser, paths)
 }
 
-// GetClusterSpecification returns cluster topology
+// GetGlobalOptions returns cluster topology
 func (topo *DMSpecification) GetGlobalOptions() GlobalOptions {
 	return topo.GlobalOptions
 }
