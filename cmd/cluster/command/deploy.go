@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package cmd
+package command
 
 import (
 	"fmt"
@@ -23,6 +23,7 @@ import (
 	"github.com/joomcode/errorx"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/bindversion"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/cliutil"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/cliutil/prepare"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/clusterutil"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/errutil"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/log"
@@ -40,8 +41,6 @@ import (
 var (
 	errNSDeploy            = errNS.NewSubNamespace("deploy")
 	errDeployNameDuplicate = errNSDeploy.NewType("name_dup", errutil.ErrTraitPreCheck)
-	errDeployDirConflict   = errNSDeploy.NewType("dir_conflict", errutil.ErrTraitPreCheck)
-	errDeployPortConflict  = errNSDeploy.NewType("port_conflict", errutil.ErrTraitPreCheck)
 )
 
 type componentInfo struct {
@@ -81,7 +80,7 @@ func newDeploy() *cobra.Command {
 	return cmd
 }
 
-func confirmTopology(clusterName, version string, topo *meta.Specification, patchedRoles set.StringSet) error {
+func confirmTopology(clusterName, version string, topo *meta.ClusterSpecification, patchedRoles set.StringSet) error {
 	log.Infof("Please confirm your topology:")
 
 	cyan := color.New(color.FgCyan, color.Bold)
@@ -134,10 +133,10 @@ func deploy(clusterName, clusterVersion, topoFile string, opt deployOptions) err
 		return err
 	}
 
-	if err := checkClusterPortConflict(clusterName, &topo); err != nil {
+	if err := prepare.CheckClusterPortConflict(clusterName, &topo); err != nil {
 		return err
 	}
-	if err := checkClusterDirConflict(clusterName, &topo); err != nil {
+	if err := prepare.CheckClusterDirConflict(clusterName, &topo); err != nil {
 		return err
 	}
 
@@ -197,7 +196,7 @@ func deploy(clusterName, clusterVersion, topoFile string, opt deployOptions) err
 	})
 
 	// Download missing component
-	downloadCompTasks = buildDownloadCompTasks(clusterVersion, &topo)
+	downloadCompTasks = prepare.BuildDownloadCompTasks(clusterVersion, &topo)
 
 	// Deploy components to remote
 	topo.IterInstance(func(inst meta.Instance) {
@@ -273,22 +272,6 @@ func deploy(clusterName, clusterVersion, topoFile string, opt deployOptions) err
 	hint := color.New(color.Bold).Sprintf("%s start %s", cliutil.OsArgs0(), clusterName)
 	log.Infof("Deployed cluster `%s` successfully, you can start the cluster via `%s`", clusterName, hint)
 	return nil
-}
-
-func buildDownloadCompTasks(version string, topo *meta.Specification) []*task.StepDisplay {
-	var tasks []*task.StepDisplay
-	topo.IterComponent(func(comp meta.Component) {
-		if len(comp.Instances()) < 1 {
-			return
-		}
-		version := bindversion.ComponentVersion(comp.Name(), version)
-		t := task.
-			NewBuilder().
-			Download(comp.Name(), version).
-			BuildAsStep(fmt.Sprintf("  - Download %s:%s", comp.Name(), version))
-		tasks = append(tasks, t)
-	})
-	return tasks
 }
 
 func buildMonitoredDeployTask(
