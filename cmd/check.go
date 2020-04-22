@@ -525,6 +525,20 @@ func fixFailedChecks(ctx *task.Context, host string, res *operator.CheckResult, 
 			return fmt.Errorf("can not set kernel parameter, %s", msg)
 		}
 		t.Sysctl(host, msg[0], msg[2])
+	case operator.CheckNameLimits:
+		msg := strings.Fields(res.Msg)
+		if len(msg) < 4 {
+			return fmt.Errorf("can not set limits, %s", msg)
+		}
+		t.Limit(host, msg[0], msg[1], msg[2], msg[3])
+	case operator.CheckNameOSVer,
+		operator.CheckNameCPUThreads,
+		operator.CheckNameDisks,
+		operator.CheckNameEpoll,
+		operator.CheckNameMem,
+		operator.CheckNameFio:
+		// don't show unsupported message for checks that are impossible to fix by us
+		return nil
 	default:
 		log.Infof("%s: auto fixing of check '%s' not supported, skip.", host, res.Name)
 	}

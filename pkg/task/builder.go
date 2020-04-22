@@ -293,6 +293,18 @@ func (b *Builder) Sysctl(host, key, val string) *Builder {
 	return b
 }
 
+// Limit set a system limit
+func (b *Builder) Limit(host, domain, limit, item, value string) *Builder {
+	b.tasks = append(b.tasks, &Limit{
+		host:   host,
+		domain: domain,
+		limit:  limit,
+		item:   item,
+		value:  value,
+	})
+	return b
+}
+
 // CheckSys checks system information of deploy server
 func (b *Builder) CheckSys(host, dataDir, checkType string, topo *meta.TopologySpecification, opt *operator.CheckOptions) *Builder {
 	b.tasks = append(b.tasks, &CheckSys{
