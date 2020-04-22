@@ -59,7 +59,7 @@ build_integration_test:
 	$(GOTEST) -c -cover -covermode=count \
 		-coverpkg=github.com/pingcap-incubator/tiup-cluster/... \
 		-o tests/bin/tiup-cluster.test \
-		github.com/pingcap-incubator/tiup-cluster/
+		github.com/pingcap-incubator/tiup-cluster/cmd/cluster
 
 
 test: failpoint-enable unit-test
