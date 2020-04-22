@@ -50,9 +50,8 @@ func newCheckCmd() *cobra.Command {
 		opr: &operator.CheckOptions{},
 	}
 	cmd := &cobra.Command{
-		Use:    "check <topology.yml>",
-		Short:  "Perform preflight checks of the cluster.",
-		Hidden: true,
+		Use:   "check <topology.yml>",
+		Short: "Perform preflight checks for the cluster.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) < 1 {
 				return cmd.Help()
