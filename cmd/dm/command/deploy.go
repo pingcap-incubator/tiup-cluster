@@ -32,7 +32,6 @@ import (
 	"github.com/pingcap-incubator/tiup-cluster/pkg/meta"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/task"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/utils"
-	"github.com/pingcap-incubator/tiup/pkg/repository"
 	tiuputils "github.com/pingcap-incubator/tiup/pkg/utils"
 	"github.com/pingcap/errors"
 	"github.com/spf13/cobra"
@@ -45,11 +44,6 @@ var (
 	errDeployDirConflict   = errNSDeploy.NewType("dir_conflict", errutil.ErrTraitPreCheck)
 	errDeployPortConflict  = errNSDeploy.NewType("port_conflict", errutil.ErrTraitPreCheck)
 )
-
-type componentInfo struct {
-	component string
-	version   repository.Version
-}
 
 type deployOptions struct {
 	user         string // username to login to the SSH server

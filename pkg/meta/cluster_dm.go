@@ -22,7 +22,7 @@ import (
 	"github.com/pingcap/errors"
 )
 
-// ClusterMeta is the specification of generic cluster metadata
+// DMMeta is the specification of generic cluster metadata
 type DMMeta struct {
 	User    string `yaml:"user"`       // the user to run and manage cluster on remote
 	Version string `yaml:"dm_version"` // the version of TiDB cluster
@@ -56,7 +56,7 @@ func SaveDMMeta(clusterName string, meta *DMMeta) error {
 	return nil
 }
 
-// ClusterMetadata tries to read the metadata of a cluster from file
+// DMMetadata tries to read the metadata of a cluster from file
 func DMMetadata(clusterName string) (*DMMeta, error) {
 	var cm DMMeta
 	topoFile := ClusterPath(clusterName, MetaFileName)

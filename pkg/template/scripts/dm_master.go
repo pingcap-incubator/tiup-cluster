@@ -70,6 +70,7 @@ func (c *DMMasterScript) WithNumaNode(numa string) *DMMasterScript {
 	return c
 }
 
+// WithPeerPort set PeerPort field of DMMasterScript
 func (c *DMMasterScript) WithPeerPort(port int) *DMMasterScript {
 	c.PeerPort = port
 	return c

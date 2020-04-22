@@ -24,7 +24,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/clusterutil"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/executor"
-	_ "github.com/pingcap-incubator/tiup-cluster/pkg/module"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/template/scripts"
 	system "github.com/pingcap-incubator/tiup-cluster/pkg/template/systemd"
 	"github.com/pingcap/errors"
@@ -179,7 +178,7 @@ func (i *dmInstance) Status(pdList ...string) string {
 	return i.statusFn(pdList...)
 }
 
-// ClusterSpecification of cluster
+// DMSpecification of cluster
 type DMSpecification = DMTopologySpecification
 
 // DMMasterComponent represents TiDB component.
@@ -403,9 +402,12 @@ func (i *DMWorkerInstance) ScaleConfig(e executor.TiOpsExecutor, b Specification
 	return i.InitConfig(e, clusterName, clusterVersion, deployUser, paths)
 }
 
-func (topo *DMSpecification) GetClusterSpecification() *TopologySpecification {
+// GetClusterSpecification returns cluster topology
+func (topo *DMSpecification) GetClusterSpecification() *ClusterSpecification {
 	return nil
 }
+
+// GetDMSpecification returns dm topology
 func (topo *DMSpecification) GetDMSpecification() *DMSpecification {
 	return topo
 }

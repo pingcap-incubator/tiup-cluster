@@ -44,6 +44,7 @@ type (
 	}
 )
 
+// MasterSpec represents the Master topology specification in topology.yaml
 type MasterSpec struct {
 	Host     string `yaml:"host"`
 	SSHPort  int    `yaml:"ssh_port,omitempty"`
@@ -86,6 +87,7 @@ func (s MasterSpec) IsImported() bool {
 	return s.Imported
 }
 
+// WorkerSpec represents the Master topology specification in topology.yaml
 type WorkerSpec struct {
 	Host     string `yaml:"host"`
 	SSHPort  int    `yaml:"ssh_port,omitempty"`

@@ -81,6 +81,7 @@ type Instance interface {
 	LogDir() string
 }
 
+// Specification represents the topology of cluster/dm
 type Specification interface {
 	ComponentsByStopOrder() (comps []Component)
 	ComponentsByStartOrder() (comps []Component)
@@ -1244,10 +1245,12 @@ func (i *AlertManagerInstance) InitConfig(e executor.TiOpsExecutor, clusterName,
 	return nil
 }
 
+// GetClusterSpecification returns cluster topology
 func (topo *ClusterSpecification) GetClusterSpecification() *ClusterSpecification {
 	return topo
 }
 
+// GetDMSpecification returns dm topology
 func (topo *ClusterSpecification) GetDMSpecification() *DMSpecification {
 	return nil
 }
