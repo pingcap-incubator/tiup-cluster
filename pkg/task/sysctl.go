@@ -35,7 +35,7 @@ type Sysctl struct {
 func (s *Sysctl) Execute(ctx *Context) error {
 	e, ok := ctx.GetExecutor(s.host)
 	if !ok {
-		return fmt.Errorf("can not get executor for %s", s.host)
+		return ErrNoExecutor
 	}
 
 	cmd := strings.Join([]string{

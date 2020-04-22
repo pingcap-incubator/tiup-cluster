@@ -37,7 +37,7 @@ type Limit struct {
 func (l *Limit) Execute(ctx *Context) error {
 	e, ok := ctx.GetExecutor(l.host)
 	if !ok {
-		return fmt.Errorf("can not get executor for %s", l.host)
+		return ErrNoExecutor
 	}
 
 	cmd := strings.Join([]string{

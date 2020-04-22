@@ -64,7 +64,7 @@ func (c *CheckSys) Execute(ctx *Context) error {
 		results := operator.CheckKernelParameters(c.opt, stdout)
 		e, ok := ctx.GetExecutor(c.host)
 		if !ok {
-			return fmt.Errorf("can not get executor for %s", c.host)
+			return ErrNoExecutor
 		}
 		results = append(
 			results,
@@ -74,7 +74,7 @@ func (c *CheckSys) Execute(ctx *Context) error {
 	case CheckTypeService:
 		e, ok := ctx.GetExecutor(c.host)
 		if !ok {
-			return fmt.Errorf("can not get executor for %s", c.host)
+			return ErrNoExecutor
 		}
 		var results []*operator.CheckResult
 		results = append(
@@ -117,7 +117,7 @@ func (c *CheckSys) String() string {
 func (c *CheckSys) runFIO(ctx *Context) (outRR []byte, outRW []byte, outLat []byte, err error) {
 	e, ok := ctx.GetExecutor(c.host)
 	if !ok {
-		err = fmt.Errorf("can not get executor for %s", c.host)
+		err = ErrNoExecutor
 		return
 	}
 

@@ -30,7 +30,7 @@ type SystemCtl struct {
 func (c *SystemCtl) Execute(ctx *Context) error {
 	e, ok := ctx.GetExecutor(c.host)
 	if !ok {
-		return fmt.Errorf("can not get executor for %s", c.host)
+		return ErrNoExecutor
 	}
 
 	cfg := module.SystemdModuleConfig{
