@@ -19,7 +19,7 @@ import (
 )
 
 // Some static values
-var (
+const (
 	ComponentCheckCollector = "insight"
 )
 
