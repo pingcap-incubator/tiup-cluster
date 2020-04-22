@@ -447,6 +447,12 @@ func checkSystemInfo(s *cliutil.SSHConnectionProps, topo *meta.TopologySpecifica
 		return errors.Trace(err)
 	}
 
+	var checkResultTable [][]string
+	// FIXME: add fix result to output
+	checkResultTable = [][]string{
+		// Header
+		{"Node", "Check", "Result", "Message"},
+	}
 	for host := range uniqueHosts {
 		tf := task.NewBuilder().
 			RootSSH(
@@ -458,11 +464,17 @@ func checkSystemInfo(s *cliutil.SSHConnectionProps, topo *meta.TopologySpecifica
 				s.IdentityFilePassphrase,
 				sshTimeout,
 			)
-		if err := handleCheckResults(ctx, host, opt, tf); err != nil {
+		resLines, err := handleCheckResults(ctx, host, opt, tf)
+		if err != nil {
 			continue
 		}
 		applyFixTasks = append(applyFixTasks, tf.BuildAsStep(fmt.Sprintf("  - Applying changes on %s", host)))
+		checkResultTable = append(checkResultTable, resLines...)
 	}
+
+	// print check results *before* trying to applying checks
+	// FIXME: add fix result to output, and display the table after fixing
+	cliutil.PrintTable(checkResultTable, true)
 
 	if opt.applyFix {
 		tc := task.NewBuilder().
@@ -481,61 +493,75 @@ func checkSystemInfo(s *cliutil.SSHConnectionProps, topo *meta.TopologySpecifica
 }
 
 // handleCheckResults parses the result of checks
-func handleCheckResults(ctx *task.Context, host string, opt *checkOptions, t *task.Builder) error {
+func handleCheckResults(ctx *task.Context, host string, opt *checkOptions, t *task.Builder) ([][]string, error) {
 	results, _ := ctx.GetCheckResults(host)
 	if len(results) < 1 {
-		return fmt.Errorf("no check results found for %s", host)
+		return nil, fmt.Errorf("no check results found for %s", host)
 	}
 
-	log.Infof("Check results of %s: (only errors and important info are displayed)", color.HiCyanString(host))
+	lines := make([][]string, 0)
+	//log.Infof("Check results of %s: (only errors and important info are displayed)", color.HiCyanString(host))
 	for _, r := range results {
+		var line []string
 		if r.Err != nil {
 			if r.IsWarning() {
-				log.Warnf("%s: %s", host, r)
+				line = []string{host, r.Name, color.YellowString("Warn"), r.Error()}
 			} else {
-				log.Errorf("%s: %s", host, r)
+				line = []string{host, r.Name, color.HiRedString("Fail"), r.Error()}
 			}
 			if !opt.applyFix {
+				lines = append(lines, line)
 				continue
 			}
-			if err := fixFailedChecks(ctx, host, r, t); err != nil {
-				log.Warnf("%s: %s failed to auto apply changes, you'll need to manually fix the failed check. (%s)", host, r.Name, err)
+			msg, err := fixFailedChecks(ctx, host, r, t)
+			if err != nil {
+				log.Debugf("%s: fail to apply fix to %s (%s)", host, r.Name, err)
+			}
+			if msg != "" {
+				// show auto fixing info
+				line[len(line)-1] = msg
 			}
 		} else if r.Msg != "" {
-			log.Infof("%s: %s", host, color.CyanString(r.Msg))
-		} // show errors and messages only
+			line = []string{host, r.Name, color.GreenString("Pass"), r.Msg}
+		}
+
+		// show errors and messages only, ignore empty lines
+		if len(line) > 0 {
+			lines = append(lines, line)
+		}
 	}
 
-	return nil
+	return lines, nil
 }
 
 // fixFailedChecks tries to automatically apply changes to fix failed checks
-func fixFailedChecks(ctx *task.Context, host string, res *operator.CheckResult, t *task.Builder) error {
+func fixFailedChecks(ctx *task.Context, host string, res *operator.CheckResult, t *task.Builder) (string, error) {
+	msg := ""
 	switch res.Name {
 	case operator.CheckNameSysService:
 		if strings.Contains(res.Msg, "not found") {
-			return nil
+			return "", nil
 		}
-		msg := strings.Fields(res.Msg)
-		if len(msg) < 2 {
-			return fmt.Errorf("can not perform action of service, %s", res.Msg)
+		fields := strings.Fields(res.Msg)
+		if len(fields) < 2 {
+			return "", fmt.Errorf("can not perform action of service, %s", res.Msg)
 		}
-		t.SystemCtl(host, msg[1], msg[0])
-		log.Infof("%s: will try to '%s'", host, color.HiBlueString(res.Msg))
+		t.SystemCtl(host, fields[1], fields[0])
+		msg = fmt.Sprintf("will try to '%s'", color.HiBlueString(res.Msg))
 	case operator.CheckNameSysctl:
-		msg := strings.Fields(res.Msg)
-		if len(msg) < 3 {
-			return fmt.Errorf("can not set kernel parameter, %s", res.Msg)
+		fields := strings.Fields(res.Msg)
+		if len(fields) < 3 {
+			return "", fmt.Errorf("can not set kernel parameter, %s", res.Msg)
 		}
-		t.Sysctl(host, msg[0], msg[2])
-		log.Infof("%s: will try to set '%s'", host, color.HiBlueString(res.Msg))
+		t.Sysctl(host, fields[0], fields[2])
+		msg = fmt.Sprintf("will try to set '%s'", color.HiBlueString(res.Msg))
 	case operator.CheckNameLimits:
-		msg := strings.Fields(res.Msg)
-		if len(msg) < 4 {
-			return fmt.Errorf("can not set limits, %s", res.Msg)
+		fields := strings.Fields(res.Msg)
+		if len(fields) < 4 {
+			return "", fmt.Errorf("can not set limits, %s", res.Msg)
 		}
-		t.Limit(host, msg[0], msg[1], msg[2], msg[3])
-		log.Infof("%s: will try to set '%s'", host, color.HiBlueString(res.Msg))
+		t.Limit(host, fields[0], fields[1], fields[2], fields[3])
+		msg = fmt.Sprintf("will try to set '%s'", color.HiBlueString(res.Msg))
 	case operator.CheckNameSELinux:
 		t.Shell(host,
 			fmt.Sprintf(
@@ -544,7 +570,7 @@ func fixFailedChecks(ctx *task.Context, host string, res *operator.CheckResult, 
 				"setenforce 0",
 			),
 			true)
-		log.Infof("%s: will try to %s, reboot might be needed", host, color.HiBlueString("disable SELinux"))
+		msg = fmt.Sprintf("will try to %s, reboot might be needed", color.HiBlueString("disable SELinux"))
 	case operator.CheckNameOSVer,
 		operator.CheckNameCPUThreads,
 		operator.CheckNameDisks,
@@ -552,9 +578,9 @@ func fixFailedChecks(ctx *task.Context, host string, res *operator.CheckResult, 
 		operator.CheckNameMem,
 		operator.CheckNameFio:
 		// don't show unsupported message for checks that are impossible to fix by us
-		return nil
+		return "", nil
 	default:
-		log.Infof("%s: auto fixing of check '%s' not supported, skip.", host, res.Name)
+		msg = fmt.Sprintf("%s, auto fixing not supported", res)
 	}
-	return nil
+	return msg, nil
 }

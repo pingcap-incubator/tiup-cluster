@@ -69,6 +69,11 @@ type CheckResult struct {
 
 // Error implements the error interface
 func (c CheckResult) Error() string {
+	return c.Err.Error()
+}
+
+// String returns a readable string of the error
+func (c CheckResult) String() string {
 	return fmt.Sprintf("check failed for %s: %s", c.Name, c.Err)
 }
 
