@@ -64,10 +64,10 @@ func newCheckCmd() *cobra.Command {
 			}
 
 			// use a dummy cluster name, the real cluster name is set during deploy
-			if err := checkClusterPortConflict("tidb-cluster", &topo); err != nil {
+			if err := checkClusterPortConflict("nonexist-dummy-tidb-cluster", &topo); err != nil {
 				return err
 			}
-			if err := checkClusterDirConflict("tidb-cluster", &topo); err != nil {
+			if err := checkClusterDirConflict("nonexist-dummy-tidb-cluster", &topo); err != nil {
 				return err
 			}
 
