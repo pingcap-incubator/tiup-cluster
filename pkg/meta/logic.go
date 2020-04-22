@@ -89,6 +89,7 @@ type Specification interface {
 	IterInstance(fn func(instance Instance))
 	IterHost(fn func(instance Instance))
 	GetGlobalOptions() GlobalOptions
+	GetMonitoredOptions() MonitoredOptions
 	GetClusterSpecification() *ClusterSpecification
 	GetDMSpecification() *DMSpecification
 }
@@ -1249,6 +1250,11 @@ func (i *AlertManagerInstance) InitConfig(e executor.TiOpsExecutor, clusterName,
 // GetGlobalOptions returns GlobalOptions
 func (topo *ClusterSpecification) GetGlobalOptions() GlobalOptions {
 	return topo.GlobalOptions
+}
+
+// GetMonitoredOptions returns MonitoredOptions
+func (topo *ClusterSpecification) GetMonitoredOptions() MonitoredOptions {
+	return topo.MonitoredOptions
 }
 
 // GetClusterSpecification returns cluster topology

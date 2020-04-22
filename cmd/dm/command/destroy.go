@@ -16,7 +16,9 @@ package command
 import (
 	"os"
 
+	"github.com/fatih/color"
 	"github.com/joomcode/errorx"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/cliutil"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/log"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/logger"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/meta"
@@ -47,6 +49,16 @@ func newDestroyCmd() *cobra.Command {
 				return err
 			}
 
+			if !skipConfirm {
+				if err := cliutil.PromptForConfirmOrAbortError(
+					"This operation will destroy DM %s cluster %s and its data.\nDo you want to continue? [y/N]:",
+					color.HiYellowString(metadata.Version),
+					color.HiYellowString(clusterName)); err != nil {
+					return err
+				}
+				log.Infof("Destroying cluster...")
+			}
+
 			t := task.NewBuilder().
 				SSHKeySet(
 					meta.ClusterPath(clusterName, "ssh", "id_rsa"),
@@ -67,7 +79,7 @@ func newDestroyCmd() *cobra.Command {
 			if err := os.RemoveAll(meta.ClusterPath(clusterName)); err != nil {
 				return errors.Trace(err)
 			}
-			log.Infof("Destroyed cluster `%s` successfully", clusterName)
+			log.Infof("Destroyed DM cluster `%s` successfully", clusterName)
 			return nil
 		},
 	}

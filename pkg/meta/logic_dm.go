@@ -407,6 +407,11 @@ func (topo *DMSpecification) GetGlobalOptions() GlobalOptions {
 	return topo.GlobalOptions
 }
 
+// GetMonitoredOptions returns MonitoredOptions
+func (topo *DMSpecification) GetMonitoredOptions() MonitoredOptions {
+	return topo.MonitoredOptions
+}
+
 // GetClusterSpecification returns cluster topology
 func (topo *DMSpecification) GetClusterSpecification() *ClusterSpecification {
 	return nil
