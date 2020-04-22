@@ -53,7 +53,7 @@ func newStartCmd() *cobra.Command {
 func startCluster(clusterName string, options operator.Options) error {
 	logger.EnableAuditLog()
 	log.Infof("Starting cluster %s...", clusterName)
-	metadata, err := meta.ClusterMetadata(clusterName)
+	metadata, err := meta.DMMetadata(clusterName)
 	if err != nil {
 		return err
 	}

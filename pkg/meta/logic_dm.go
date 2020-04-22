@@ -403,6 +403,11 @@ func (i *DMWorkerInstance) ScaleConfig(e executor.TiOpsExecutor, b Specification
 }
 
 // GetClusterSpecification returns cluster topology
+func (topo *DMSpecification) GetGlobalOptions() GlobalOptions {
+	return topo.GlobalOptions
+}
+
+// GetClusterSpecification returns cluster topology
 func (topo *DMSpecification) GetClusterSpecification() *ClusterSpecification {
 	return nil
 }

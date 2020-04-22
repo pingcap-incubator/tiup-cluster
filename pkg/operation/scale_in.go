@@ -66,6 +66,18 @@ func AsyncNodes(spec *meta.ClusterSpecification, nodes []string, async bool) []s
 // ScaleIn scales in the cluster
 func ScaleIn(
 	getter ExecutorGetter,
+	spec meta.Specification,
+	options Options,
+) error {
+	if clusterSpec := spec.GetClusterSpecification(); clusterSpec != nil {
+		return ScaleInCluster(getter, clusterSpec, options)
+	}
+	return nil
+}
+
+// ScaleInCluster scales in the cluster
+func ScaleInCluster(
+	getter ExecutorGetter,
 	spec *meta.ClusterSpecification,
 	options Options,
 ) error {

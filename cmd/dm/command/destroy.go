@@ -30,7 +30,7 @@ import (
 func newDestroyCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "destroy <cluster-name>",
-		Short: "Destroy a specified cluster",
+		Short: "Destroy a specified DM cluster",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) != 1 {
 				return cmd.Help()
@@ -42,7 +42,7 @@ func newDestroyCmd() *cobra.Command {
 			}
 
 			logger.EnableAuditLog()
-			metadata, err := meta.ClusterMetadata(clusterName)
+			metadata, err := meta.DMMetadata(clusterName)
 			if err != nil {
 				return err
 			}

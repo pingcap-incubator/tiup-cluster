@@ -217,7 +217,7 @@ func (b *Builder) EnvInit(host, deployUser string) *Builder {
 // ClusterOperate appends a cluster operation task.
 // All the UserSSH needed must be init first.
 func (b *Builder) ClusterOperate(
-	spec *meta.ClusterSpecification,
+	spec meta.Specification,
 	op operator.Operation,
 	options operator.Options,
 ) *Builder {

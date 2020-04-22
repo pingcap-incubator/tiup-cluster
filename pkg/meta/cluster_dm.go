@@ -35,7 +35,7 @@ type DMMeta struct {
 // SaveDMMeta saves the cluster meta information to profile directory
 func SaveDMMeta(clusterName string, meta *DMMeta) error {
 	wrapError := func(err error) *errorx.Error {
-		return ErrClusterSaveMetaFailed.Wrap(err, "Failed to save cluster metadata")
+		return ErrClusterSaveMetaFailed.Wrap(err, "Failed to save dm metadata")
 	}
 
 	metaFile := ClusterPath(clusterName, MetaFileName)
