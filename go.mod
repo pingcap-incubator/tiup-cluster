@@ -38,4 +38,5 @@ require (
 	golang.org/x/sys v0.0.0-20200413165638-669c56c373c4
 	gopkg.in/yaml.v2 v2.2.8
 	vimagination.zapto.org/dos2unix v0.0.0-20180612133841-67e81384b402
+	vimagination.zapto.org/memio v0.0.0-20200222190306-588ebc67b97d // indirect
 )
