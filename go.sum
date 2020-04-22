@@ -872,3 +872,5 @@ rsc.io/pdf v0.1.1/go.mod h1:n8OzWcQ6Sp37PL01nO98y4iUCRdTGarVfzxY20ICaU4=
 sigs.k8s.io/yaml v1.1.0/go.mod h1:UJmg0vDUVViEyp3mgSv9WPwZCDxu4rQW1olrI1uml+o=
 sigs.k8s.io/yaml v1.2.0 h1:kr/MCeFWJWTwyaHoR9c8EjH9OumOmoF9YGiZd7lFm/Q=
 sigs.k8s.io/yaml v1.2.0/go.mod h1:yfXDCHCao9+ENCvLSE62v9VSji2MKu5jeNfTrofGhJc=
+vimagination.zapto.org/dos2unix v0.0.0-20180612133841-67e81384b402 h1:VSoZyPU4n67/D2emXBakFE4D5YdkBP9BjOKhobkDu0Y=
+vimagination.zapto.org/dos2unix v0.0.0-20180612133841-67e81384b402/go.mod h1:5EYvCdUGoQUVnD6lZxdYZ9AHFPyOpJx/x4HHwjT3GKk=
