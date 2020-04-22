@@ -376,6 +376,23 @@ func CheckServices(e executor.TiOpsExecutor, host, service string, disable bool)
 		Name: CheckNameSysService,
 	}
 
+	// check if the service exist before checking its status, ignore when non-exist
+	stdout, _, err := e.Execute(
+		fmt.Sprintf(
+			"systemctl list-unit-files --type service | grep -i %s.service | wc -l", service),
+		true)
+	if err != nil {
+		result.Err = err
+		return result
+	}
+	if cnt, _ := strconv.Atoi(strings.Trim(string(stdout), "\n")); cnt == 0 {
+		if !disable {
+			result.Err = fmt.Errorf("service %s not found, should be installed and started", service)
+		}
+		result.Msg = fmt.Sprintf("service %s not found, ignore", service)
+		return result
+	}
+
 	active, err := GetServiceStatus(e, service+".service")
 	if err != nil {
 		result.Err = err

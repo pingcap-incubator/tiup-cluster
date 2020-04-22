@@ -513,6 +513,9 @@ func handleCheckResults(ctx *task.Context, host string, opt *checkOptions, t *ta
 func fixFailedChecks(ctx *task.Context, host string, res *operator.CheckResult, t *task.Builder) error {
 	switch res.Name {
 	case operator.CheckNameSysService:
+		if strings.Contains(res.Msg, "not found") {
+			return nil
+		}
 		msg := strings.Fields(res.Msg)
 		if len(msg) < 2 {
 			return fmt.Errorf("can not perform action of service, %s", res.Msg)
