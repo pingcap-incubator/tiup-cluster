@@ -485,7 +485,6 @@ func flatPartitions(parts []insight.BlockDev) []insight.BlockDev {
 		}
 		// blocks with empty mount points are ignored
 		if blk.Mount.MountPoint != "" {
-			// blocks with empty mount points are ignored
 			flatBlk = append(flatBlk, blk)
 		}
 	}
@@ -495,13 +494,9 @@ func flatPartitions(parts []insight.BlockDev) []insight.BlockDev {
 func sortPartitions(parts []insight.BlockDev) []insight.BlockDev {
 	// The longest mount point is at top of the list
 	sort.Slice(parts, func(i, j int) bool {
-		return len(parts[i].Mount.MountPoint) < len(parts[j].Mount.MountPoint)
+		return len(parts[i].Mount.MountPoint) > len(parts[j].Mount.MountPoint)
 	})
-	// reverse the list
-	for i := len(parts)/2 - 1; i >= 0; i-- {
-		opp := len(parts) - 1 - i
-		parts[i], parts[opp] = parts[opp], parts[i]
-	}
+
 	return parts
 }
 
