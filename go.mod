@@ -12,7 +12,6 @@ require (
 	github.com/creasty/defaults v1.3.0
 	github.com/fatih/color v1.9.0
 	github.com/go-sql-driver/mysql v1.5.0
-	github.com/goccy/go-yaml v1.4.3
 	github.com/google/uuid v1.1.1
 	github.com/joomcode/errorx v1.0.1
 	github.com/juju/ansiterm v0.0.0-20180109212912-720a0952cc2a // indirect
@@ -25,7 +24,7 @@ require (
 	github.com/pingcap/errors v0.11.5-0.20190809092503-95897b64e011
 	github.com/pingcap/kvproto v0.0.0-20200317095539-c42a1d8db7d3
 	github.com/pingcap/pd/v4 v4.0.0-beta.2
-	github.com/pingcap/tidb-insight v0.3.1-0.20200423033851-4e7d73179beb
+	github.com/pingcap/tidb-insight v0.3.1-0.20200423065530-051a0e987419
 	github.com/relex/aini v1.1.3
 	github.com/sergi/go-diff v1.0.1-0.20180205163309-da645544ed44
 	github.com/spf13/cobra v0.0.6
@@ -37,6 +36,6 @@ require (
 	golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e
 	golang.org/x/sys v0.0.0-20200420163511-1957bb5e6d1f
 	gopkg.in/yaml.v2 v2.2.8
-	vimagination.zapto.org/dos2unix v0.0.0-20180612133841-67e81384b402
-	vimagination.zapto.org/memio v0.0.0-20200222190306-588ebc67b97d // indirect
 )
+
+replace gopkg.in/yaml.v2 => github.com/july2993/yaml v0.0.0-20200423062752-adcfa5abe2ed
