@@ -107,7 +107,14 @@ type (
 
 // AllComponentNames contains the names of all components.
 // should include all components in ComponentsByStartOrder
-var AllComponentNames = []string{"pd", "tikv", "pump", "tidb", "tiflash", "drainer", "prometheus", "grafana", "alertmanager"}
+func AllComponentNames() (roles []string) {
+	tp := &ClusterSpecification{}
+	tp.IterComponent(func(c Component) {
+		roles = append(roles, c.Name())
+	})
+
+	return
+}
 
 // TiDBSpec represents the TiDB topology specification in topology.yaml
 type TiDBSpec struct {

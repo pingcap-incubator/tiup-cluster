@@ -137,7 +137,7 @@ func buildReloadTask(
 func validRoles(roles []string) error {
 	for _, r := range roles {
 		match := false
-		for _, has := range meta.AllComponentNames {
+		for _, has := range meta.AllComponentNames() {
 			if r == has {
 				match = true
 				break
@@ -145,7 +145,7 @@ func validRoles(roles []string) error {
 		}
 
 		if !match {
-			return errors.Errorf("not valid role: %s, should be one of: %v", r, meta.AllComponentNames)
+			return errors.Errorf("not valid role: %s, should be one of: %v", r, meta.AllComponentNames())
 		}
 	}
 
