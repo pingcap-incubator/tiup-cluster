@@ -69,7 +69,7 @@ func (b *Builder) Func(name string, fn func() error) *Builder {
 }
 
 // ClusterSSH init all UserSSH need for the cluster.
-func (b *Builder) ClusterSSH(spec *meta.Specification, deployUser string, sshTimeout int64) *Builder {
+func (b *Builder) ClusterSSH(spec meta.Specification, deployUser string, sshTimeout int64) *Builder {
 	var tasks []Task
 	for _, com := range spec.ComponentsByStartOrder() {
 		for _, in := range com.Instances() {
@@ -217,7 +217,7 @@ func (b *Builder) EnvInit(host, deployUser string) *Builder {
 // ClusterOperate appends a cluster operation task.
 // All the UserSSH needed must be init first.
 func (b *Builder) ClusterOperate(
-	spec *meta.Specification,
+	spec meta.Specification,
 	op operator.Operation,
 	options operator.Options,
 ) *Builder {
@@ -233,6 +233,16 @@ func (b *Builder) ClusterOperate(
 // Mkdir appends a Mkdir task to the current task collection
 func (b *Builder) Mkdir(user, host string, dirs ...string) *Builder {
 	b.tasks = append(b.tasks, &Mkdir{
+		user: user,
+		host: host,
+		dirs: dirs,
+	})
+	return b
+}
+
+// Rmdir appends a Rmdir task to the current task collection
+func (b *Builder) Rmdir(user, host string, dirs ...string) *Builder {
+	b.tasks = append(b.tasks, &Rmdir{
 		user: user,
 		host: host,
 		dirs: dirs,
@@ -259,6 +269,50 @@ func (b *Builder) Shell(host, command string, sudo bool) *Builder {
 		host:    host,
 		command: command,
 		sudo:    sudo,
+	})
+	return b
+}
+
+// SystemCtl run systemctl on host
+func (b *Builder) SystemCtl(host, unit, action string) *Builder {
+	b.tasks = append(b.tasks, &SystemCtl{
+		host:   host,
+		unit:   unit,
+		action: action,
+	})
+	return b
+}
+
+// Sysctl set a kernel parameter
+func (b *Builder) Sysctl(host, key, val string) *Builder {
+	b.tasks = append(b.tasks, &Sysctl{
+		host: host,
+		key:  key,
+		val:  val,
+	})
+	return b
+}
+
+// Limit set a system limit
+func (b *Builder) Limit(host, domain, limit, item, value string) *Builder {
+	b.tasks = append(b.tasks, &Limit{
+		host:   host,
+		domain: domain,
+		limit:  limit,
+		item:   item,
+		value:  value,
+	})
+	return b
+}
+
+// CheckSys checks system information of deploy server
+func (b *Builder) CheckSys(host, dataDir, checkType string, topo *meta.TopologySpecification, opt *operator.CheckOptions) *Builder {
+	b.tasks = append(b.tasks, &CheckSys{
+		host:    host,
+		topo:    topo,
+		opt:     opt,
+		dataDir: dataDir,
+		check:   checkType,
 	})
 	return b
 }
