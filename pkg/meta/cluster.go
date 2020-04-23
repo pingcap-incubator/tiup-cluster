@@ -15,10 +15,10 @@ package meta
 
 import (
 	"io/ioutil"
-	"os"
 
 	"github.com/joomcode/errorx"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/cliutil"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/file"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/utils"
 	"github.com/pingcap/errors"
 	"gopkg.in/yaml.v2"
@@ -71,15 +71,16 @@ func SaveClusterMeta(clusterName string, meta *ClusterMeta) error {
 		return wrapError(err)
 	}
 
-	f, err := os.OpenFile(metaFile, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, os.ModePerm)
+	data, err := yaml.Marshal(meta)
 	if err != nil {
 		return wrapError(err)
 	}
-	defer f.Close()
 
-	if err := yaml.NewEncoder(f).Encode(meta); err != nil {
+	err = file.SaveFileWithBackup(metaFile, data)
+	if err != nil {
 		return wrapError(err)
 	}
+
 	return nil
 }
 
