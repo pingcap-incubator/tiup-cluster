@@ -65,11 +65,6 @@ type DrainerInstance struct {
 	instance
 }
 
-// UpdateTopology implements Instance interface
-func (i *DrainerInstance) UpdateTopology() error {
-	return nil
-}
-
 // ScaleConfig deploy temporary config on scaling
 func (i *DrainerInstance) ScaleConfig(e executor.TiOpsExecutor, b Specification, clusterName, clusterVersion, user string, paths DirPaths) error {
 	s := i.instance.topo

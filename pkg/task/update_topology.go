@@ -2,6 +2,7 @@ package task
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/pingcap/errors"
@@ -27,9 +28,9 @@ func (u *UpdateTopology) Execute(ctx *Context) error {
 
 	topo := u.metadata.Topology
 
-	instances := (&meta.MonitorComponent{Specification: topo}).Instances()
-	instances = append(instances, (&meta.GrafanaComponent{Specification: topo}).Instances()...)
-	instances = append(instances, (&meta.AlertManagerComponent{Specification: topo}).Instances()...)
+	instances := (&meta.MonitorComponent{ClusterSpecification: topo}).Instances()
+	instances = append(instances, (&meta.GrafanaComponent{ClusterSpecification: topo}).Instances()...)
+	instances = append(instances, (&meta.AlertManagerComponent{ClusterSpecification: topo}).Instances()...)
 
 	client, err := u.metadata.Topology.GetEtcdClient()
 	if err != nil {
@@ -46,8 +47,7 @@ func (u *UpdateTopology) Execute(ctx *Context) error {
 	for _, ins := range instances {
 		ins := ins
 		errg.Go(func() error {
-
-			err := ins.UpdateTopology()
+			err := updateTopology(ins, client)
 			if err != nil {
 				return errors.AddStack(err)
 			}
@@ -58,7 +58,34 @@ func (u *UpdateTopology) Execute(ctx *Context) error {
 	return errg.Wait()
 }
 
+// componentTopology represent the topology info for alertmanager, prometheus and grafana.
+type componentTopology struct {
+	IP         string `json:"ip"`
+	Port       int    `json:"port"`
+	DeployPath string `json:"deploy_path"`
+}
+
+// updateTopology write component topology to "/topology".
+func updateTopology(instance meta.Instance, etcdClient *clientv3.Client) error {
+	switch instance.ComponentName() {
+	case meta.ComponentAlertManager, meta.ComponentPrometheus, meta.ComponentGrafana:
+		topology := componentTopology{
+			IP:         instance.GetHost(),
+			Port:       instance.GetPort(),
+			DeployPath: instance.DeployDir(),
+		}
+		data, err := json.Marshal(topology)
+		if err != nil {
+			return err
+		}
+		_, err = etcdClient.KV.Put(context.Background(), "/topology/"+instance.ComponentName(), string(data))
+		return err
+	default:
+		return nil
+	}
+}
+
 // Rollback implements the Task interface
 func (u *UpdateTopology) Rollback(ctx *Context) error {
-	panic("implement me")
+	return nil
 }
