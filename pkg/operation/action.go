@@ -629,8 +629,3 @@ func PrintClusterStatus(getter ExecutorGetter, spec meta.Specification) (health 
 
 	return
 }
-
-// UpdateTopology update all the components topology for the project.
-func UpdateTopology(getter ExecutorGetter, instances []meta.Instance) error {
-	panic("implement me")
-}
