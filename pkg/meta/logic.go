@@ -21,7 +21,6 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/goccy/go-yaml"
 	"github.com/google/uuid"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/clusterutil"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/executor"
@@ -33,6 +32,7 @@ import (
 	"github.com/pingcap-incubator/tiup/pkg/set"
 	"github.com/pingcap/errors"
 	"golang.org/x/mod/semver"
+	"gopkg.in/yaml.v2"
 )
 
 // Components names supported by TiOps
@@ -703,9 +703,10 @@ func (c *TiFlashComponent) Instances() []Instance {
 				s.FlashProxyStatusPort,
 				s.StatusPort,
 			},
-			usedDirs: append([]string{
+			usedDirs: []string{
 				s.DeployDir,
-			}, strings.Split(s.DataDir, ",")...),
+				s.DataDir,
+			},
 			statusFn: s.Status,
 		}})
 	}
