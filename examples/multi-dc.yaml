@@ -27,8 +27,8 @@ server_configs:
     schedule.max-pending-peer-count: 16
     schedule.max-store-down-time: 30m
     schedule.leader-schedule-limit: 4
-    schedule.region-schedule-limit: 2048
-    schedule.replica-schedule-limit: 64
+    schedule.region-schedule-limit: 4
+    schedule.replica-schedule-limit: 8
     schedule.merge-schedule-limit: 8
     schedule.hot-region-schedule-limit: 4
     label-property:
