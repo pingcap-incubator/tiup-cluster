@@ -100,7 +100,7 @@ type (
 		PDServers        []PDSpec           `yaml:"pd_servers"`
 		PumpServers      []PumpSpec         `yaml:"pump_servers,omitempty"`
 		Drainers         []DrainerSpec      `yaml:"drainer_servers,omitempty"`
-		CDCs             []CDCSpec          `yaml:"cdcs,omitempty"`
+		CDCServers       []CDCSpec          `yaml:"cdc_servers,omitempty"`
 		Monitors         []PrometheusSpec   `yaml:"monitoring_servers"`
 		Grafana          []GrafanaSpec      `yaml:"grafana_servers,omitempty"`
 		Alertmanager     []AlertManagerSpec `yaml:"alertmanager_servers,omitempty"`
@@ -806,7 +806,7 @@ func (topo *TopologySpecification) Merge(that *TopologySpecification) *TopologyS
 		TiFlashServers:   append(topo.TiFlashServers, that.TiFlashServers...),
 		PumpServers:      append(topo.PumpServers, that.PumpServers...),
 		Drainers:         append(topo.Drainers, that.Drainers...),
-		CDCs:             append(topo.CDCs, that.CDCs...),
+		CDCServers:       append(topo.CDCServers, that.CDCServers...),
 		Monitors:         append(topo.Monitors, that.Monitors...),
 		Grafana:          append(topo.Grafana, that.Grafana...),
 		Alertmanager:     append(topo.Alertmanager, that.Alertmanager...),

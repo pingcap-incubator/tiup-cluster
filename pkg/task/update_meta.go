@@ -81,7 +81,7 @@ func (u *UpdateMeta) Execute(ctx *Context) error {
 		if deleted.Exist(instance.ID()) {
 			continue
 		}
-		newMeta.Topology.CDCs = append(newMeta.Topology.CDCs, topo.CDCs[i])
+		newMeta.Topology.CDCServers = append(newMeta.Topology.CDCServers, topo.CDCServers[i])
 	}
 	for i, instance := range (&meta.MonitorComponent{ClusterSpecification: topo}).Instances() {
 		if deleted.Exist(instance.ID()) {

@@ -32,8 +32,8 @@ func (c *CDCComponent) Name() string {
 
 // Instances implements Component interface.
 func (c *CDCComponent) Instances() []Instance {
-	ins := make([]Instance, 0, len(c.CDCs))
-	for _, s := range c.CDCs {
+	ins := make([]Instance, 0, len(c.CDCServers))
+	for _, s := range c.CDCServers {
 		s := s
 		ins = append(ins, &CDCInstance{instance{
 			InstanceSpec: s,
