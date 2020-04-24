@@ -21,14 +21,17 @@ import (
 
 	"github.com/pingcap-incubator/tiup-cluster/pkg/executor"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/log"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/operation"
 	"github.com/pingcap-incubator/tiup/pkg/repository"
 )
 
 var (
 	// ErrUnsupportedRollback means the task do not support rollback.
 	ErrUnsupportedRollback = stderrors.New("unsupported rollback")
-	// ErrNoExecutor means can get the executor.
+	// ErrNoExecutor means not being able to get the executor.
 	ErrNoExecutor = stderrors.New("no executor")
+	// ErrNoOutput means not being able to get the output of host.
+	ErrNoOutput = stderrors.New("no outputs available")
 )
 
 type (
@@ -52,9 +55,10 @@ type (
 
 		exec struct {
 			sync.RWMutex
-			executors map[string]executor.TiOpsExecutor
-			stdouts   map[string][]byte
-			stderrs   map[string][]byte
+			executors    map[string]executor.TiOpsExecutor
+			stdouts      map[string][]byte
+			stderrs      map[string][]byte
+			checkResults map[string][]*operator.CheckResult
 		}
 
 		// The public/private key is used to access remote server via the user `tidb`
@@ -83,13 +87,15 @@ func NewContext() *Context {
 		ev: NewEventBus(),
 		exec: struct {
 			sync.RWMutex
-			executors map[string]executor.TiOpsExecutor
-			stdouts   map[string][]byte
-			stderrs   map[string][]byte
+			executors    map[string]executor.TiOpsExecutor
+			stdouts      map[string][]byte
+			stderrs      map[string][]byte
+			checkResults map[string][]*operator.CheckResult
 		}{
-			executors: make(map[string]executor.TiOpsExecutor),
-			stdouts:   make(map[string][]byte),
-			stderrs:   make(map[string][]byte),
+			executors:    make(map[string]executor.TiOpsExecutor),
+			stdouts:      make(map[string][]byte),
+			stderrs:      make(map[string][]byte),
+			checkResults: make(map[string][]*operator.CheckResult),
 		},
 		manifestCache: manifestCache{
 			manifests: map[string]*repository.VersionManifest{},
@@ -154,6 +160,25 @@ func (ctx *Context) SetManifest(comp string, m *repository.VersionManifest) {
 	ctx.manifestCache.Lock()
 	ctx.manifestCache.manifests[comp] = m
 	ctx.manifestCache.Unlock()
+}
+
+// GetCheckResults get the the check result of a host (if has any)
+func (ctx *Context) GetCheckResults(host string) (results []*operator.CheckResult, ok bool) {
+	ctx.exec.RLock()
+	results, ok = ctx.exec.checkResults[host]
+	ctx.exec.RUnlock()
+	return
+}
+
+// SetCheckResults append the check result of a host to the list
+func (ctx *Context) SetCheckResults(host string, results []*operator.CheckResult) {
+	ctx.exec.Lock()
+	if currResult, ok := ctx.exec.checkResults[host]; ok {
+		ctx.exec.checkResults[host] = append(currResult, results...)
+	} else {
+		ctx.exec.checkResults[host] = results
+	}
+	ctx.exec.Unlock()
 }
 
 func isDisplayTask(t Task) bool {

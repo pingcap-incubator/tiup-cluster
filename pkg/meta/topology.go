@@ -107,6 +107,17 @@ type (
 	}
 )
 
+// AllComponentNames contains the names of all components.
+// should include all components in ComponentsByStartOrder
+func AllComponentNames() (roles []string) {
+	tp := &ClusterSpecification{}
+	tp.IterComponent(func(c Component) {
+		roles = append(roles, c.Name())
+	})
+
+	return
+}
+
 // TiDBSpec represents the TiDB topology specification in topology.yaml
 type TiDBSpec struct {
 	Host            string                 `yaml:"host"`
@@ -790,15 +801,16 @@ func fillCustomDefaults(globalOptions *GlobalOptions, data interface{}) error {
 }
 
 var (
-	globalOptionTypeName  = reflect.TypeOf(GlobalOptions{}).Name()
-	monitorOptionTypeName = reflect.TypeOf(MonitoredOptions{}).Name()
-	serverConfigsTypeName = reflect.TypeOf(ServerConfigs{}).Name()
+	globalOptionTypeName    = reflect.TypeOf(GlobalOptions{}).Name()
+	monitorOptionTypeName   = reflect.TypeOf(MonitoredOptions{}).Name()
+	serverConfigsTypeName   = reflect.TypeOf(ServerConfigs{}).Name()
+	dmServerConfigsTypeName = reflect.TypeOf(DMServerConfigs{}).Name()
 )
 
 // Skip global/monitored options
 func isSkipField(field reflect.Value) bool {
 	tp := field.Type().Name()
-	return tp == globalOptionTypeName || tp == monitorOptionTypeName || tp == serverConfigsTypeName
+	return tp == globalOptionTypeName || tp == monitorOptionTypeName || tp == serverConfigsTypeName || tp == dmServerConfigsTypeName
 }
 
 func setDefaultDir(parent, role, port string, field reflect.Value) {

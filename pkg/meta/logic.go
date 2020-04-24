@@ -23,7 +23,6 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/goccy/go-yaml"
 	"github.com/google/uuid"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/clusterutil"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/executor"
@@ -35,10 +34,13 @@ import (
 	"github.com/pingcap-incubator/tiup/pkg/set"
 	"github.com/pingcap/errors"
 	"golang.org/x/mod/semver"
+	"gopkg.in/yaml.v2"
 )
 
 // Components names supported by TiOps
 const (
+	ComponentDMMaster         = "dm_master"
+	ComponentDMWorker         = "dm_worker"
 	ComponentTiDB             = "tidb"
 	ComponentTiKV             = "tikv"
 	ComponentPD               = "pd"
@@ -66,7 +68,7 @@ type Instance interface {
 	Ready(executor.TiOpsExecutor) error
 	WaitForDown(executor.TiOpsExecutor) error
 	InitConfig(e executor.TiOpsExecutor, clusterName string, clusterVersion string, deployUser string, paths DirPaths) error
-	ScaleConfig(e executor.TiOpsExecutor, topo *Specification, clusterName string, clusterVersion string, deployUser string, paths DirPaths) error
+	ScaleConfig(e executor.TiOpsExecutor, topo Specification, clusterName string, clusterVersion string, deployUser string, paths DirPaths) error
 	ComponentName() string
 	InstanceName() string
 	ServiceName() string
@@ -80,6 +82,19 @@ type Instance interface {
 	DataDir() string
 	LogDir() string
 	UpdateTopology() error
+}
+
+// Specification represents the topology of cluster/dm
+type Specification interface {
+	ComponentsByStopOrder() (comps []Component)
+	ComponentsByStartOrder() (comps []Component)
+	IterComponent(fn func(comp Component))
+	IterInstance(fn func(instance Instance))
+	IterHost(fn func(instance Instance))
+	GetGlobalOptions() GlobalOptions
+	GetMonitoredOptions() MonitoredOptions
+	GetClusterSpecification() *ClusterSpecification
+	GetDMSpecification() *DMSpecification
 }
 
 // PortStarted wait until a port is being listened
@@ -109,7 +124,7 @@ type instance struct {
 	host string
 	port int
 	sshp int
-	topo *Specification
+	topo *ClusterSpecification
 
 	usedPorts []int
 	usedDirs  []string
@@ -193,7 +208,7 @@ func (i *instance) mergeTiFlashLearnerServerConfig(e executor.TiOpsExecutor, glo
 }
 
 // ScaleConfig deploy temporary config on scaling
-func (i *instance) ScaleConfig(e executor.TiOpsExecutor, _ *Specification, clusterName, clusterVersion, deployUser string, paths DirPaths) error {
+func (i *instance) ScaleConfig(e executor.TiOpsExecutor, _ Specification, clusterName, clusterVersion, deployUser string, paths DirPaths) error {
 	return i.InitConfig(e, clusterName, clusterVersion, deployUser, paths)
 }
 
@@ -301,11 +316,11 @@ func (i *instance) Status(pdList ...string) string {
 	return i.statusFn(pdList...)
 }
 
-// Specification of cluster
-type Specification = TopologySpecification
+// ClusterSpecification of cluster
+type ClusterSpecification = TopologySpecification
 
 // TiDBComponent represents TiDB component.
-type TiDBComponent struct{ *Specification }
+type TiDBComponent struct{ *ClusterSpecification }
 
 // Name implements Component interface.
 func (c *TiDBComponent) Name() string {
@@ -323,7 +338,7 @@ func (c *TiDBComponent) Instances() []Instance {
 			host:         s.Host,
 			port:         s.Port,
 			sshp:         s.SSHPort,
-			topo:         c.Specification,
+			topo:         c.ClusterSpecification,
 
 			usedPorts: []int{
 				s.Port,
@@ -402,16 +417,16 @@ func (i *TiDBInstance) InitConfig(e executor.TiOpsExecutor, clusterName, cluster
 }
 
 // ScaleConfig deploy temporary config on scaling
-func (i *TiDBInstance) ScaleConfig(e executor.TiOpsExecutor, b *Specification, clusterName, clusterVersion, deployUser string, paths DirPaths) error {
+func (i *TiDBInstance) ScaleConfig(e executor.TiOpsExecutor, b Specification, clusterName, clusterVersion, deployUser string, paths DirPaths) error {
 	s := i.instance.topo
 	defer func() { i.instance.topo = s }()
-	i.instance.topo = b
+	i.instance.topo = b.GetClusterSpecification()
 	return i.InitConfig(e, clusterName, clusterVersion, deployUser, paths)
 }
 
 // TiKVComponent represents TiKV component.
 type TiKVComponent struct {
-	*Specification
+	*ClusterSpecification
 }
 
 // Name implements Component interface.
@@ -430,7 +445,7 @@ func (c *TiKVComponent) Instances() []Instance {
 			host:         s.Host,
 			port:         s.Port,
 			sshp:         s.SSHPort,
-			topo:         c.Specification,
+			topo:         c.ClusterSpecification,
 
 			usedPorts: []int{
 				s.Port,
@@ -512,17 +527,17 @@ func (i *TiKVInstance) InitConfig(e executor.TiOpsExecutor, clusterName, cluster
 }
 
 // ScaleConfig deploy temporary config on scaling
-func (i *TiKVInstance) ScaleConfig(e executor.TiOpsExecutor, b *Specification, clusterName, clusterVersion, deployUser string, paths DirPaths) error {
+func (i *TiKVInstance) ScaleConfig(e executor.TiOpsExecutor, b Specification, clusterName, clusterVersion, deployUser string, paths DirPaths) error {
 	s := i.instance.topo
 	defer func() {
 		i.instance.topo = s
 	}()
-	i.instance.topo = b
+	i.instance.topo = b.GetClusterSpecification()
 	return i.InitConfig(e, clusterName, clusterVersion, deployUser, paths)
 }
 
 // PDComponent represents PD component.
-type PDComponent struct{ *Specification }
+type PDComponent struct{ *ClusterSpecification }
 
 // Name implements Component interface.
 func (c *PDComponent) Name() string {
@@ -542,7 +557,7 @@ func (c *PDComponent) Instances() []Instance {
 				host:         s.Host,
 				port:         s.ClientPort,
 				sshp:         s.SSHPort,
-				topo:         c.Specification,
+				topo:         c.ClusterSpecification,
 
 				usedPorts: []int{
 					s.ClientPort,
@@ -642,13 +657,14 @@ func (i *PDInstance) InitConfig(e executor.TiOpsExecutor, clusterName, clusterVe
 }
 
 // ScaleConfig deploy temporary config on scaling
-func (i *PDInstance) ScaleConfig(e executor.TiOpsExecutor, b *Specification, clusterName, clusterVersion, deployUser string, paths DirPaths) error {
+func (i *PDInstance) ScaleConfig(e executor.TiOpsExecutor, b Specification, clusterName, clusterVersion, deployUser string, paths DirPaths) error {
 	if err := i.instance.ScaleConfig(e, b, clusterName, clusterVersion, deployUser, paths); err != nil {
 		return err
 	}
 
+	c := b.GetClusterSpecification()
 	name := i.Name
-	for _, spec := range b.PDServers {
+	for _, spec := range c.PDServers {
 		if spec.Host == i.GetHost() {
 			name = spec.Name
 		}
@@ -661,7 +677,7 @@ func (i *PDInstance) ScaleConfig(e executor.TiOpsExecutor, b *Specification, clu
 		paths.Deploy,
 		paths.Data,
 		paths.Log,
-	).WithPeerPort(spec.PeerPort).WithNumaNode(spec.NumaNode).WithClientPort(spec.ClientPort).AppendEndpoints(b.Endpoints(deployUser)...)
+	).WithPeerPort(spec.PeerPort).WithNumaNode(spec.NumaNode).WithClientPort(spec.ClientPort).AppendEndpoints(c.Endpoints(deployUser)...)
 
 	fp := filepath.Join(paths.Cache, fmt.Sprintf("run_pd_%s_%d.sh", i.GetHost(), i.GetPort()))
 	log.Infof("script path: %s", fp)
@@ -680,7 +696,7 @@ func (i *PDInstance) ScaleConfig(e executor.TiOpsExecutor, b *Specification, clu
 }
 
 // TiFlashComponent represents TiFlash component.
-type TiFlashComponent struct{ *Specification }
+type TiFlashComponent struct{ *ClusterSpecification }
 
 // Name implements Component interface.
 func (c *TiFlashComponent) Name() string {
@@ -697,7 +713,7 @@ func (c *TiFlashComponent) Instances() []Instance {
 			host:         s.Host,
 			port:         s.TCPPort,
 			sshp:         s.SSHPort,
-			topo:         c.Specification,
+			topo:         c.ClusterSpecification,
 
 			usedPorts: []int{
 				s.TCPPort,
@@ -707,9 +723,10 @@ func (c *TiFlashComponent) Instances() []Instance {
 				s.FlashProxyStatusPort,
 				s.StatusPort,
 			},
-			usedDirs: append([]string{
+			usedDirs: []string{
 				s.DeployDir,
-			}, strings.Split(s.DataDir, ",")...),
+				s.DataDir,
+			},
 			statusFn: s.Status,
 		}})
 	}
@@ -947,17 +964,17 @@ func (i *TiFlashInstance) InitConfig(e executor.TiOpsExecutor, clusterName, clus
 }
 
 // ScaleConfig deploy temporary config on scaling
-func (i *TiFlashInstance) ScaleConfig(e executor.TiOpsExecutor, b *Specification, clusterName, clusterVersion, deployUser string, paths DirPaths) error {
+func (i *TiFlashInstance) ScaleConfig(e executor.TiOpsExecutor, b Specification, clusterName, clusterVersion, deployUser string, paths DirPaths) error {
 	s := i.instance.topo
 	defer func() {
 		i.instance.topo = s
 	}()
-	i.instance.topo = b
+	i.instance.topo = b.GetClusterSpecification()
 	return i.InitConfig(e, clusterName, clusterVersion, deployUser, paths)
 }
 
 // MonitorComponent represents Monitor component.
-type MonitorComponent struct{ *Specification }
+type MonitorComponent struct{ *ClusterSpecification }
 
 // Name implements Component interface.
 func (c *MonitorComponent) Name() string {
@@ -968,13 +985,13 @@ func (c *MonitorComponent) Name() string {
 func (c *MonitorComponent) Instances() []Instance {
 	ins := make([]Instance, 0, len(c.Monitors))
 	for _, s := range c.Monitors {
-		ins = append(ins, &MonitorInstance{c.Specification, instance{
+		ins = append(ins, &MonitorInstance{c.ClusterSpecification, instance{
 			InstanceSpec: s,
 			name:         c.Name(),
 			host:         s.Host,
 			port:         s.Port,
 			sshp:         s.SSHPort,
-			topo:         c.Specification,
+			topo:         c.ClusterSpecification,
 
 			usedPorts: []int{
 				s.Port,
@@ -993,7 +1010,7 @@ func (c *MonitorComponent) Instances() []Instance {
 
 // MonitorInstance represent the monitor instance
 type MonitorInstance struct {
-	topo *Specification
+	topo *ClusterSpecification
 	instance
 }
 
@@ -1102,7 +1119,7 @@ func (i *MonitorInstance) InitConfig(e executor.TiOpsExecutor, clusterName, clus
 }
 
 // GrafanaComponent represents Grafana component.
-type GrafanaComponent struct{ *Specification }
+type GrafanaComponent struct{ *ClusterSpecification }
 
 // Name implements Component interface.
 func (c *GrafanaComponent) Name() string {
@@ -1114,14 +1131,14 @@ func (c *GrafanaComponent) Instances() []Instance {
 	ins := make([]Instance, 0, len(c.Grafana))
 	for _, s := range c.Grafana {
 		ins = append(ins, &GrafanaInstance{
-			topo: c.Specification,
+			topo: c.ClusterSpecification,
 			instance: instance{
 				InstanceSpec: s,
 				name:         c.Name(),
 				host:         s.Host,
 				port:         s.Port,
 				sshp:         s.SSHPort,
-				topo:         c.Specification,
+				topo:         c.ClusterSpecification,
 
 				usedPorts: []int{
 					s.Port,
@@ -1140,7 +1157,7 @@ func (c *GrafanaComponent) Instances() []Instance {
 
 // GrafanaInstance represent the grafana instance
 type GrafanaInstance struct {
-	topo *Specification
+	topo *ClusterSpecification
 	instance
 }
 
@@ -1230,7 +1247,7 @@ func (i *GrafanaInstance) InitConfig(e executor.TiOpsExecutor, clusterName, clus
 }
 
 // AlertManagerComponent represents Alertmanager component.
-type AlertManagerComponent struct{ *Specification }
+type AlertManagerComponent struct{ *ClusterSpecification }
 
 // Name implements Component interface.
 func (c *AlertManagerComponent) Name() string {
@@ -1248,7 +1265,7 @@ func (c *AlertManagerComponent) Instances() []Instance {
 				host:         s.Host,
 				port:         s.WebPort,
 				sshp:         s.SSHPort,
-				topo:         c.Specification,
+				topo:         c.ClusterSpecification,
 
 				usedPorts: []int{
 					s.WebPort,
@@ -1333,8 +1350,28 @@ func (i *AlertManagerInstance) InitConfig(e executor.TiOpsExecutor, clusterName,
 	return nil
 }
 
+// GetGlobalOptions returns GlobalOptions
+func (topo *ClusterSpecification) GetGlobalOptions() GlobalOptions {
+	return topo.GlobalOptions
+}
+
+// GetMonitoredOptions returns MonitoredOptions
+func (topo *ClusterSpecification) GetMonitoredOptions() MonitoredOptions {
+	return topo.MonitoredOptions
+}
+
+// GetClusterSpecification returns cluster topology
+func (topo *ClusterSpecification) GetClusterSpecification() *ClusterSpecification {
+	return topo
+}
+
+// GetDMSpecification returns dm topology
+func (topo *ClusterSpecification) GetDMSpecification() *DMSpecification {
+	return nil
+}
+
 // ComponentsByStopOrder return component in the order need to stop.
-func (topo *Specification) ComponentsByStopOrder() (comps []Component) {
+func (topo *ClusterSpecification) ComponentsByStopOrder() (comps []Component) {
 	comps = topo.ComponentsByStartOrder()
 	// revert order
 	i := 0
@@ -1348,7 +1385,7 @@ func (topo *Specification) ComponentsByStopOrder() (comps []Component) {
 }
 
 // ComponentsByStartOrder return component in the order need to start.
-func (topo *Specification) ComponentsByStartOrder() (comps []Component) {
+func (topo *ClusterSpecification) ComponentsByStartOrder() (comps []Component) {
 	// "pd", "tikv", "pump", "tidb", "drainer", "prometheus", "grafana", "alertmanager"
 	comps = append(comps, &PDComponent{topo})
 	comps = append(comps, &TiKVComponent{topo})
@@ -1363,14 +1400,14 @@ func (topo *Specification) ComponentsByStartOrder() (comps []Component) {
 }
 
 // IterComponent iterates all components in component starting order
-func (topo *Specification) IterComponent(fn func(comp Component)) {
+func (topo *ClusterSpecification) IterComponent(fn func(comp Component)) {
 	for _, comp := range topo.ComponentsByStartOrder() {
 		fn(comp)
 	}
 }
 
 // IterInstance iterates all instances in component starting order
-func (topo *Specification) IterInstance(fn func(instance Instance)) {
+func (topo *ClusterSpecification) IterInstance(fn func(instance Instance)) {
 	for _, comp := range topo.ComponentsByStartOrder() {
 		for _, inst := range comp.Instances() {
 			fn(inst)
@@ -1379,7 +1416,7 @@ func (topo *Specification) IterInstance(fn func(instance Instance)) {
 }
 
 // IterHost iterates one instance for each host
-func (topo *Specification) IterHost(fn func(instance Instance)) {
+func (topo *ClusterSpecification) IterHost(fn func(instance Instance)) {
 	hostMap := make(map[string]bool)
 	for _, comp := range topo.ComponentsByStartOrder() {
 		for _, inst := range comp.Instances() {
@@ -1394,7 +1431,7 @@ func (topo *Specification) IterHost(fn func(instance Instance)) {
 }
 
 // Endpoints returns the PD endpoints configurations
-func (topo *Specification) Endpoints(user string) []*scripts.PDScript {
+func (topo *ClusterSpecification) Endpoints(user string) []*scripts.PDScript {
 	var ends []*scripts.PDScript
 	for _, spec := range topo.PDServers {
 		deployDir := clusterutil.Abs(user, spec.DeployDir)

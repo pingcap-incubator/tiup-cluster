@@ -34,7 +34,7 @@ func (m *Chown) Execute(ctx *Context) error {
 		return ErrNoExecutor
 	}
 
-	cmd := fmt.Sprintf("chown -R %s:%s {%s}", m.user, m.user, strings.Join(m.dirs, ","))
+	cmd := fmt.Sprintf("chown -R %s:%s %s", m.user, m.user, strings.Join(m.dirs, " "))
 	_, _, err := exec.Execute(cmd, true)
 	if err != nil {
 		return errors.Trace(err)
