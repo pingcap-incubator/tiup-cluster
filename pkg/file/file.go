@@ -11,8 +11,9 @@ import (
 )
 
 // SaveFileWithBackup will backup the file before save is.
-// back meta.yaml as meta-2006-01-02T15:04:05Z07:00.yaml in the save directory.
-func SaveFileWithBackup(path string, data []byte) error {
+// back meta.yaml as meta-2006-01-02T15:04:05Z07:00.yaml
+// backup the files in the same dir of path if backupDir is empty.
+func SaveFileWithBackup(path string, data []byte, backupDir string) error {
 	timestr := time.Now().Format(time.RFC3339Nano)
 
 	info, err := os.Stat(path)
@@ -42,7 +43,13 @@ func SaveFileWithBackup(path string, data []byte) error {
 			return errors.AddStack(err)
 		}
 
-		err = ioutil.WriteFile(filepath.Join(dir, backupName), backupData, 0644)
+		var backupPath string
+		if backupDir != "" {
+			backupPath = filepath.Join(backupDir, backupName)
+		} else {
+			backupPath = filepath.Join(dir, backupName)
+		}
+		err = ioutil.WriteFile(backupPath, backupData, 0644)
 		if err != nil {
 			return errors.AddStack(err)
 		}

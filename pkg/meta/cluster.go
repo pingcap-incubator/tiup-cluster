@@ -15,6 +15,7 @@ package meta
 
 import (
 	"io/ioutil"
+	"os"
 
 	"github.com/joomcode/errorx"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/cliutil"
@@ -29,6 +30,8 @@ const (
 	MetaFileName = "meta.yaml"
 	// PatchDirName is the directory to store patch file eg. {PatchDirName}/tidb-hotfix.tar.gz
 	PatchDirName = "patch"
+	// BackupDirName is the directory to save backup files.
+	BackupDirName = "backup"
 )
 
 var (
@@ -66,8 +69,13 @@ func SaveClusterMeta(clusterName string, meta *ClusterMeta) error {
 	}
 
 	metaFile := ClusterPath(clusterName, MetaFileName)
+	backupDir := ClusterPath(clusterName, BackupDirName)
 
 	if err := EnsureClusterDir(clusterName); err != nil {
+		return wrapError(err)
+	}
+
+	if err := os.MkdirAll(backupDir, 0755); err != nil {
 		return wrapError(err)
 	}
 
@@ -76,7 +84,7 @@ func SaveClusterMeta(clusterName string, meta *ClusterMeta) error {
 		return wrapError(err)
 	}
 
-	err = file.SaveFileWithBackup(metaFile, data)
+	err = file.SaveFileWithBackup(metaFile, data, backupDir)
 	if err != nil {
 		return wrapError(err)
 	}
