@@ -806,6 +806,7 @@ func (topo *TopologySpecification) Merge(that *TopologySpecification) *TopologyS
 		TiFlashServers:   append(topo.TiFlashServers, that.TiFlashServers...),
 		PumpServers:      append(topo.PumpServers, that.PumpServers...),
 		Drainers:         append(topo.Drainers, that.Drainers...),
+		CDCs:             append(topo.CDCs, that.CDCs...),
 		Monitors:         append(topo.Monitors, that.Monitors...),
 		Grafana:          append(topo.Grafana, that.Grafana...),
 		Alertmanager:     append(topo.Alertmanager, that.Alertmanager...),
