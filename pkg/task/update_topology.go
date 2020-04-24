@@ -24,13 +24,6 @@ func (u *UpdateTopology) String() string {
 
 // Execute implements the Task interface
 func (u *UpdateTopology) Execute(ctx *Context) error {
-	newMeta := &meta.ClusterMeta{}
-	*newMeta = *u.metadata
-	newMeta.Topology = &meta.TopologySpecification{
-		GlobalOptions:    u.metadata.Topology.GlobalOptions,
-		MonitoredOptions: u.metadata.Topology.MonitoredOptions,
-		ServerConfigs:    u.metadata.Topology.ServerConfigs,
-	}
 
 	topo := u.metadata.Topology
 
@@ -38,7 +31,7 @@ func (u *UpdateTopology) Execute(ctx *Context) error {
 	instances = append(instances, (&meta.GrafanaComponent{Specification: topo}).Instances()...)
 	instances = append(instances, (&meta.AlertManagerComponent{Specification: topo}).Instances()...)
 
-	client, err := newMeta.Topology.GetEtcdClient()
+	client, err := u.metadata.Topology.GetEtcdClient()
 	if err != nil {
 		return err
 	}
