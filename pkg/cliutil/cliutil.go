@@ -54,7 +54,7 @@ func OsArgs() string {
 
 // OsArgs0 return the command name that user inputs, e.g. tiops, or tiup cluster.
 func OsArgs0() string {
-	if strings.Index(args()[0], " ") >= 0 {
+	if strings.Contains(args()[0], " ") {
 		return args()[0]
 	}
 	return filepath.Base(args()[0])
@@ -138,7 +138,7 @@ Global Flags:
 Additional help topics:{{range .Commands}}{{if .IsAdditionalHelpTopicCommand}}
   {{rpad .CommandPath .CommandPathPadding}} {{.Short}}{{end}}{{end}}{{end}}{{if .HasAvailableSubCommands}}
 
-Use "{{ColorCommand}}{{tiupCmdPath .Use}} [command] --help{{ColorReset}}" for more information about a command.{{end}}
+Use "{{ColorCommand}}{{tiupCmdPath .Use}} help [command]{{ColorReset}}" for more information about a command.{{end}}
 `
 	cobra.AddTemplateFunc("tiupUseLine", cmdUseLine)
 	cobra.AddTemplateFunc("tiupCmdPath", cmdPath)
@@ -157,8 +157,7 @@ func cmdUseLine(useline string) string {
 
 // cmdPath is a customized cobra.Command.CommandPath()
 func cmdPath(use string) string {
-	i := strings.Index(use, " ")
-	if i > 0 {
+	if strings.Contains(use, " ") {
 		use = OsArgs0()
 	}
 	return use
