@@ -11,7 +11,7 @@ func CurrentUser() string {
 	user, err := user.Current()
 	if err != nil {
 		log.Errorf("Get current user: %s", err)
-		return ""
+		return "root"
 	}
 	return user.Username
 }
@@ -21,7 +21,7 @@ func UserHome() string {
 	user, err := user.Current()
 	if err != nil {
 		log.Errorf("Get current user home: %s", err)
-		return ""
+		return "root"
 	}
 	return user.HomeDir
 }
