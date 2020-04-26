@@ -28,7 +28,7 @@ var (
 	// ErrEnvInitFailed is ErrEnvInitFailed
 	ErrEnvInitFailed = errNSEnvInit.NewType("failed")
 	// SSH authorized_keys file
-	sshAuthorizedKeys = "~/.ssh/authorized_keys"
+	defaultSSHAuthorizedKeys = "~/.ssh/authorized_keys"
 )
 
 // EnvInit is used to initialize the remote environment, e.g:
@@ -83,6 +83,7 @@ func (e *EnvInit) execute(ctx *Context) error {
 	//   - custom config for user (~/.ssh/config)
 	//   - sshd started with custom config (other than /etc/ssh/sshd_config)
 	//   - ssh server implementations other than OpenSSH (such as dropbear)
+	sshAuthorizedKeys := defaultSSHAuthorizedKeys
 	cmd = "grep -Ev '^#|^\\s*$' /etc/ssh/sshd_config"
 	stdout, _, _ := exec.Execute(cmd, true) // error ignored as we have default value
 	for _, line := range strings.Split(string(stdout), "\n") {
