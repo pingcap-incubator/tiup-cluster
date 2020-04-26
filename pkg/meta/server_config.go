@@ -16,10 +16,13 @@ package meta
 import (
 	"bytes"
 	"fmt"
+	"path"
 	"reflect"
 	"strings"
 
 	"github.com/BurntSushi/toml"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/executor"
+	tiupmeta "github.com/pingcap-incubator/tiup/pkg/meta"
 	"github.com/pingcap/errors"
 )
 
@@ -139,4 +142,43 @@ func mergeImported(importConfig []byte, specConfig map[string]interface{}) (map[
 		return specConfig, err
 	}
 	return lhs, nil
+}
+
+func checkConfig(e executor.TiOpsExecutor, componentName, clusterVersion, config string, paths DirPaths) error {
+	manifest, err := tiupmeta.Repository().ComponentVersions(componentName)
+	if err != nil {
+		return err
+	}
+	ver := ComponentVersion(componentName, clusterVersion)
+	versionInfo, found := manifest.FindVersion(ver)
+	if !found {
+		return fmt.Errorf("cannot found version %v in %s manifest", ver, componentName)
+	}
+
+	entry := versionInfo.Entry
+
+	binPath := path.Join(paths.Deploy, "bin", entry)
+	// Skip old versions
+	if !hasConfigCheckFlag(e, binPath) {
+		return nil
+	}
+
+	configPath := path.Join(paths.Deploy, "conf", config)
+	if _, _, err := e.Execute(fmt.Sprintf("%s --config-check --config=%s", binPath, configPath), false); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func hasConfigCheckFlag(e executor.TiOpsExecutor, binPath string) bool {
+	stdout, stderr, _ := e.Execute(fmt.Sprintf("%s --help", binPath), false)
+	if strings.Contains(string(stdout), "config-check") {
+		return true
+	}
+	if strings.Contains(string(stderr), "config-check") {
+		return true
+	}
+	panic("false")
+	return false
 }
