@@ -23,7 +23,7 @@ rule_files:
   - 'binlog.rules.yml'
 {{- end}}
 {{- if .CDCAddrs}}
-  - 'cdc.rules.yml'
+  - 'ticdc.rules.yml'
 {{- end}}
 {{- if .KafkaAddrs}}
   - 'kafka.rules.yml'
@@ -180,7 +180,7 @@ scrape_configs:
         replacement: {{.BlackboxAddr}}
 {{- end}}
 {{- if .CDCAddrs}}
-  - job_name: "cdc"
+  - job_name: "ticdc"
     honor_labels: true # don't overwrite job & instance labels
     static_configs:
     - targets:
