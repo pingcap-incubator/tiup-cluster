@@ -165,7 +165,7 @@ func checkConfig(e executor.TiOpsExecutor, componentName, clusterVersion, config
 
 	// Hack tikv --pd flag
 	extra := ""
-	if strings.Contains(extra, "tikv-server") {
+	if strings.Contains(binPath, "tikv-server") {
 		extra = `--pd=""`
 	}
 
