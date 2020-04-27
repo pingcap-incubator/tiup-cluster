@@ -1383,6 +1383,7 @@ func (topo *ClusterSpecification) Endpoints(user string) []*scripts.PDScript {
 	return ends
 }
 
+// AlertManagerEndpoints returns the AlertManager endpoints configurations
 func (topo *ClusterSpecification) AlertManagerEndpoints(user string) []*scripts.AlertManagerScript {
 	var ends []*scripts.AlertManagerScript
 	for _, spec := range topo.Alertmanager {

@@ -65,6 +65,7 @@ func (c *AlertManagerScript) WithNumaNode(numa string) *AlertManagerScript {
 	return c
 }
 
+// AppendEndpoints add new alert manager to Endpoints field
 func (c *AlertManagerScript) AppendEndpoints(ends []*AlertManagerScript) *AlertManagerScript {
 	c.EndPoints = append(c.EndPoints, ends...)
 	return c
