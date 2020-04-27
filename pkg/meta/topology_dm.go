@@ -59,6 +59,8 @@ type MasterSpec struct {
 	Offline   bool                   `yaml:"offline,omitempty"`
 	NumaNode  string                 `yaml:"numa_node,omitempty"`
 	Config    map[string]interface{} `yaml:"config,omitempty"`
+	Arch      string                 `yaml:"arch,omitempty" default:"amd64"`
+	OS        string                 `yaml:"os,omitempty" default:"linux"`
 }
 
 // Status queries current status of the instance
@@ -101,6 +103,8 @@ type WorkerSpec struct {
 	Offline   bool                   `yaml:"offline,omitempty"`
 	NumaNode  string                 `yaml:"numa_node,omitempty"`
 	Config    map[string]interface{} `yaml:"config,omitempty"`
+	Arch      string                 `yaml:"arch,omitempty" default:"amd64"`
+	OS        string                 `yaml:"os,omitempty" default:"linux"`
 }
 
 // Status queries current status of the instance
