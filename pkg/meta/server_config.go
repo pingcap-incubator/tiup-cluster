@@ -179,6 +179,5 @@ func hasConfigCheckFlag(e executor.TiOpsExecutor, binPath string) bool {
 	if strings.Contains(string(stderr), "config-check") {
 		return true
 	}
-	panic("false")
 	return false
 }
