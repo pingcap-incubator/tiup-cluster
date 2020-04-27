@@ -163,21 +163,18 @@ func checkConfig(e executor.TiOpsExecutor, componentName, clusterVersion, config
 		return nil
 	}
 
-	configPath := path.Join(paths.Deploy, "conf", config)
-	if _, _, err := e.Execute(fmt.Sprintf("%s --config-check --config=%s", binPath, configPath), false); err != nil {
-		return err
+	// Hack tikv --pd flag
+	extra := ""
+	if strings.Contains(extra, "tikv-server") {
+		extra = `--pd=""`
 	}
 
-	return nil
+	configPath := path.Join(paths.Deploy, "conf", config)
+	_, _, err = e.Execute(fmt.Sprintf("%s --config-check --config=%s %s", binPath, configPath, extra), false)
+	return err
 }
 
 func hasConfigCheckFlag(e executor.TiOpsExecutor, binPath string) bool {
 	stdout, stderr, _ := e.Execute(fmt.Sprintf("%s --help", binPath), false)
-	if strings.Contains(string(stdout), "config-check") {
-		return true
-	}
-	if strings.Contains(string(stderr), "config-check") {
-		return true
-	}
-	return false
+	return strings.Contains(string(stdout), "config-check") || strings.Contains(string(stderr), "config-check")
 }
