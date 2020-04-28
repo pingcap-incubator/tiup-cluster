@@ -115,6 +115,19 @@ topology:
       io_read_bandwidth_max: ""
       io_write_bandwidth_max: ""
   pd_servers:
+  - host: 172.16.1.220
+    ssh_port: 22
+    imported: true
+    name: pd-172.16.1.220-2379
+    client_port: 2379
+    peer_port: 2380
+    deploy_dir: deploy/pd-2379
+    data_dir: data/pd-2379
+    resource_control:
+      memory_limit: ""
+      cpu_quota: ""
+      io_read_bandwidth_max: ""
+      io_write_bandwidth_max: ""
   - host: 172.16.1.218
     ssh_port: 30000
     imported: true
@@ -132,19 +145,6 @@ topology:
     ssh_port: 22
     imported: true
     name: pd-172.16.1.219-2379
-    client_port: 2379
-    peer_port: 2380
-    deploy_dir: deploy/pd-2379
-    data_dir: data/pd-2379
-    resource_control:
-      memory_limit: ""
-      cpu_quota: ""
-      io_read_bandwidth_max: ""
-      io_write_bandwidth_max: ""
-  - host: 172.16.1.220
-    ssh_port: 22
-    imported: true
-    name: pd-172.16.1.220-2379
     client_port: 2379
     peer_port: 2380
     deploy_dir: deploy/pd-2379

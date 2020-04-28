@@ -14,10 +14,10 @@
 package ansible
 
 import (
-	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
+
 	"reflect"
 	"sort"
 	"testing"
@@ -98,24 +98,72 @@ func (s *ansSuite) TestParseGroupVars(c *C) {
 	sortClusterMeta(&metaFull)
 	sortClusterMeta(&expected)
 
-	mta, err := yaml.Marshal(metaFull)
-	fmt.Printf("meta: %s\n", mta)
 	c.Assert(metaFull, DeepEquals, expected)
 }
 
 func sortClusterMeta(clsMeta *meta.ClusterMeta) {
-	v := reflect.ValueOf(clsMeta).Elem()
+	v := reflect.ValueOf(clsMeta.Topology).Elem()
 
 	for i := 0; i < v.Type().NumField(); i++ {
 		switch v.Field(i).Kind() {
 		case reflect.Slice:
-			lst := v.Field(i).Interface().([]meta.InstanceSpec)
-			sort.Slice(lst, func(i, j int) bool {
-				hosti, _ := lst[i].SSH()
-				hostj, _ := lst[j].SSH()
-				return hosti < hostj
-			})
-			v.Field(i).Set(reflect.ValueOf(lst))
+			field := v.Field(i)
+			switch v.Type().Field(i).Name {
+			case "TiDBServers":
+				lst := field.Interface().([]meta.TiDBSpec)
+				sort.Slice(lst, func(i, j int) bool {
+					return lst[i].Host < lst[j].Host
+				})
+				v.Field(i).Set(reflect.ValueOf(lst))
+			case "TiKVServers":
+				lst := field.Interface().([]meta.TiKVSpec)
+				sort.Slice(lst, func(i, j int) bool {
+					return lst[i].Host < lst[j].Host
+				})
+				v.Field(i).Set(reflect.ValueOf(lst))
+			case "PDServers":
+				lst := field.Interface().([]meta.PDSpec)
+				sort.Slice(lst, func(i, j int) bool {
+					return lst[i].Host < lst[j].Host
+				})
+				v.Field(i).Set(reflect.ValueOf(lst))
+			case "TiFlashServers":
+				lst := field.Interface().([]meta.TiFlashSpec)
+				sort.Slice(lst, func(i, j int) bool {
+					return lst[i].Host < lst[j].Host
+				})
+				v.Field(i).Set(reflect.ValueOf(lst))
+			case "PumpServers":
+				lst := field.Interface().([]meta.PumpSpec)
+				sort.Slice(lst, func(i, j int) bool {
+					return lst[i].Host < lst[j].Host
+				})
+				v.Field(i).Set(reflect.ValueOf(lst))
+			case "Drainers":
+				lst := field.Interface().([]meta.DrainerSpec)
+				sort.Slice(lst, func(i, j int) bool {
+					return lst[i].Host < lst[j].Host
+				})
+				v.Field(i).Set(reflect.ValueOf(lst))
+			case "Monitors":
+				lst := field.Interface().([]meta.PrometheusSpec)
+				sort.Slice(lst, func(i, j int) bool {
+					return lst[i].Host < lst[j].Host
+				})
+				v.Field(i).Set(reflect.ValueOf(lst))
+			case "Alertmanager":
+				lst := field.Interface().([]meta.AlertManagerSpec)
+				sort.Slice(lst, func(i, j int) bool {
+					return lst[i].Host < lst[j].Host
+				})
+				v.Field(i).Set(reflect.ValueOf(lst))
+			case "Grafana":
+				lst := field.Interface().([]meta.GrafanaSpec)
+				sort.Slice(lst, func(i, j int) bool {
+					return lst[i].Host < lst[j].Host
+				})
+				v.Field(i).Set(reflect.ValueOf(lst))
+			}
 		}
 	}
 }
