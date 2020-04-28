@@ -1,5 +1,3 @@
-
-
 This folder contains all tests which relies on external service.
 
 ## Preprations
@@ -42,6 +40,3 @@ This will test using version `v4.0.0-rc` , and upgrade from `v3.0.12` to `v4.0.0
 ## Writing new tests
 
 New integration tests can be written as shell script in `tests/TEST_NAME.sh`.
-
-
-
