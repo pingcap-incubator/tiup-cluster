@@ -119,8 +119,7 @@ func checkSystemInfo(s *cliutil.SSHConnectionProps, topo *meta.TopologySpecifica
 					s.IdentityFilePassphrase,
 					sshTimeout,
 				).
-				Mkdir(inst.GetHost(), filepath.Join(task.CheckToolsPathDir, "bin")).
-				Chown(opt.user, inst.GetHost(), task.CheckToolsPathDir).
+				Mkdir(opt.user, inst.GetHost(), filepath.Join(task.CheckToolsPathDir, "bin")).
 				CopyComponent(meta.ComponentCheckCollector, insightVer, inst.GetHost(), task.CheckToolsPathDir).
 				Shell(
 					inst.GetHost(),
