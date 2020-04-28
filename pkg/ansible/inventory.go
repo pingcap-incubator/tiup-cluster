@@ -17,6 +17,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strconv"
 
 	"github.com/creasty/defaults"
@@ -49,6 +50,116 @@ var (
 
 // ParseAndImportInventory builds a basic ClusterMeta from the main Ansible inventory
 func ParseAndImportInventory(dir, ansCfgFile string, clsMeta *meta.ClusterMeta, inv *aini.InventoryData, sshTimeout int64) error {
+	if err := parseGroupVars(dir, clsMeta, inv); err != nil {
+		return err
+	}
+
+	v := reflect.ValueOf(clsMeta.Topology).Elem()
+	t := v.Type()
+	for i := 0; i < t.NumField(); i++ {
+		switch t.Field(i).Name {
+		case "TiDBServers":
+			var ins []meta.TiDBSpec
+			for _, spec := range v.Field(i).Interface().([]meta.TiDBSpec) {
+				tmpIns, err := parseDirs(clsMeta.User, spec, sshTimeout)
+				if err != nil {
+					return err
+				}
+				ins = append(ins, tmpIns.(meta.TiDBSpec))
+			}
+			v.Field(i).Set(reflect.ValueOf(ins))
+		case "TiKVServers":
+			var ins []meta.TiKVSpec
+			for _, spec := range v.Field(i).Interface().([]meta.TiKVSpec) {
+				tmpIns, err := parseDirs(clsMeta.User, spec, sshTimeout)
+				if err != nil {
+					return err
+				}
+				ins = append(ins, tmpIns.(meta.TiKVSpec))
+			}
+			v.Field(i).Set(reflect.ValueOf(ins))
+		case "PDServers":
+			var ins []meta.PDSpec
+			for _, spec := range v.Field(i).Interface().([]meta.PDSpec) {
+				tmpIns, err := parseDirs(clsMeta.User, spec, sshTimeout)
+				if err != nil {
+					return err
+				}
+				ins = append(ins, tmpIns.(meta.PDSpec))
+			}
+			v.Field(i).Set(reflect.ValueOf(ins))
+		case "TiFlashServers":
+			var ins []meta.TiFlashSpec
+			for _, spec := range v.Field(i).Interface().([]meta.TiFlashSpec) {
+				tmpIns, err := parseDirs(clsMeta.User, spec, sshTimeout)
+				if err != nil {
+					return err
+				}
+				ins = append(ins, tmpIns.(meta.TiFlashSpec))
+			}
+			v.Field(i).Set(reflect.ValueOf(ins))
+		case "PumpServers":
+			var ins []meta.PumpSpec
+			for _, spec := range v.Field(i).Interface().([]meta.PumpSpec) {
+				tmpIns, err := parseDirs(clsMeta.User, spec, sshTimeout)
+				if err != nil {
+					return err
+				}
+				ins = append(ins, tmpIns.(meta.PumpSpec))
+			}
+			v.Field(i).Set(reflect.ValueOf(ins))
+		case "Drainers":
+			var ins []meta.DrainerSpec
+			for _, spec := range v.Field(i).Interface().([]meta.DrainerSpec) {
+				tmpIns, err := parseDirs(clsMeta.User, spec, sshTimeout)
+				if err != nil {
+					return err
+				}
+				ins = append(ins, tmpIns.(meta.DrainerSpec))
+			}
+			v.Field(i).Set(reflect.ValueOf(ins))
+		case "Monitors":
+			var ins []meta.PrometheusSpec
+			for _, spec := range v.Field(i).Interface().([]meta.PrometheusSpec) {
+				tmpIns, err := parseDirs(clsMeta.User, spec, sshTimeout)
+				if err != nil {
+					return err
+				}
+				ins = append(ins, tmpIns.(meta.PrometheusSpec))
+			}
+			v.Field(i).Set(reflect.ValueOf(ins))
+		case "Alertmanager":
+			var ins []meta.AlertManagerSpec
+			for _, spec := range v.Field(i).Interface().([]meta.AlertManagerSpec) {
+				tmpIns, err := parseDirs(clsMeta.User, spec, sshTimeout)
+				if err != nil {
+					return err
+				}
+				ins = append(ins, tmpIns.(meta.AlertManagerSpec))
+			}
+			v.Field(i).Set(reflect.ValueOf(ins))
+		case "Grafana":
+			var ins []meta.GrafanaSpec
+			for _, spec := range v.Field(i).Interface().([]meta.GrafanaSpec) {
+				tmpIns, err := parseDirs(clsMeta.User, spec, sshTimeout)
+				if err != nil {
+					return err
+				}
+				ins = append(ins, tmpIns.(meta.GrafanaSpec))
+			}
+			v.Field(i).Set(reflect.ValueOf(ins))
+		}
+	}
+
+	// TODO: get values from templates of roles to overwrite defaults
+	if err := defaults.Set(clsMeta); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func parseGroupVars(dir string, clsMeta *meta.ClusterMeta, inv *aini.InventoryData) error {
 	// set global vars in group_vars/all.yml
 	grpVarsAll, err := readGroupVars(dir, groupVarsGlobal)
 	if err != nil {
@@ -104,12 +215,8 @@ func ParseAndImportInventory(dir, ansCfgFile string, clsMeta *meta.ClusterMeta, 
 			}
 
 			log.Debugf("Imported %s node %s:%d.", tmpIns.Role(), tmpIns.Host, tmpIns.GetMainPort())
-			ins, err := parseDirs(srv, tmpIns, sshTimeout)
-			if err != nil {
-				return err
-			}
 
-			clsMeta.Topology.TiDBServers = append(clsMeta.Topology.TiDBServers, ins.(meta.TiDBSpec))
+			clsMeta.Topology.TiDBServers = append(clsMeta.Topology.TiDBServers, tmpIns)
 		}
 		log.Infof("Imported %d TiDB node(s).", len(clsMeta.Topology.TiDBServers))
 	}
@@ -153,12 +260,8 @@ func ParseAndImportInventory(dir, ansCfgFile string, clsMeta *meta.ClusterMeta, 
 			}
 
 			log.Debugf("Imported %s node %s:%d.", tmpIns.Role(), tmpIns.Host, tmpIns.GetMainPort())
-			ins, err := parseDirs(srv, tmpIns, sshTimeout)
-			if err != nil {
-				return err
-			}
 
-			clsMeta.Topology.TiKVServers = append(clsMeta.Topology.TiKVServers, ins.(meta.TiKVSpec))
+			clsMeta.Topology.TiKVServers = append(clsMeta.Topology.TiKVServers, tmpIns)
 		}
 		log.Infof("Imported %d TiKV node(s).", len(clsMeta.Topology.TiKVServers))
 	}
@@ -202,12 +305,8 @@ func ParseAndImportInventory(dir, ansCfgFile string, clsMeta *meta.ClusterMeta, 
 			}
 
 			log.Debugf("Imported %s node %s:%d.", tmpIns.Role(), tmpIns.Host, tmpIns.GetMainPort())
-			ins, err := parseDirs(srv, tmpIns, sshTimeout)
-			if err != nil {
-				return err
-			}
 
-			clsMeta.Topology.PDServers = append(clsMeta.Topology.PDServers, ins.(meta.PDSpec))
+			clsMeta.Topology.PDServers = append(clsMeta.Topology.PDServers, tmpIns)
 		}
 		log.Infof("Imported %d PD node(s).", len(clsMeta.Topology.PDServers))
 	}
@@ -278,12 +377,8 @@ func ParseAndImportInventory(dir, ansCfgFile string, clsMeta *meta.ClusterMeta, 
 			}
 
 			log.Debugf("Imported %s node %s:%d.", tmpIns.Role(), tmpIns.Host, tmpIns.GetMainPort())
-			ins, err := parseDirs(srv, tmpIns, sshTimeout)
-			if err != nil {
-				return err
-			}
 
-			clsMeta.Topology.TiFlashServers = append(clsMeta.Topology.TiFlashServers, ins.(meta.TiFlashSpec))
+			clsMeta.Topology.TiFlashServers = append(clsMeta.Topology.TiFlashServers, tmpIns)
 		}
 		log.Infof("Imported %d TiFlash node(s).", len(clsMeta.Topology.TiFlashServers))
 	}
@@ -329,12 +424,8 @@ func ParseAndImportInventory(dir, ansCfgFile string, clsMeta *meta.ClusterMeta, 
 			}
 
 			log.Debugf("Imported %s node %s:%d.", tmpIns.Role(), tmpIns.Host, tmpIns.GetMainPort())
-			ins, err := parseDirs(srv, tmpIns, sshTimeout)
-			if err != nil {
-				return err
-			}
 
-			clsMeta.Topology.Monitors = append(clsMeta.Topology.Monitors, ins.(meta.PrometheusSpec))
+			clsMeta.Topology.Monitors = append(clsMeta.Topology.Monitors, tmpIns)
 		}
 		log.Infof("Imported %d monitoring node(s).", len(clsMeta.Topology.Monitors))
 	}
@@ -375,12 +466,8 @@ func ParseAndImportInventory(dir, ansCfgFile string, clsMeta *meta.ClusterMeta, 
 			}
 
 			log.Debugf("Imported %s node %s:%d.", tmpIns.Role(), tmpIns.Host, tmpIns.GetMainPort())
-			ins, err := parseDirs(srv, tmpIns, sshTimeout)
-			if err != nil {
-				return err
-			}
 
-			clsMeta.Topology.Alertmanager = append(clsMeta.Topology.Alertmanager, ins.(meta.AlertManagerSpec))
+			clsMeta.Topology.Alertmanager = append(clsMeta.Topology.Alertmanager, tmpIns)
 		}
 		log.Infof("Imported %d Alertmanager node(s).", len(clsMeta.Topology.Alertmanager))
 	}
@@ -412,12 +499,8 @@ func ParseAndImportInventory(dir, ansCfgFile string, clsMeta *meta.ClusterMeta, 
 			}
 
 			log.Debugf("Imported %s node %s:%d.", tmpIns.Role(), tmpIns.Host, tmpIns.GetMainPort())
-			ins, err := parseDirs(srv, tmpIns, sshTimeout)
-			if err != nil {
-				return err
-			}
 
-			clsMeta.Topology.Grafana = append(clsMeta.Topology.Grafana, ins.(meta.GrafanaSpec))
+			clsMeta.Topology.Grafana = append(clsMeta.Topology.Grafana, tmpIns)
 		}
 		log.Infof("Imported %d Grafana node(s).", len(clsMeta.Topology.Alertmanager))
 	}
@@ -459,12 +542,8 @@ func ParseAndImportInventory(dir, ansCfgFile string, clsMeta *meta.ClusterMeta, 
 			}
 
 			log.Debugf("Imported %s node %s:%d.", tmpIns.Role(), tmpIns.Host, tmpIns.GetMainPort())
-			ins, err := parseDirs(srv, tmpIns, sshTimeout)
-			if err != nil {
-				return err
-			}
 
-			clsMeta.Topology.PumpServers = append(clsMeta.Topology.PumpServers, ins.(meta.PumpSpec))
+			clsMeta.Topology.PumpServers = append(clsMeta.Topology.PumpServers, tmpIns)
 		}
 		log.Infof("Imported %d Pump node(s).", len(clsMeta.Topology.PumpServers))
 	}
@@ -494,12 +573,8 @@ func ParseAndImportInventory(dir, ansCfgFile string, clsMeta *meta.ClusterMeta, 
 			}
 
 			log.Debugf("Imported %s node %s:%d.", tmpIns.Role(), tmpIns.Host, tmpIns.GetMainPort())
-			ins, err := parseDirs(srv, tmpIns, sshTimeout)
-			if err != nil {
-				return err
-			}
 
-			clsMeta.Topology.Drainers = append(clsMeta.Topology.Drainers, ins.(meta.DrainerSpec))
+			clsMeta.Topology.Drainers = append(clsMeta.Topology.Drainers, tmpIns)
 		}
 		log.Infof("Imported %d Drainer node(s).", len(clsMeta.Topology.Drainers))
 	}
@@ -507,11 +582,6 @@ func ParseAndImportInventory(dir, ansCfgFile string, clsMeta *meta.ClusterMeta, 
 	// TODO: node_exporter and blackbox_exporter on custom port is not supported yet
 	// if it is set on a host line. Global values in group_vars/all.yml will be
 	// correctly parsed.
-
-	// TODO: get values from templates of roles to overwrite defaults
-	if err := defaults.Set(clsMeta); err != nil {
-		return err
-	}
 
 	return nil
 }
