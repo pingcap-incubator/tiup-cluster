@@ -22,7 +22,6 @@ import (
 
 // Mkdir is used to create directory on the target host
 type Mkdir struct {
-	user string
 	host string
 	dirs []string
 }

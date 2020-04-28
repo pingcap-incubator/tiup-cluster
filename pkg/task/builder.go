@@ -231,9 +231,8 @@ func (b *Builder) ClusterOperate(
 }
 
 // Mkdir appends a Mkdir task to the current task collection
-func (b *Builder) Mkdir(user, host string, dirs ...string) *Builder {
+func (b *Builder) Mkdir(host string, dirs ...string) *Builder {
 	b.tasks = append(b.tasks, &Mkdir{
-		user: user,
 		host: host,
 		dirs: dirs,
 	})
@@ -241,9 +240,8 @@ func (b *Builder) Mkdir(user, host string, dirs ...string) *Builder {
 }
 
 // Rmdir appends a Rmdir task to the current task collection
-func (b *Builder) Rmdir(user, host string, dirs ...string) *Builder {
+func (b *Builder) Rmdir(host string, dirs ...string) *Builder {
 	b.tasks = append(b.tasks, &Rmdir{
-		user: user,
 		host: host,
 		dirs: dirs,
 	})

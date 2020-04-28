@@ -191,8 +191,7 @@ func deploy(clusterName, clusterVersion, topoFile string, opt deployOptions) err
 					sshTimeout,
 				).
 				EnvInit(inst.GetHost(), globalOptions.User).
-				UserSSH(inst.GetHost(), inst.GetSSHPort(), globalOptions.User, sshTimeout).
-				Mkdir(globalOptions.User, inst.GetHost(), dirs...).
+				Mkdir(inst.GetHost(), dirs...).
 				Chown(globalOptions.User, inst.GetHost(), dirs...).
 				BuildAsStep(fmt.Sprintf("  - Prepare %s:%d", inst.GetHost(), inst.GetSSHPort()))
 			envInitTasks = append(envInitTasks, t)
@@ -215,7 +214,8 @@ func deploy(clusterName, clusterVersion, topoFile string, opt deployOptions) err
 		logDir := clusterutil.Abs(globalOptions.User, inst.LogDir())
 		// Deploy component
 		t := task.NewBuilder().
-			Mkdir(globalOptions.User, inst.GetHost(),
+			UserSSH(inst.GetHost(), inst.GetSSHPort(), globalOptions.User, sshTimeout).
+			Mkdir(inst.GetHost(),
 				deployDir, dataDir, logDir,
 				filepath.Join(deployDir, "bin"),
 				filepath.Join(deployDir, "conf"),
@@ -304,7 +304,7 @@ func buildMonitoredDeployTask(
 			// Deploy component
 			t := task.NewBuilder().
 				UserSSH(host, sshPort, globalOptions.User, sshTimeout).
-				Mkdir(globalOptions.User, host,
+				Mkdir(host,
 					deployDir, dataDir, logDir,
 					filepath.Join(deployDir, "bin"),
 					filepath.Join(deployDir, "conf"),
