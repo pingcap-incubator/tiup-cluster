@@ -22,7 +22,6 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/joomcode/errorx"
-	"github.com/pingcap-incubator/tiup-cluster/pkg/bindversion"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/cliutil"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/cliutil/prepare"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/clusterutil"
@@ -192,9 +191,7 @@ func deploy(clusterName, clusterVersion, topoFile string, opt deployOptions) err
 					sshTimeout,
 				).
 				EnvInit(inst.GetHost(), globalOptions.User).
-				UserSSH(inst.GetHost(), inst.GetSSHPort(), globalOptions.User, sshTimeout).
 				Mkdir(globalOptions.User, inst.GetHost(), dirs...).
-				Chown(globalOptions.User, inst.GetHost(), dirs...).
 				BuildAsStep(fmt.Sprintf("  - Prepare %s:%d", inst.GetHost(), inst.GetSSHPort()))
 			envInitTasks = append(envInitTasks, t)
 		}
@@ -205,7 +202,7 @@ func deploy(clusterName, clusterVersion, topoFile string, opt deployOptions) err
 
 	// Deploy components to remote
 	topo.IterInstance(func(inst meta.Instance) {
-		version := bindversion.ComponentVersion(inst.ComponentName(), clusterVersion)
+		version := meta.ComponentVersion(inst.ComponentName(), clusterVersion)
 		deployDir := clusterutil.Abs(globalOptions.User, inst.DeployDir())
 		// data dir would be empty for components which don't need it
 		dataDir := inst.DataDir()
@@ -216,6 +213,7 @@ func deploy(clusterName, clusterVersion, topoFile string, opt deployOptions) err
 		logDir := clusterutil.Abs(globalOptions.User, inst.LogDir())
 		// Deploy component
 		t := task.NewBuilder().
+			UserSSH(inst.GetHost(), inst.GetSSHPort(), globalOptions.User, sshTimeout).
 			Mkdir(globalOptions.User, inst.GetHost(),
 				deployDir, dataDir, logDir,
 				filepath.Join(deployDir, "bin"),
@@ -286,7 +284,7 @@ func buildMonitoredDeployTask(
 	monitoredOptions meta.MonitoredOptions,
 	version string) (downloadCompTasks []*task.StepDisplay, deployCompTasks []*task.StepDisplay) {
 	for _, comp := range []string{meta.ComponentNodeExporter, meta.ComponentBlackboxExporter} {
-		version := bindversion.ComponentVersion(comp, version)
+		version := meta.ComponentVersion(comp, version)
 		t := task.NewBuilder().
 			Download(comp, version).
 			BuildAsStep(fmt.Sprintf("  - Download %s:%s", comp, version))
