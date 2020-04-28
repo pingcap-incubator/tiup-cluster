@@ -18,7 +18,6 @@ import (
 	"path/filepath"
 
 	"github.com/joomcode/errorx"
-	"github.com/pingcap-incubator/tiup-cluster/pkg/bindversion"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/cliutil"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/cliutil/prepare"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/clusterutil"
@@ -188,9 +187,7 @@ func buildScaleOutTask(
 					sshTimeout,
 				).
 				EnvInit(instance.GetHost(), metadata.User).
-				UserSSH(instance.GetHost(), instance.GetSSHPort(), metadata.User, sshTimeout).
 				Mkdir(globalOptions.User, instance.GetHost(), dirs...).
-				Chown(globalOptions.User, instance.GetHost(), dirs...).
 				Build()
 			envInitTasks = append(envInitTasks, t)
 		}
@@ -201,7 +198,7 @@ func buildScaleOutTask(
 
 	// Deploy the new topology and refresh the configuration
 	newPart.IterInstance(func(inst meta.Instance) {
-		version := bindversion.ComponentVersion(inst.ComponentName(), metadata.Version)
+		version := meta.ComponentVersion(inst.ComponentName(), metadata.Version)
 		deployDir := clusterutil.Abs(metadata.User, inst.DeployDir())
 		// data dir would be empty for components which don't need it
 		dataDir := inst.DataDir()
@@ -253,7 +250,7 @@ func buildScaleOutTask(
 		if inst.IsImported() {
 			switch compName := inst.ComponentName(); compName {
 			case meta.ComponentGrafana, meta.ComponentPrometheus, meta.ComponentAlertManager:
-				version := bindversion.ComponentVersion(compName, metadata.Version)
+				version := meta.ComponentVersion(compName, metadata.Version)
 				tb.Download(compName, version).CopyComponent(compName, version, inst.GetHost(), deployDir)
 			}
 		}
