@@ -17,7 +17,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-
 	"reflect"
 	"sort"
 	"testing"
@@ -52,11 +51,6 @@ func (s *ansSuite) TestParseInventoryFile(c *C) {
 
 	expected := []byte(`global:
   user: tiops
-  resource_control:
-    memory_limit: ""
-    cpu_quota: ""
-    io_read_bandwidth_max: ""
-    io_write_bandwidth_max: ""
 tidb_servers: []
 tikv_servers: []
 tiflash_servers: []
