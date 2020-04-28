@@ -49,7 +49,6 @@ var (
 
 // ParseAndImportInventory builds a basic ClusterMeta from the main Ansible inventory
 func ParseAndImportInventory(dir, ansCfgFile string, clsMeta *meta.ClusterMeta, inv *aini.InventoryData, sshTimeout int64) error {
-	log.Infof("Importing cluster...")
 	// set global vars in group_vars/all.yml
 	grpVarsAll, err := readGroupVars(dir, groupVarsGlobal)
 	if err != nil {
