@@ -282,6 +282,9 @@ func parseGroupVars(dir string, clsMeta *meta.ClusterMeta, inv *aini.InventoryDa
 				SSHPort:  getHostPort(srv, ansCfg),
 				Imported: true,
 			}
+			if tmpIns.Host != srv.Name {
+				tmpIns.Name = srv.Name // use alias as the name of PD
+			}
 
 			if clientPort, ok := grpVars["pd_client_port"]; ok {
 				tmpIns.ClientPort, _ = strconv.Atoi(clientPort)

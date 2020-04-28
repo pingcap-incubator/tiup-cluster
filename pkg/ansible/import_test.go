@@ -14,9 +14,16 @@
 package ansible
 
 import (
-	"bytes"
+	"fmt"
+	"io/ioutil"
+	"os"
+	"path/filepath"
+	"reflect"
+	"sort"
 	"testing"
 
+	"github.com/creasty/defaults"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/meta"
 	. "github.com/pingcap/check"
 	"gopkg.in/yaml.v2"
 )
@@ -31,114 +38,10 @@ func TestAnsible(t *testing.T) {
 }
 
 func (s *ansSuite) TestParseInventoryFile(c *C) {
-	invData := bytes.NewReader([]byte(`## TiDB Cluster Part
-[tidb_servers]
-tidb218 ansible_host=172.16.5.218 tidb_status_port=3399
-172.16.5.219 tidb_port=3397
+	dir := "test-data"
+	invData, err := os.Open(filepath.Join(dir, "inventory.ini"))
+	c.Assert(err, IsNil)
 
-[tikv_servers]
-172.16.5.219
-172.16.5.220 tikv_port=20166
-172.16.5.221
-
-[pd_servers]
-172.16.5.218
-172.16.5.219 pd_status_port=2381
-172.16.5.220 deploy_dir=/data-path/custom_deploy/pd220
-
-[spark_master]
-
-[spark_slaves]
-
-[lightning_server]
-
-[importer_server]
-
-## Monitoring Part
-# prometheus and pushgateway servers
-[monitoring_servers]
-172.16.5.221
-
-[grafana_servers]
-172.16.5.221
-
-# node_exporter and blackbox_exporter servers
-[monitored_servers]
-172.16.5.218
-172.16.5.219
-172.16.5.220
-172.16.5.221
-
-[alertmanager_servers]
-172.16.5.221
-
-[kafka_exporter_servers]
-
-## Binlog Part
-[pump_servers]
-
-[drainer_servers]
-
-## Group variables
-[pd_servers:vars]
-# location_labels = ["zone","rack","host"]
-
-## Global variables
-[all:vars]
-deploy_dir = /home/tiops/ansible-deploy
-
-## Connection
-# ssh via normal user
-ansible_user = tiops
-
-cluster_name = ansible-cluster
-
-tidb_version = v3.0.12
-
-# process supervision, [systemd, supervise]
-process_supervision = systemd
-
-timezone = Asia/Shanghai
-
-enable_firewalld = False
-# check NTP service
-enable_ntpd = True
-set_hostname = True
-
-## binlog trigger
-enable_binlog = False
-
-# kafka cluster address for monitoring, example:
-# kafka_addrs = "192.168.0.11:9092,192.168.0.12:9092,192.168.0.13:9092"
-kafka_addrs = ""
-
-# zookeeper address of kafka cluster for monitoring, example:
-# zookeeper_addrs = "192.168.0.11:2181,192.168.0.12:2181,192.168.0.13:2181"
-zookeeper_addrs = ""
-
-# enable TLS authentication in the TiDB cluster
-enable_tls = False
-
-# KV mode
-deploy_without_tidb = False
-
-# wait for region replication complete before start tidb-server.
-wait_replication = True
-
-# Optional: Set if you already have a alertmanager server.
-# Format: alertmanager_host:alertmanager_port
-alertmanager_target = ""
-
-grafana_admin_user = "admin"
-grafana_admin_password = "admin"
-
-
-### Collect diagnosis
-collect_log_recent_hours = 2
-
-enable_bandwidth_limit = False
-# default: 10Mb/s, unit: Kbit/s
-collect_bandwidth_limit = 10000`))
 	clsName, clsMeta, inv, err := parseInventoryFile(invData)
 	c.Assert(err, IsNil)
 	c.Assert(inv, NotNil)
@@ -164,4 +67,55 @@ monitoring_servers: []
 	topo, err := yaml.Marshal(clsMeta.Topology)
 	c.Assert(err, IsNil)
 	c.Assert(topo, DeepEquals, expected)
+}
+
+func (s *ansSuite) TestParseGroupVars(c *C) {
+	dir := "test-data"
+	invData, err := os.Open(filepath.Join(dir, "inventory.ini"))
+	c.Assert(err, IsNil)
+	_, clsMeta, inv, err := parseInventoryFile(invData)
+	c.Assert(err, IsNil)
+
+	err = parseGroupVars(dir, clsMeta, inv)
+	c.Assert(err, IsNil)
+	err = defaults.Set(clsMeta)
+	c.Assert(err, IsNil)
+
+	var expected meta.ClusterMeta
+	var metaFull meta.ClusterMeta
+
+	expectedTopo, err := ioutil.ReadFile(filepath.Join(dir, "meta.yaml"))
+	c.Assert(err, IsNil)
+	err = yaml.Unmarshal(expectedTopo, &expected)
+	c.Assert(err, IsNil)
+
+	// marshal and unmarshal the meta to ensure custom defaults are populated
+	meta, err := yaml.Marshal(clsMeta)
+	c.Assert(err, IsNil)
+	err = yaml.Unmarshal(meta, &metaFull)
+	c.Assert(err, IsNil)
+
+	sortClusterMeta(&metaFull)
+	sortClusterMeta(&expected)
+
+	mta, err := yaml.Marshal(metaFull)
+	fmt.Printf("meta: %s\n", mta)
+	c.Assert(metaFull, DeepEquals, expected)
+}
+
+func sortClusterMeta(clsMeta *meta.ClusterMeta) {
+	v := reflect.ValueOf(clsMeta).Elem()
+
+	for i := 0; i < v.Type().NumField(); i++ {
+		switch v.Field(i).Kind() {
+		case reflect.Slice:
+			lst := v.Field(i).Interface().([]meta.InstanceSpec)
+			sort.Slice(lst, func(i, j int) bool {
+				hosti, _ := lst[i].SSH()
+				hostj, _ := lst[j].SSH()
+				return hosti < hostj
+			})
+			v.Field(i).Set(reflect.ValueOf(lst))
+		}
+	}
 }
