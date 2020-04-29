@@ -757,6 +757,11 @@ func (topo *TopologySpecification) dirConflictsDetect() error {
 						host: host,
 						dir:  compSpec.Field(j).String(),
 					}
+					// data_dir is relative to deploy_dir by default, so they can be with
+					// same (sub) paths as long as the deploy_dirs are different
+					if item.dir != "" && !strings.HasPrefix(item.dir, "/") {
+						continue
+					}
 					// `yaml:"data_dir,omitempty"`
 					tp := strings.Split(compSpec.Type().Field(j).Tag.Get("yaml"), ",")[0]
 					prev, exist := dirStats[item]
