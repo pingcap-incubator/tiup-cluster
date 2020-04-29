@@ -14,6 +14,7 @@
 package command
 
 import (
+	"path/filepath"
 	"strings"
 
 	"github.com/fatih/color"
@@ -89,6 +90,10 @@ func scaleIn(clusterName string, options operator.Options) error {
 			deployDir := clusterutil.Abs(metadata.User, instance.DeployDir())
 			// data dir would be empty for components which don't need it
 			dataDir := instance.DataDir()
+			// the default data_dir is relative to deploy_dir
+			if dataDir != "" && !strings.HasPrefix(dataDir, "/") {
+				dataDir = filepath.Join(deployDir, dataDir)
+			}
 			// log dir will always be with values, but might not used by the component
 			logDir := clusterutil.Abs(metadata.User, instance.LogDir())
 

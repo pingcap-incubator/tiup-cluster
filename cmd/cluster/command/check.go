@@ -129,18 +129,24 @@ func checkSystemInfo(s *cliutil.SSHConnectionProps, topo *meta.TopologySpecifica
 				BuildAsStep(fmt.Sprintf("  - Getting system info of %s:%d", inst.GetHost(), inst.GetSSHPort()))
 			collectTasks = append(collectTasks, t1)
 
+			dataDir := inst.DataDir()
+			// the default data_dir is relative to deploy_dir
+			if dataDir != "" && !strings.HasPrefix(dataDir, "/") {
+				dataDir = filepath.Join(inst.DeployDir(), dataDir)
+			}
+
 			// build checking tasks
 			t2 := task.NewBuilder().
 				CheckSys(
 					inst.GetHost(),
-					inst.DataDir(),
+					dataDir,
 					task.CheckTypeSystemInfo,
 					topo,
 					opt.opr,
 				).
 				CheckSys(
 					inst.GetHost(),
-					inst.DataDir(),
+					dataDir,
 					task.CheckTypePartitions,
 					topo,
 					opt.opr,
@@ -152,7 +158,7 @@ func checkSystemInfo(s *cliutil.SSHConnectionProps, topo *meta.TopologySpecifica
 				).
 				CheckSys(
 					inst.GetHost(),
-					inst.DataDir(),
+					dataDir,
 					task.CheckTypePort,
 					topo,
 					opt.opr,
@@ -164,7 +170,7 @@ func checkSystemInfo(s *cliutil.SSHConnectionProps, topo *meta.TopologySpecifica
 				).
 				CheckSys(
 					inst.GetHost(),
-					inst.DataDir(),
+					dataDir,
 					task.CheckTypeSystemLimits,
 					topo,
 					opt.opr,
@@ -176,28 +182,28 @@ func checkSystemInfo(s *cliutil.SSHConnectionProps, topo *meta.TopologySpecifica
 				).
 				CheckSys(
 					inst.GetHost(),
-					inst.DataDir(),
+					dataDir,
 					task.CheckTypeSystemConfig,
 					topo,
 					opt.opr,
 				).
 				CheckSys(
 					inst.GetHost(),
-					inst.DataDir(),
+					dataDir,
 					task.CheckTypeService,
 					topo,
 					opt.opr,
 				).
 				CheckSys(
 					inst.GetHost(),
-					inst.DataDir(),
+					dataDir,
 					task.CheckTypePackage,
 					topo,
 					opt.opr,
 				).
 				CheckSys(
 					inst.GetHost(),
-					inst.DataDir(),
+					dataDir,
 					task.CheckTypeFIO,
 					topo,
 					opt.opr,

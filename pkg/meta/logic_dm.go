@@ -482,6 +482,10 @@ func (topo *DMSpecification) Endpoints(user string) []*scripts.DMMasterScript {
 		deployDir := clusterutil.Abs(user, spec.DeployDir)
 		// data dir would be empty for components which don't need it
 		dataDir := spec.DataDir
+		// the default data_dir is relative to deploy_dir
+		if dataDir != "" && !strings.HasPrefix(dataDir, "/") {
+			dataDir = filepath.Join(deployDir, dataDir)
+		}
 		// log dir will always be with values, but might not used by the component
 		logDir := clusterutil.Abs(user, spec.LogDir)
 
