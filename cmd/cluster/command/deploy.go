@@ -174,15 +174,15 @@ func deploy(clusterName, clusterVersion, topoFile string, opt deployOptions) err
 		if _, found := uniqueHosts[inst.GetHost()]; !found {
 			uniqueHosts[inst.GetHost()] = inst.GetSSHPort()
 			var dirs []string
-			for _, dir := range []string{globalOptions.DeployDir, globalOptions.DataDir, globalOptions.LogDir} {
+			for _, dir := range []string{globalOptions.DeployDir, globalOptions.LogDir} {
 				if dir == "" {
 					continue
 				}
-				// the dafault, relative path of data dir is under deploy dir
-				if !strings.HasPrefix(globalOptions.DataDir, "/") {
-					continue
-				}
 				dirs = append(dirs, clusterutil.Abs(globalOptions.User, dir))
+			}
+			// the dafault, relative path of data dir is under deploy dir
+			if strings.HasPrefix(globalOptions.DataDir, "/") {
+				dirs = append(dirs, globalOptions.DataDir)
 			}
 			t := task.NewBuilder().
 				RootSSH(

@@ -251,7 +251,8 @@ func (i *instance) DataDir() string {
 	if !dataDir.IsValid() {
 		return ""
 	}
-	return dataDir.Interface().(string)
+
+	return dataDir.String()
 }
 
 // MergeResourceControl merge the rhs into lhs and overwrite rhs if lhs has value for same field
