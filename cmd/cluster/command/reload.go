@@ -92,9 +92,6 @@ func buildReloadTask(
 		deployDir := clusterutil.Abs(metadata.User, inst.DeployDir())
 		// data dir would be empty for components which don't need it
 		dataDir := inst.DataDir()
-		if dataDir != "" {
-			dataDir = clusterutil.Abs(metadata.User, dataDir)
-		}
 		// log dir will always be with values, but might not used by the component
 		logDir := clusterutil.Abs(metadata.User, inst.LogDir())
 
