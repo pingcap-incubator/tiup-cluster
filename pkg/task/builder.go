@@ -98,8 +98,8 @@ func (b *Builder) UpdateMeta(cluster string, metadata *meta.ClusterMeta, deleted
 }
 
 // UpdateTopology maintain the topology information
-func (b *Builder) UpdateTopology(cluster string, metadata *meta.ClusterMeta) *Builder {
-	b.tasks = append(b.tasks, &UpdateTopology{metadata: metadata, cluster: cluster})
+func (b *Builder) UpdateTopology(cluster string, metadata *meta.ClusterMeta, deletedNodeIds []string) *Builder {
+	b.tasks = append(b.tasks, &UpdateTopology{metadata: metadata, cluster: cluster, deletedNodesID: deletedNodeIds})
 	return b
 }
 

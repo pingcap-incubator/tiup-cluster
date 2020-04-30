@@ -159,7 +159,6 @@ func upgrade(clusterName, clusterVersion string, opt upgradeOptions) error {
 		Parallel(downloadCompTasks...).
 		Parallel(copyCompTasks...).
 		ClusterOperate(metadata.Topology, operator.UpgradeOperation, opt.options).
-		UpdateTopology(clusterName, metadata).
 		Build()
 
 	if err := t.Execute(task.NewContext()); err != nil {
