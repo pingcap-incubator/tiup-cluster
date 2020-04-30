@@ -17,12 +17,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
-	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
 
 	"github.com/AstroProfundis/sysinfo"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/clusterutil"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/executor"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/log"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/meta"
@@ -496,12 +496,9 @@ func CheckPartitions(opt *CheckOptions, host string, topo *meta.TopologySpecific
 		if inst.GetHost() != host {
 			return
 		}
-		dataDir := inst.DataDir()
+		dataDir := clusterutil.Abs(topo.GlobalOptions.User, inst.DataDir())
 		if dataDir == "" {
 			return
-		}
-		if !strings.HasPrefix(dataDir, "/") {
-			dataDir = filepath.Join(inst.DeployDir(), dataDir)
 		}
 
 		blk := getDisk(parts, dataDir)

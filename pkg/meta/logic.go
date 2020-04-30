@@ -243,13 +243,18 @@ func (i *instance) GetSSHPort() int {
 }
 
 func (i *instance) DeployDir() string {
-	return reflect.ValueOf(i.InstanceSpec).FieldByName("DeployDir").Interface().(string)
+	return reflect.ValueOf(i.InstanceSpec).FieldByName("DeployDir").String()
 }
 
 func (i *instance) DataDir() string {
 	dataDir := reflect.ValueOf(i.InstanceSpec).FieldByName("DataDir")
 	if !dataDir.IsValid() {
 		return ""
+	}
+
+	// the default data_dir is relative to deploy_dir
+	if dataDir.String() != "" && !strings.HasPrefix(dataDir.String(), "/") {
+		return filepath.Join(i.DeployDir(), dataDir.String())
 	}
 
 	return dataDir.String()
