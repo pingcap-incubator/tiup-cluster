@@ -22,6 +22,9 @@ rule_files:
 {{- if .PumpAddrs}}
   - 'binlog.rules.yml'
 {{- end}}
+{{- if .CDCAddrs}}
+  - 'ticdc.rules.yml'
+{{- end}}
 {{- if .KafkaAddrs}}
   - 'kafka.rules.yml'
 {{- end}}
@@ -29,12 +32,14 @@ rule_files:
   - 'lightning.rules.yml'
 {{- end}}
 
-{{- if .AlertmanagerAddr}}
+{{- if .AlertmanagerAddrs}}
 alerting:
  alertmanagers:
  - static_configs:
    - targets:
-     - '{{.AlertmanagerAddr}}'
+{{- range .AlertmanagerAddrs}}
+     - '{{.}}'
+{{- end}}
 {{- end}}
 
 scrape_configs:
@@ -175,6 +180,15 @@ scrape_configs:
         target_label: instance
       - target_label: __address__
         replacement: {{.BlackboxAddr}}
+{{- end}}
+{{- if .CDCAddrs}}
+  - job_name: "ticdc"
+    honor_labels: true # don't overwrite job & instance labels
+    static_configs:
+    - targets:
+{{- range .CDCAddrs}}
+      - '{{.}}'
+{{- end}}
 {{- end}}
   - job_name: "tidb_port_probe"
     scrape_interval: 30s

@@ -15,28 +15,26 @@ package meta
 
 import (
 	"fmt"
-	"io/ioutil"
 	"path/filepath"
-	"strconv"
 
 	"github.com/pingcap-incubator/tiup-cluster/pkg/executor"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/template/scripts"
 )
 
-// DrainerComponent represents Drainer component.
-type DrainerComponent struct{ *ClusterSpecification }
+// CDCComponent represents CDC component.
+type CDCComponent struct{ *ClusterSpecification }
 
 // Name implements Component interface.
-func (c *DrainerComponent) Name() string {
-	return ComponentDrainer
+func (c *CDCComponent) Name() string {
+	return ComponentCDC
 }
 
 // Instances implements Component interface.
-func (c *DrainerComponent) Instances() []Instance {
-	ins := make([]Instance, 0, len(c.Drainers))
-	for _, s := range c.Drainers {
+func (c *CDCComponent) Instances() []Instance {
+	ins := make([]Instance, 0, len(c.CDCServers))
+	for _, s := range c.CDCServers {
 		s := s
-		ins = append(ins, &DrainerInstance{instance{
+		ins = append(ins, &CDCInstance{instance{
 			InstanceSpec: s,
 			name:         c.Name(),
 			host:         s.Host,
@@ -49,7 +47,6 @@ func (c *DrainerComponent) Instances() []Instance {
 			},
 			usedDirs: []string{
 				s.DeployDir,
-				s.DataDir,
 			},
 			statusFn: func(_ ...string) string {
 				url := fmt.Sprintf("http://%s:%d/status", s.Host, s.Port)
@@ -60,13 +57,13 @@ func (c *DrainerComponent) Instances() []Instance {
 	return ins
 }
 
-// DrainerInstance represent the Drainer instance.
-type DrainerInstance struct {
+// CDCInstance represent the CDC instance.
+type CDCInstance struct {
 	instance
 }
 
 // ScaleConfig deploy temporary config on scaling
-func (i *DrainerInstance) ScaleConfig(e executor.TiOpsExecutor, b Specification, clusterName, clusterVersion, user string, paths DirPaths) error {
+func (i *CDCInstance) ScaleConfig(e executor.TiOpsExecutor, b Specification, clusterName, clusterVersion, user string, paths DirPaths) error {
 	s := i.instance.topo
 	defer func() {
 		i.instance.topo = s
@@ -77,28 +74,24 @@ func (i *DrainerInstance) ScaleConfig(e executor.TiOpsExecutor, b Specification,
 }
 
 // InitConfig implements Instance interface.
-func (i *DrainerInstance) InitConfig(e executor.TiOpsExecutor, clusterName, clusterVersion, deployUser string, paths DirPaths) error {
+func (i *CDCInstance) InitConfig(e executor.TiOpsExecutor, clusterName, clusterVersion, deployUser string, paths DirPaths) error {
 	if err := i.instance.InitConfig(e, clusterName, clusterVersion, deployUser, paths); err != nil {
 		return err
 	}
 
-	spec := i.InstanceSpec.(DrainerSpec)
-	cfg := scripts.NewDrainerScript(
-		i.GetHost()+":"+strconv.Itoa(i.GetPort()),
+	spec := i.InstanceSpec.(CDCSpec)
+	cfg := scripts.NewCDCScript(
 		i.GetHost(),
 		paths.Deploy,
-		paths.Data,
 		paths.Log,
 	).WithPort(spec.Port).WithNumaNode(spec.NumaNode).AppendEndpoints(i.instance.topo.Endpoints(deployUser)...)
 
-	cfg.WithCommitTs(spec.CommitTS)
-
-	fp := filepath.Join(paths.Cache, fmt.Sprintf("run_drainer_%s_%d.sh", i.GetHost(), i.GetPort()))
+	fp := filepath.Join(paths.Cache, fmt.Sprintf("run_cdc_%s_%d.sh", i.GetHost(), i.GetPort()))
 
 	if err := cfg.ConfigToFile(fp); err != nil {
 		return err
 	}
-	dst := filepath.Join(paths.Deploy, "scripts", "run_drainer.sh")
+	dst := filepath.Join(paths.Deploy, "scripts", "run_cdc.sh")
 	if err := e.Transfer(fp, dst, false); err != nil {
 		return err
 	}
@@ -108,32 +101,6 @@ func (i *DrainerInstance) InitConfig(e executor.TiOpsExecutor, clusterName, clus
 	}
 
 	specConfig := spec.Config
-	// merge config files for imported instance
-	if i.IsImported() {
-		configPath := ClusterPath(
-			clusterName,
-			"config",
-			fmt.Sprintf(
-				"%s-%s-%d.toml",
-				i.ComponentName(),
-				i.GetHost(),
-				i.GetPort(),
-			),
-		)
-		importConfig, err := ioutil.ReadFile(configPath)
-		if err != nil {
-			return err
-		}
-		mergedConfig, err := mergeImported(importConfig, spec.Config)
-		if err != nil {
-			return err
-		}
-		specConfig = mergedConfig
-	}
 
-	if err := i.mergeServerConfig(e, i.topo.ServerConfigs.Drainer, specConfig, paths); err != nil {
-		return err
-	}
-
-	return checkConfig(e, i.ComponentName(), clusterVersion, i.ComponentName()+".toml", paths)
+	return i.mergeServerConfig(e, i.topo.ServerConfigs.CDC, specConfig, paths)
 }

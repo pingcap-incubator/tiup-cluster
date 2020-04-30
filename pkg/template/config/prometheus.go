@@ -36,11 +36,12 @@ type PrometheusConfig struct {
 	TiFlashLearnerStatusAddrs []string
 	PumpAddrs                 []string
 	DrainerAddrs              []string
+	CDCAddrs                  []string
 	ZookeeperAddrs            []string
 	BlackboxExporterAddrs     []string
 	LightningAddrs            []string
 	MonitoredServers          []string
-	AlertmanagerAddr          string
+	AlertmanagerAddrs         []string
 	PushgatewayAddr           string
 	BlackboxAddr              string
 	KafkaExporterAddr         string
@@ -108,6 +109,12 @@ func (c *PrometheusConfig) AddDrainer(ip string, port uint64) *PrometheusConfig 
 	return c
 }
 
+// AddCDC add a cdc address
+func (c *PrometheusConfig) AddCDC(ip string, port uint64) *PrometheusConfig {
+	c.CDCAddrs = append(c.CDCAddrs, fmt.Sprintf("%s:%d", ip, port))
+	return c
+}
+
 // AddZooKeeper add a zookeeper address
 func (c *PrometheusConfig) AddZooKeeper(ip string, port uint64) *PrometheusConfig {
 	c.ZookeeperAddrs = append(c.ZookeeperAddrs, fmt.Sprintf("%s:%d", ip, port))
@@ -134,7 +141,7 @@ func (c *PrometheusConfig) AddMonitoredServer(ip string) *PrometheusConfig {
 
 // AddAlertmanager add an alertmanager address
 func (c *PrometheusConfig) AddAlertmanager(ip string, port uint64) *PrometheusConfig {
-	c.AlertmanagerAddr = fmt.Sprintf("%s:%d", ip, port)
+	c.AlertmanagerAddrs = append(c.AlertmanagerAddrs, fmt.Sprintf("%s:%d", ip, port))
 	return c
 }
 
