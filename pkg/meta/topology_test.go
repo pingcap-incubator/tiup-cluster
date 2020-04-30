@@ -43,7 +43,7 @@ func (s *metaSuite) TestDefaultDataDir(c *C) {
 	err = yaml.Unmarshal(data, topo)
 	c.Assert(err, IsNil)
 	c.Assert(topo.GlobalOptions.DataDir, Equals, "data")
-	c.Assert(topo.TiKVServers[0].DataDir, Equals, "data/tikv-22")
+	c.Assert(topo.TiKVServers[0].DataDir, Equals, "data")
 
 	// Can keep the default value.
 	data, err = yaml.Marshal(topo)
@@ -52,7 +52,7 @@ func (s *metaSuite) TestDefaultDataDir(c *C) {
 	err = yaml.Unmarshal(data, topo)
 	c.Assert(err, IsNil)
 	c.Assert(topo.GlobalOptions.DataDir, Equals, "data")
-	c.Assert(topo.TiKVServers[0].DataDir, Equals, "data/tikv-22")
+	c.Assert(topo.TiKVServers[0].DataDir, Equals, "data")
 
 	// Test with global DataDir.
 	topo = new(TopologySpecification)
