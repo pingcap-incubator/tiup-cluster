@@ -34,17 +34,14 @@ func (u *UpdateTopology) Execute(ctx *Context) error {
 
 	topo := u.metadata.Topology
 
-	instances := (&meta.MonitorComponent{ClusterSpecification: topo}).Instances()
-	instances = append(instances, (&meta.GrafanaComponent{ClusterSpecification: topo}).Instances()...)
-	instances = append(instances, (&meta.AlertManagerComponent{ClusterSpecification: topo}).Instances()...)
-
 	deleted := set.NewStringSet(u.deletedNodesID...)
 
-	ops := []clientv3.Op{
-		clientv3.OpDelete("/topology/prometheus"),
-		clientv3.OpDelete("/topology/grafana"),
-		clientv3.OpDelete("/topology/alertmanager"),
-	}
+	var ops []clientv3.Op
+	var instances []meta.Instance
+
+	ops, instances = updateInstancesAndOps(ops, instances, deleted, (&meta.MonitorComponent{ClusterSpecification: topo}).Instances(), "prometheus")
+	ops, instances = updateInstancesAndOps(ops, instances, deleted, (&meta.GrafanaComponent{ClusterSpecification: topo}).Instances(), "grafana")
+	ops, instances = updateInstancesAndOps(ops, instances, deleted, (&meta.AlertManagerComponent{ClusterSpecification: topo}).Instances(), "alertmanager")
 
 	for _, instance := range (&meta.TiDBComponent{ClusterSpecification: topo}).Instances() {
 		if deleted.Exist(instance.ID()) {
@@ -71,6 +68,27 @@ type componentTopology struct {
 	DeployPath string `json:"deploy_path"`
 }
 
+// componentTopology update receives alertmanager, prometheus and grafana instance list, if the list has
+//  no member or all deleted, it will add a `OpDelete` in ops, otherwise it will push an operation to destInstances.
+func updateInstancesAndOps(ops []clientv3.Op, destInstances []meta.Instance, deleted set.StringSet, instances []meta.Instance, componentName string) ([]clientv3.Op, []meta.Instance) {
+	var currentInstances []meta.Instance
+	for _, instance := range instances {
+		if deleted.Exist(instance.ID()) {
+			continue
+		}
+		currentInstances = append(currentInstances, instance)
+	}
+
+	if len(currentInstances) == 0 {
+		ops = append(ops, clientv3.OpDelete("/topology/"+componentName))
+	} else {
+		destInstances = append(destInstances, currentInstances...)
+	}
+	return ops, destInstances
+}
+
+// updateTopologyOp receive a  alertmanager, prometheus or grafana instance, and return an operation
+//  for update it's topology.
 func updateTopologyOp(instance meta.Instance) (*clientv3.Op, error) {
 	switch instance.ComponentName() {
 	case meta.ComponentAlertManager, meta.ComponentPrometheus, meta.ComponentGrafana:
