@@ -5,11 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/pingcap-incubator/tiup/pkg/set"
-
-	"github.com/pingcap/errors"
 	"go.etcd.io/etcd/clientv3"
-	"golang.org/x/sync/errgroup"
+
+	"github.com/pingcap-incubator/tiup/pkg/set"
 
 	"github.com/pingcap-incubator/tiup-cluster/pkg/meta"
 )
@@ -28,6 +26,11 @@ func (u *UpdateTopology) String() string {
 
 // Execute implements the Task interface
 func (u *UpdateTopology) Execute(ctx *Context) error {
+	client, err := u.metadata.Topology.GetEtcdClient()
+	if err != nil {
+		return err
+	}
+	txn := client.Txn(context.Background())
 
 	topo := u.metadata.Topology
 
@@ -35,45 +38,30 @@ func (u *UpdateTopology) Execute(ctx *Context) error {
 	instances = append(instances, (&meta.GrafanaComponent{ClusterSpecification: topo}).Instances()...)
 	instances = append(instances, (&meta.AlertManagerComponent{ClusterSpecification: topo}).Instances()...)
 
-	client, err := u.metadata.Topology.GetEtcdClient()
-	if err != nil {
-		return err
-	}
-
 	deleted := set.NewStringSet(u.deletedNodesID...)
 
-	var deletedDBInstance []meta.TiDBSpec
-	for i, instance := range (&meta.TiDBComponent{ClusterSpecification: topo}).Instances() {
+	ops := []clientv3.Op{
+		clientv3.OpDelete("/topology/prometheus"),
+		clientv3.OpDelete("/topology/grafana"),
+		clientv3.OpDelete("/topology/alertmanager"),
+	}
+
+	for _, instance := range (&meta.TiDBComponent{ClusterSpecification: topo}).Instances() {
 		if deleted.Exist(instance.ID()) {
-			deletedDBInstance = append(deletedDBInstance, topo.TiDBServers[i])
+			ops = append(ops, clientv3.OpDelete(fmt.Sprintf("/topology/tidb/%s:%d", instance.GetHost(), instance.GetPort()), clientv3.WithPrefix()))
 		}
 	}
 
-	errg, _ := errgroup.WithContext(context.Background())
-
 	for _, ins := range instances {
-		ins := ins
-		errg.Go(func() error {
-			err := updateTopology(ins, client)
-			if err != nil {
-				return errors.AddStack(err)
-			}
-			return nil
-		})
+		op, err := updateTopologyOp(ins)
+		if err != nil {
+			return err
+		}
+		ops = append(ops, *op)
 	}
 
-	for _, dbIns := range deletedDBInstance {
-		dbIns := dbIns
-		errg.Go(func() error {
-			err := deleteOfflineTiDBTopology(dbIns, client)
-			if err != nil {
-				return errors.AddStack(err)
-			}
-			return nil
-		})
-	}
-
-	return errg.Wait()
+	_, err = txn.Then(ops...).Commit()
+	return err
 }
 
 // componentTopology represent the topology info for alertmanager, prometheus and grafana.
@@ -83,13 +71,7 @@ type componentTopology struct {
 	DeployPath string `json:"deploy_path"`
 }
 
-func deleteOfflineTiDBTopology(instance meta.TiDBSpec, etcdClient *clientv3.Client) error {
-	_, err := etcdClient.KV.Delete(context.Background(), fmt.Sprintf("/topology/tidb/%s:%d", instance.Host, instance.Port), clientv3.WithPrefix())
-	return err
-}
-
-// updateTopology write component topology to "/topology".
-func updateTopology(instance meta.Instance, etcdClient *clientv3.Client) error {
+func updateTopologyOp(instance meta.Instance) (*clientv3.Op, error) {
 	switch instance.ComponentName() {
 	case meta.ComponentAlertManager, meta.ComponentPrometheus, meta.ComponentGrafana:
 		topology := componentTopology{
@@ -99,12 +81,12 @@ func updateTopology(instance meta.Instance, etcdClient *clientv3.Client) error {
 		}
 		data, err := json.Marshal(topology)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		_, err = etcdClient.KV.Put(context.Background(), "/topology/"+instance.ComponentName(), string(data))
-		return err
+		op := clientv3.OpPut("/topology/"+instance.ComponentName(), string(data))
+		return &op, nil
 	default:
-		return nil
+		panic("updateTopologyOp receive wrong arguments, logic error!")
 	}
 }
 
