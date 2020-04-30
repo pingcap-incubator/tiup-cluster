@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/pingcap/errors"
+
 	"go.etcd.io/etcd/clientv3"
 
 	"github.com/pingcap-incubator/tiup/pkg/set"
@@ -104,7 +106,7 @@ func updateTopologyOp(instance meta.Instance) (*clientv3.Op, error) {
 		op := clientv3.OpPut("/topology/"+instance.ComponentName(), string(data))
 		return &op, nil
 	default:
-		panic("updateTopologyOp receive wrong arguments, logic error!")
+		return nil, errors.New("Wrong arguments: updateTopologyOp receive wrong arguments")
 	}
 }
 
