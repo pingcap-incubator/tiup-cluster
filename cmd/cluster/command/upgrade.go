@@ -101,7 +101,7 @@ func upgrade(clusterName, clusterVersion string, opt operator.Options) error {
 			if _, found := uniqueComps[compInfo]; !found {
 				uniqueComps[compInfo] = struct{}{}
 				t := task.NewBuilder().
-					Download(inst.ComponentName(), version).
+					Download(inst.ComponentName(), inst.OS(), inst.Arch(), version).
 					Build()
 				downloadCompTasks = append(downloadCompTasks, t)
 			}

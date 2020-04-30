@@ -29,6 +29,8 @@ import (
 // the repository, there is nothing to do if the specified version exists.
 type Downloader struct {
 	component string
+	os        string
+	arch      string
 	version   repository.Version
 }
 
@@ -42,8 +44,8 @@ func (d *Downloader) Execute(_ *Context) error {
 	}
 
 	resName := fmt.Sprintf("%s-%s", d.component, d.version)
-	fileName := fmt.Sprintf("%s-linux-amd64.tar.gz", resName)
-	sha1File := fmt.Sprintf("%s-linux-amd64.sha1", resName)
+	fileName := fmt.Sprintf("%s-%s-%s.tar.gz", resName, d.os, d.arch)
+	sha1File := fmt.Sprintf("%s-%s-%s.sha1", resName, d.os, d.arch)
 	srcPath := meta.ProfilePath(meta.TiOpsPackageCacheDir, fileName)
 
 	if err := os.MkdirAll(meta.ProfilePath(meta.TiOpsPackageCacheDir), 0755); err != nil {
@@ -62,8 +64,8 @@ func (d *Downloader) Execute(_ *Context) error {
 		defer mirror.Close()
 
 		repo, err := repository.NewRepository(mirror, repository.Options{
-			GOOS:              "linux",
-			GOARCH:            "amd64",
+			GOOS:              d.os,
+			GOARCH:            d.arch,
 			DisableDecompress: true,
 		})
 		if err != nil {

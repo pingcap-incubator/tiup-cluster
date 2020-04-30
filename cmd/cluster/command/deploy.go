@@ -303,7 +303,7 @@ func buildMonitoredDeployTask(
 	for _, comp := range []string{meta.ComponentNodeExporter, meta.ComponentBlackboxExporter} {
 		version := meta.ComponentVersion(comp, version)
 		t := task.NewBuilder().
-			Download(comp, version).
+			Download(comp, "linux", "amd64", version).
 			BuildAsStep(fmt.Sprintf("  - Download %s:%s", comp, version))
 		downloadCompTasks = append(downloadCompTasks, t)
 
