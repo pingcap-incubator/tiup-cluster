@@ -67,7 +67,8 @@ func (m *MonitoredConfig) Execute(ctx *Context) error {
 		cfg = scripts.NewNodeExporterScript(
 			m.paths.Deploy,
 			m.paths.Log,
-		).WithPort(uint64(m.options.NodeExporterPort))
+		).WithPort(uint64(m.options.NodeExporterPort)).
+			WithNumaNode(m.options.NumaNode)
 	} else if m.component == meta.ComponentBlackboxExporter {
 		cfg = scripts.NewBlackboxExporterScript(
 			m.paths.Deploy,
@@ -83,7 +84,7 @@ func (m *MonitoredConfig) Execute(ctx *Context) error {
 }
 
 func (m *MonitoredConfig) syncMonitoredSystemConfig(exec executor.TiOpsExecutor, comp string, port int) error {
-	sysCfg := filepath.Join(m.paths.Cache, fmt.Sprintf("%s-%d.service", comp, port))
+	sysCfg := filepath.Join(m.paths.Cache, fmt.Sprintf("%s-%s-%d.service", comp, m.host, port))
 
 	resource := meta.MergeResourceControl(m.globResCtl, m.options.ResourceControl)
 	systemCfg := system.NewConfig(comp, m.deployUser, m.paths.Deploy).

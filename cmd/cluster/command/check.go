@@ -15,18 +15,19 @@ package command
 
 import (
 	"fmt"
+	"path"
 	"path/filepath"
 	"strings"
 
 	"github.com/fatih/color"
 	"github.com/joomcode/errorx"
-	"github.com/pingcap-incubator/tiup-cluster/pkg/bindversion"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/cliutil"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/cliutil/prepare"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/clusterutil"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/log"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/logger"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/meta"
-	"github.com/pingcap-incubator/tiup-cluster/pkg/operation"
+	operator "github.com/pingcap-incubator/tiup-cluster/pkg/operation"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/task"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/utils"
 	"github.com/pingcap/errors"
@@ -36,13 +37,15 @@ import (
 type checkOptions struct {
 	user         string // username to login to the SSH server
 	identityFile string // path to the private key file
+	usePassword  bool   // use password instead of identity file for ssh connection
 	opr          *operator.CheckOptions
 	applyFix     bool // try to apply fixes of failed checks
 }
 
 func newCheckCmd() *cobra.Command {
 	opt := checkOptions{
-		opr: &operator.CheckOptions{},
+		opr:          &operator.CheckOptions{},
+		identityFile: path.Join(utils.UserHome(), ".ssh", "id_rsa"),
 	}
 	cmd := &cobra.Command{
 		Use:   "check <topology.yml>",
@@ -66,7 +69,7 @@ func newCheckCmd() *cobra.Command {
 				return err
 			}
 
-			sshConnProps, err := cliutil.ReadIdentityFileOrPassword(opt.identityFile)
+			sshConnProps, err := cliutil.ReadIdentityFileOrPassword(opt.identityFile, opt.usePassword)
 			if err != nil {
 				return err
 			}
@@ -79,8 +82,9 @@ func newCheckCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&opt.user, "user", "root", "The user name to login via SSH. The user must has root (or sudo) privilege.")
-	cmd.Flags().StringVarP(&opt.identityFile, "identity_file", "i", "", "The path of the SSH identity file. If specified, public key authentication will be used.")
+	cmd.Flags().StringVar(&opt.user, "user", utils.CurrentUser(), "The user name to login via SSH. The user must has root (or sudo) privilege.")
+	cmd.Flags().StringVarP(&opt.identityFile, "identity_file", "i", opt.identityFile, "The path of the SSH identity file. If specified, public key authentication will be used.")
+	cmd.Flags().BoolVarP(&opt.usePassword, "password", "p", false, "Use password of target hosts. If specified, password authentication will be used.")
 
 	cmd.Flags().BoolVar(&opt.opr.EnableCPU, "enable-cpu", false, "Enable CPU thread count check")
 	cmd.Flags().BoolVar(&opt.opr.EnableMem, "enable-mem", false, "Enable memory size check")
@@ -98,7 +102,7 @@ func checkSystemInfo(s *cliutil.SSHConnectionProps, topo *meta.TopologySpecifica
 		cleanTasks    []*task.StepDisplay
 		applyFixTasks []*task.StepDisplay
 	)
-	insightVer := bindversion.ComponentVersion(bindversion.ComponentCheckCollector, "")
+	insightVer := meta.ComponentVersion(meta.ComponentCheckCollector, "")
 
 	uniqueHosts := map[string]int{} // host -> ssh-port
 	topo.IterInstance(func(inst meta.Instance) {
@@ -117,8 +121,7 @@ func checkSystemInfo(s *cliutil.SSHConnectionProps, topo *meta.TopologySpecifica
 					sshTimeout,
 				).
 				Mkdir(opt.user, inst.GetHost(), filepath.Join(task.CheckToolsPathDir, "bin")).
-				Chown(opt.user, inst.GetHost(), task.CheckToolsPathDir).
-				CopyComponent(bindversion.ComponentCheckCollector, insightVer, inst.GetHost(), task.CheckToolsPathDir).
+				CopyComponent(meta.ComponentCheckCollector, insightVer, inst.GetHost(), task.CheckToolsPathDir).
 				Shell(
 					inst.GetHost(),
 					filepath.Join(task.CheckToolsPathDir, "bin", "insight"),
@@ -127,18 +130,23 @@ func checkSystemInfo(s *cliutil.SSHConnectionProps, topo *meta.TopologySpecifica
 				BuildAsStep(fmt.Sprintf("  - Getting system info of %s:%d", inst.GetHost(), inst.GetSSHPort()))
 			collectTasks = append(collectTasks, t1)
 
+			// if the data dir set in topology is relative, and the home dir of deploy user
+			// and the user run the check command is on different partitions, the disk detection
+			// may be using incorrect partition for validations.
+			dataDir := clusterutil.Abs(opt.user, inst.DataDir())
+
 			// build checking tasks
 			t2 := task.NewBuilder().
 				CheckSys(
 					inst.GetHost(),
-					inst.DataDir(),
+					dataDir,
 					task.CheckTypeSystemInfo,
 					topo,
 					opt.opr,
 				).
 				CheckSys(
 					inst.GetHost(),
-					inst.DataDir(),
+					dataDir,
 					task.CheckTypePartitions,
 					topo,
 					opt.opr,
@@ -150,7 +158,7 @@ func checkSystemInfo(s *cliutil.SSHConnectionProps, topo *meta.TopologySpecifica
 				).
 				CheckSys(
 					inst.GetHost(),
-					inst.DataDir(),
+					dataDir,
 					task.CheckTypePort,
 					topo,
 					opt.opr,
@@ -162,7 +170,7 @@ func checkSystemInfo(s *cliutil.SSHConnectionProps, topo *meta.TopologySpecifica
 				).
 				CheckSys(
 					inst.GetHost(),
-					inst.DataDir(),
+					dataDir,
 					task.CheckTypeSystemLimits,
 					topo,
 					opt.opr,
@@ -174,28 +182,28 @@ func checkSystemInfo(s *cliutil.SSHConnectionProps, topo *meta.TopologySpecifica
 				).
 				CheckSys(
 					inst.GetHost(),
-					inst.DataDir(),
+					dataDir,
 					task.CheckTypeSystemConfig,
 					topo,
 					opt.opr,
 				).
 				CheckSys(
 					inst.GetHost(),
-					inst.DataDir(),
+					dataDir,
 					task.CheckTypeService,
 					topo,
 					opt.opr,
 				).
 				CheckSys(
 					inst.GetHost(),
-					inst.DataDir(),
+					dataDir,
 					task.CheckTypePackage,
 					topo,
 					opt.opr,
 				).
 				CheckSys(
 					inst.GetHost(),
-					inst.DataDir(),
+					dataDir,
 					task.CheckTypeFIO,
 					topo,
 					opt.opr,
@@ -213,14 +221,14 @@ func checkSystemInfo(s *cliutil.SSHConnectionProps, topo *meta.TopologySpecifica
 					s.IdentityFilePassphrase,
 					sshTimeout,
 				).
-				Rmdir(opt.user, inst.GetHost(), task.CheckToolsPathDir).
+				Rmdir(inst.GetHost(), task.CheckToolsPathDir).
 				BuildAsStep(fmt.Sprintf("  - Cleanup check files on %s:%d", inst.GetHost(), inst.GetSSHPort()))
 			cleanTasks = append(cleanTasks, t3)
 		}
 	})
 
 	t := task.NewBuilder().
-		Download(bindversion.ComponentCheckCollector, insightVer).
+		Download(meta.ComponentCheckCollector, insightVer).
 		ParallelStep("+ Collect basic system information", collectTasks...).
 		ParallelStep("+ Check system requirements", checkSysTasks...).
 		ParallelStep("+ Cleanup check files", cleanTasks...).

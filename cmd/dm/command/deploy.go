@@ -16,12 +16,12 @@ package command
 import (
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 
 	"github.com/fatih/color"
 	"github.com/joomcode/errorx"
-	"github.com/pingcap-incubator/tiup-cluster/pkg/bindversion"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/cliutil"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/cliutil/prepare"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/clusterutil"
@@ -45,10 +45,13 @@ var (
 type deployOptions struct {
 	user         string // username to login to the SSH server
 	identityFile string // path to the private key file
+	usePassword  bool   // use password instead of identity file for ssh connection
 }
 
 func newDeploy() *cobra.Command {
-	opt := deployOptions{}
+	opt := deployOptions{
+		identityFile: path.Join(utils.UserHome(), ".ssh", "id_rsa"),
+	}
 	cmd := &cobra.Command{
 		Use:          "deploy <cluster-name> <version> <topology.yaml>",
 		Short:        "Deploy a DM cluster for production",
@@ -68,8 +71,9 @@ func newDeploy() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&opt.user, "user", "root", "The user name to login via SSH. The user must has root (or sudo) privilege.")
-	cmd.Flags().StringVarP(&opt.identityFile, "identity_file", "i", "", "The path of the SSH identity file. If specified, public key authentication will be used.")
+	cmd.Flags().StringVar(&opt.user, "user", utils.CurrentUser(), "The user name to login via SSH. The user must has root (or sudo) privilege.")
+	cmd.Flags().StringVarP(&opt.identityFile, "identity_file", "i", opt.identityFile, "The path of the SSH identity file. If specified, public key authentication will be used.")
+	cmd.Flags().BoolVarP(&opt.usePassword, "password", "p", false, "Use password of target hosts. If specified, password authentication will be used.")
 
 	return cmd
 }
@@ -140,7 +144,7 @@ func deploy(clusterName, clusterVersion, topoFile string, opt deployOptions) err
 		}
 	}
 
-	sshConnProps, err := cliutil.ReadIdentityFileOrPassword(opt.identityFile)
+	sshConnProps, err := cliutil.ReadIdentityFileOrPassword(opt.identityFile, opt.usePassword)
 	if err != nil {
 		return err
 	}
@@ -164,11 +168,15 @@ func deploy(clusterName, clusterVersion, topoFile string, opt deployOptions) err
 		if _, found := uniqueHosts[inst.GetHost()]; !found {
 			uniqueHosts[inst.GetHost()] = inst.GetSSHPort()
 			var dirs []string
-			for _, dir := range []string{globalOptions.DeployDir, globalOptions.DataDir, globalOptions.LogDir} {
+			for _, dir := range []string{globalOptions.DeployDir, globalOptions.LogDir} {
 				if dir == "" {
 					continue
 				}
 				dirs = append(dirs, clusterutil.Abs(globalOptions.User, dir))
+			}
+			// the dafault, relative path of data dir is under deploy dir
+			if strings.HasPrefix(globalOptions.DataDir, "/") {
+				dirs = append(dirs, globalOptions.DataDir)
 			}
 			t := task.NewBuilder().
 				RootSSH(
@@ -181,9 +189,7 @@ func deploy(clusterName, clusterVersion, topoFile string, opt deployOptions) err
 					sshTimeout,
 				).
 				EnvInit(inst.GetHost(), globalOptions.User).
-				UserSSH(inst.GetHost(), inst.GetSSHPort(), globalOptions.User, sshTimeout).
 				Mkdir(globalOptions.User, inst.GetHost(), dirs...).
-				Chown(globalOptions.User, inst.GetHost(), dirs...).
 				BuildAsStep(fmt.Sprintf("  - Prepare %s:%d", inst.GetHost(), inst.GetSSHPort()))
 			envInitTasks = append(envInitTasks, t)
 		}
@@ -194,17 +200,15 @@ func deploy(clusterName, clusterVersion, topoFile string, opt deployOptions) err
 
 	// Deploy components to remote
 	topo.IterInstance(func(inst meta.Instance) {
-		version := bindversion.ComponentVersion(inst.ComponentName(), clusterVersion)
+		version := meta.ComponentVersion(inst.ComponentName(), clusterVersion)
 		deployDir := clusterutil.Abs(globalOptions.User, inst.DeployDir())
 		// data dir would be empty for components which don't need it
-		dataDir := inst.DataDir()
-		if dataDir != "" {
-			clusterutil.Abs(globalOptions.User, dataDir)
-		}
+		dataDir := clusterutil.Abs(globalOptions.User, inst.DataDir())
 		// log dir will always be with values, but might not used by the component
 		logDir := clusterutil.Abs(globalOptions.User, inst.LogDir())
 		// Deploy component
 		t := task.NewBuilder().
+			UserSSH(inst.GetHost(), inst.GetSSHPort(), globalOptions.User, sshTimeout).
 			Mkdir(globalOptions.User, inst.GetHost(),
 				deployDir, dataDir, logDir,
 				filepath.Join(deployDir, "bin"),

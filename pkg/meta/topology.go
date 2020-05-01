@@ -52,10 +52,10 @@ type (
 	// ResourceControl is used to control the system resource
 	// See: https://www.freedesktop.org/software/systemd/man/systemd.resource-control.html
 	ResourceControl struct {
-		MemoryLimit         string `yaml:"memory_limit"`
-		CPUQuota            string `yaml:"cpu_quota"`
-		IOReadBandwidthMax  string `yaml:"io_read_bandwidth_max"`
-		IOWriteBandwidthMax string `yaml:"io_write_bandwidth_max"`
+		MemoryLimit         string `yaml:"memory_limit,omitempty"`
+		CPUQuota            string `yaml:"cpu_quota,omitempty"`
+		IOReadBandwidthMax  string `yaml:"io_read_bandwidth_max,omitempty"`
+		IOWriteBandwidthMax string `yaml:"io_write_bandwidth_max,omitempty"`
 	}
 
 	// GlobalOptions represents the global options for all groups in topology
@@ -66,7 +66,7 @@ type (
 		DeployDir       string          `yaml:"deploy_dir,omitempty" default:"deploy"`
 		DataDir         string          `yaml:"data_dir,omitempty" default:"data"`
 		LogDir          string          `yaml:"log_dir,omitempty"`
-		ResourceControl ResourceControl `yaml:"resource_control"`
+		ResourceControl ResourceControl `yaml:"resource_control,omitempty"`
 	}
 
 	// MonitoredOptions represents the monitored node configuration
@@ -76,7 +76,8 @@ type (
 		DeployDir            string          `yaml:"deploy_dir,omitempty"`
 		DataDir              string          `yaml:"data_dir,omitempty"`
 		LogDir               string          `yaml:"log_dir,omitempty"`
-		ResourceControl      ResourceControl `yaml:"resource_control"`
+		NumaNode             string          `yaml:"numa_node,omitempty"`
+		ResourceControl      ResourceControl `yaml:"resource_control,omitempty"`
 	}
 
 	// ServerConfigs represents the server runtime configuration
@@ -88,6 +89,7 @@ type (
 		TiFlashLearner map[string]interface{} `yaml:"tiflash-learner"`
 		Pump           map[string]interface{} `yaml:"pump"`
 		Drainer        map[string]interface{} `yaml:"drainer"`
+		CDC            map[string]interface{} `yaml:"cdc"`
 	}
 
 	// TopologySpecification represents the specification of topology.yaml
@@ -101,6 +103,7 @@ type (
 		PDServers        []PDSpec           `yaml:"pd_servers"`
 		PumpServers      []PumpSpec         `yaml:"pump_servers,omitempty"`
 		Drainers         []DrainerSpec      `yaml:"drainer_servers,omitempty"`
+		CDCServers       []CDCSpec          `yaml:"cdc_servers,omitempty"`
 		Monitors         []PrometheusSpec   `yaml:"monitoring_servers"`
 		Grafana          []GrafanaSpec      `yaml:"grafana_servers,omitempty"`
 		Alertmanager     []AlertManagerSpec `yaml:"alertmanager_servers,omitempty"`
@@ -129,7 +132,7 @@ type TiDBSpec struct {
 	LogDir          string                 `yaml:"log_dir,omitempty"`
 	NumaNode        string                 `yaml:"numa_node,omitempty"`
 	Config          map[string]interface{} `yaml:"config,omitempty"`
-	ResourceControl ResourceControl        `yaml:"resource_control"`
+	ResourceControl ResourceControl        `yaml:"resource_control,omitempty"`
 }
 
 // statusByURL queries current status of the instance by http status api.
@@ -187,7 +190,7 @@ type TiKVSpec struct {
 	Offline         bool                   `yaml:"offline,omitempty"`
 	NumaNode        string                 `yaml:"numa_node,omitempty"`
 	Config          map[string]interface{} `yaml:"config,omitempty"`
-	ResourceControl ResourceControl        `yaml:"resource_control"`
+	ResourceControl ResourceControl        `yaml:"resource_control,omitempty"`
 }
 
 // Status queries current status of the instance
@@ -257,7 +260,7 @@ type PDSpec struct {
 	LogDir          string                 `yaml:"log_dir,omitempty"`
 	NumaNode        string                 `yaml:"numa_node,omitempty"`
 	Config          map[string]interface{} `yaml:"config,omitempty"`
-	ResourceControl ResourceControl        `yaml:"resource_control"`
+	ResourceControl ResourceControl        `yaml:"resource_control,omitempty"`
 }
 
 // Status queries current status of the instance
@@ -329,7 +332,7 @@ type TiFlashSpec struct {
 	NumaNode             string                 `yaml:"numa_node,omitempty"`
 	Config               map[string]interface{} `yaml:"config,omitempty"`
 	LearnerConfig        map[string]interface{} `yaml:"learner_config,omitempty"`
-	ResourceControl      ResourceControl        `yaml:"resource_control"`
+	ResourceControl      ResourceControl        `yaml:"resource_control,omitempty"`
 }
 
 // Status queries current status of the instance
@@ -406,7 +409,7 @@ type DrainerSpec struct {
 	Offline         bool                   `yaml:"offline,omitempty"`
 	NumaNode        string                 `yaml:"numa_node,omitempty"`
 	Config          map[string]interface{} `yaml:"config,omitempty"`
-	ResourceControl ResourceControl        `yaml:"resource_control"`
+	ResourceControl ResourceControl        `yaml:"resource_control,omitempty"`
 }
 
 // Role returns the component role of the instance
@@ -429,6 +432,40 @@ func (s DrainerSpec) IsImported() bool {
 	return s.Imported
 }
 
+// CDCSpec represents the Drainer topology specification in topology.yaml
+type CDCSpec struct {
+	Host            string                 `yaml:"host"`
+	SSHPort         int                    `yaml:"ssh_port,omitempty"`
+	Imported        bool                   `yaml:"imported,omitempty"`
+	Port            int                    `yaml:"port" default:"8300"`
+	DeployDir       string                 `yaml:"deploy_dir,omitempty"`
+	LogDir          string                 `yaml:"log_dir,omitempty"`
+	Offline         bool                   `yaml:"offline,omitempty"`
+	NumaNode        string                 `yaml:"numa_node,omitempty"`
+	Config          map[string]interface{} `yaml:"config,omitempty"`
+	ResourceControl ResourceControl        `yaml:"resource_control,omitempty"`
+}
+
+// Role returns the component role of the instance
+func (s CDCSpec) Role() string {
+	return ComponentCDC
+}
+
+// SSH returns the host and SSH port of the instance
+func (s CDCSpec) SSH() (string, int) {
+	return s.Host, s.SSHPort
+}
+
+// GetMainPort returns the main port of the instance
+func (s CDCSpec) GetMainPort() int {
+	return s.Port
+}
+
+// IsImported returns if the node is imported from TiDB-Ansible
+func (s CDCSpec) IsImported() bool {
+	return s.Imported
+}
+
 // PrometheusSpec represents the Prometheus Server topology specification in topology.yaml
 type PrometheusSpec struct {
 	Host            string          `yaml:"host"`
@@ -438,8 +475,9 @@ type PrometheusSpec struct {
 	DeployDir       string          `yaml:"deploy_dir,omitempty"`
 	DataDir         string          `yaml:"data_dir,omitempty"`
 	LogDir          string          `yaml:"log_dir,omitempty"`
+	NumaNode        string          `yaml:"numa_node,omitempty"`
 	Retention       string          `yaml:"storage_retention,omitempty"`
-	ResourceControl ResourceControl `yaml:"resource_control"`
+	ResourceControl ResourceControl `yaml:"resource_control,omitempty"`
 }
 
 // Role returns the component role of the instance
@@ -469,7 +507,7 @@ type GrafanaSpec struct {
 	Imported        bool            `yaml:"imported,omitempty"`
 	Port            int             `yaml:"port" default:"3000"`
 	DeployDir       string          `yaml:"deploy_dir,omitempty"`
-	ResourceControl ResourceControl `yaml:"resource_control"`
+	ResourceControl ResourceControl `yaml:"resource_control,omitempty"`
 }
 
 // Role returns the component role of the instance
@@ -502,7 +540,8 @@ type AlertManagerSpec struct {
 	DeployDir       string          `yaml:"deploy_dir,omitempty"`
 	DataDir         string          `yaml:"data_dir,omitempty"`
 	LogDir          string          `yaml:"log_dir,omitempty"`
-	ResourceControl ResourceControl `yaml:"resource_control"`
+	NumaNode        string          `yaml:"numa_node,omitempty"`
+	ResourceControl ResourceControl `yaml:"resource_control,omitempty"`
 }
 
 // Role returns the component role of the instance
@@ -720,6 +759,11 @@ func (topo *TopologySpecification) dirConflictsDetect() error {
 						host: host,
 						dir:  compSpec.Field(j).String(),
 					}
+					// data_dir is relative to deploy_dir by default, so they can be with
+					// same (sub) paths as long as the deploy_dirs are different
+					if item.dir != "" && !strings.HasPrefix(item.dir, "/") {
+						continue
+					}
 					// `yaml:"data_dir,omitempty"`
 					tp := strings.Split(compSpec.Type().Field(j).Tag.Get("yaml"), ",")[0]
 					prev, exist := dirStats[item]
@@ -779,6 +823,7 @@ func (topo *TopologySpecification) Merge(that *TopologySpecification) *TopologyS
 		TiFlashServers:   append(topo.TiFlashServers, that.TiFlashServers...),
 		PumpServers:      append(topo.PumpServers, that.PumpServers...),
 		Drainers:         append(topo.Drainers, that.Drainers...),
+		CDCServers:       append(topo.CDCServers, that.CDCServers...),
 		Monitors:         append(topo.Monitors, that.Monitors...),
 		Grafana:          append(topo.Grafana, that.Grafana...),
 		Alertmanager:     append(topo.Alertmanager, that.Alertmanager...),
@@ -867,7 +912,28 @@ func setCustomDefaults(globalOptions *GlobalOptions, field reflect.Value) error 
 			clientPort := field.FieldByName("ClientPort").Int()
 			field.Field(j).Set(reflect.ValueOf(fmt.Sprintf("pd-%s-%d", host, clientPort)))
 		case "DataDir":
-			setDefaultDir(globalOptions.DataDir, field.Interface().(InstanceSpec).Role(), getPort(field), field.Field(j))
+			dataDir := field.Field(j).String()
+			if dataDir != "" { // already have a value, skip filling default values
+				continue
+			}
+			// If the data dir in global options is an obsolute path, it appends to
+			// the global and has a comp-port sub directory
+			if strings.HasPrefix(globalOptions.DataDir, "/") {
+				field.Field(j).Set(reflect.ValueOf(filepath.Join(
+					globalOptions.DataDir,
+					fmt.Sprintf("%s-%s", field.Interface().(InstanceSpec).Role(), getPort(field)),
+				)))
+				continue
+			}
+			// If the data dir in global options is empty or a relative path, keep it be relative
+			// Our run_*.sh start scripts are run inside deploy_path, so the final location
+			// will be deploy_path/global.data_dir
+			// (the default value of global.data_dir is "data")
+			if globalOptions.DataDir == "" {
+				field.Field(j).Set(reflect.ValueOf("data"))
+			} else {
+				field.Field(j).Set(reflect.ValueOf(globalOptions.DataDir))
+			}
 		case "DeployDir":
 			setDefaultDir(globalOptions.DeployDir, field.Interface().(InstanceSpec).Role(), getPort(field), field.Field(j))
 		case "LogDir":

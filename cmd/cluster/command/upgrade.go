@@ -17,7 +17,6 @@ import (
 	"os"
 
 	"github.com/joomcode/errorx"
-	"github.com/pingcap-incubator/tiup-cluster/pkg/bindversion"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/clusterutil"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/log"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/logger"
@@ -94,8 +93,8 @@ func upgrade(clusterName, clusterVersion string, opt upgradeOptions) error {
 
 	for _, comp := range metadata.Topology.ComponentsByStartOrder() {
 		for _, inst := range comp.Instances() {
-			version := bindversion.ComponentVersion(inst.ComponentName(), clusterVersion)
-			if version == "" || inst.ComponentName() == "tiflash" {
+			version := meta.ComponentVersion(inst.ComponentName(), clusterVersion)
+			if version == "" {
 				return errors.Errorf("unsupported component: %v", inst.ComponentName())
 			}
 			compInfo := componentInfo{
@@ -114,10 +113,7 @@ func upgrade(clusterName, clusterVersion string, opt upgradeOptions) error {
 
 			deployDir := clusterutil.Abs(metadata.User, inst.DeployDir())
 			// data dir would be empty for components which don't need it
-			dataDir := inst.DataDir()
-			if dataDir != "" {
-				clusterutil.Abs(metadata.User, dataDir)
-			}
+			dataDir := clusterutil.Abs(metadata.User, inst.DataDir())
 			// log dir will always be with values, but might not used by the component
 			logDir := clusterutil.Abs(metadata.User, inst.LogDir())
 

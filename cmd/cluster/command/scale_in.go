@@ -18,7 +18,6 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/joomcode/errorx"
-	"github.com/pingcap-incubator/tiup-cluster/pkg/bindversion"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/cliutil"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/clusterutil"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/log"
@@ -89,10 +88,7 @@ func scaleIn(clusterName string, options operator.Options) error {
 			}
 			deployDir := clusterutil.Abs(metadata.User, instance.DeployDir())
 			// data dir would be empty for components which don't need it
-			dataDir := instance.DataDir()
-			if dataDir != "" {
-				clusterutil.Abs(metadata.User, dataDir)
-			}
+			dataDir := clusterutil.Abs(metadata.User, instance.DataDir())
 			// log dir will always be with values, but might not used by the component
 			logDir := clusterutil.Abs(metadata.User, instance.LogDir())
 
@@ -101,7 +97,7 @@ func scaleIn(clusterName string, options operator.Options) error {
 			if instance.IsImported() {
 				switch compName := instance.ComponentName(); compName {
 				case meta.ComponentGrafana, meta.ComponentPrometheus, meta.ComponentAlertManager:
-					version := bindversion.ComponentVersion(compName, metadata.Version)
+					version := meta.ComponentVersion(compName, metadata.Version)
 					tb.Download(compName, version).CopyComponent(compName, version, instance.GetHost(), deployDir)
 				}
 			}
