@@ -31,6 +31,45 @@ func TestMeta(t *testing.T) {
 	TestingT(t)
 }
 
+func (s *metaSuite) TestDefaultDataDir(c *C) {
+	// Test with without global DataDir.
+	topo := new(TopologySpecification)
+	topo.TiKVServers = append(topo.TiKVServers, TiKVSpec{Host: "1.1.1.1", Port: 22})
+	data, err := yaml.Marshal(topo)
+	c.Assert(err, IsNil)
+
+	// Check default value.
+	topo = new(TopologySpecification)
+	err = yaml.Unmarshal(data, topo)
+	c.Assert(err, IsNil)
+	c.Assert(topo.GlobalOptions.DataDir, Equals, "data")
+	c.Assert(topo.TiKVServers[0].DataDir, Equals, "data")
+
+	// Can keep the default value.
+	data, err = yaml.Marshal(topo)
+	c.Assert(err, IsNil)
+	topo = new(TopologySpecification)
+	err = yaml.Unmarshal(data, topo)
+	c.Assert(err, IsNil)
+	c.Assert(topo.GlobalOptions.DataDir, Equals, "data")
+	c.Assert(topo.TiKVServers[0].DataDir, Equals, "data")
+
+	// Test with global DataDir.
+	topo = new(TopologySpecification)
+	topo.GlobalOptions.DataDir = "/gloable_data"
+	topo.TiKVServers = append(topo.TiKVServers, TiKVSpec{Host: "1.1.1.1", Port: 22})
+	topo.TiKVServers = append(topo.TiKVServers, TiKVSpec{Host: "1.1.1.2", Port: 33, DataDir: "/my_data"})
+	data, err = yaml.Marshal(topo)
+	c.Assert(err, IsNil)
+
+	topo = new(TopologySpecification)
+	err = yaml.Unmarshal(data, topo)
+	c.Assert(err, IsNil)
+	c.Assert(topo.GlobalOptions.DataDir, Equals, "/gloable_data")
+	c.Assert(topo.TiKVServers[0].DataDir, Equals, "/gloable_data/tikv-22")
+	c.Assert(topo.TiKVServers[1].DataDir, Equals, "/my_data")
+}
+
 func (s *metaSuite) TestGlobalOptions(c *C) {
 	topo := TopologySpecification{}
 	err := yaml.Unmarshal([]byte(`
@@ -86,13 +125,28 @@ global:
   data_dir: "test-data" 
 tidb_servers:
   - host: 172.16.5.138
-    deploy_dir: "test-1"
+    deploy_dir: "/test-1"
+pd_servers:
+  - host: 172.16.5.138
+    data_dir: "/test-1"
+`), &topo)
+	c.Assert(err, NotNil)
+	c.Assert(err.Error(), Equals, "directory '/test-1' conflicts between 'tidb_servers:172.16.5.138.deploy_dir' and 'pd_servers:172.16.5.138.data_dir'")
+
+	err = yaml.Unmarshal([]byte(`
+global:
+  user: "test1"
+  ssh_port: 220
+  deploy_dir: "test-deploy"
+  data_dir: "/test-data" 
+tikv_servers:
+  - host: 172.16.5.138
+    data_dir: "test-1"
 pd_servers:
   - host: 172.16.5.138
     data_dir: "test-1"
 `), &topo)
-	c.Assert(err, NotNil)
-	c.Assert(err.Error(), Equals, "directory 'test-1' conflicts between 'tidb_servers:172.16.5.138.deploy_dir' and 'pd_servers:172.16.5.138.data_dir'")
+	c.Assert(err, IsNil)
 }
 
 func (s *metaSuite) TestPortConflicts(c *C) {
