@@ -870,9 +870,7 @@ func (i *TiFlashInstance) InitConfig(e executor.TiOpsExecutor, clusterName, clus
 	}
 
 	dataDir := paths.Data
-	if spec.DataDir != "" {
-		dataDir = spec.DataDir
-	} else if dir, ok := i.instance.topo.ServerConfigs.TiFlash["data_dir"].(string); ok && dir != "" {
+	if dir, ok := i.instance.topo.ServerConfigs.TiFlash["data_dir"].(string); ok && dir != "" {
 		dataDir = dir
 	}
 
