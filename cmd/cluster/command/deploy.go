@@ -247,7 +247,14 @@ func deploy(clusterName, clusterVersion, topoFile string, opt deployOptions) err
 				filepath.Join(deployDir, "bin"),
 				filepath.Join(deployDir, "conf"),
 				filepath.Join(deployDir, "scripts")).
-			CopyComponent(inst.ComponentName(), version, inst.GetHost(), deployDir).
+			CopyComponent(
+				inst.ComponentName(),
+				inst.OS(),
+				inst.Arch(),
+				version,
+				inst.GetHost(),
+				deployDir,
+			).
 			InitConfig(
 				clusterName,
 				clusterVersion,
@@ -323,7 +330,7 @@ func buildMonitoredDeployTask(
 
 		for host, info := range uniqueHosts {
 			// populate unique os/arch set
-			key := fmt.Sprintf("%s/%s", info.os, info.arch)
+			key := fmt.Sprintf("%s-%s", info.os, info.arch)
 			if _, found := uniqueOsArch[key]; !found {
 				uniqueOsArch[key] = struct{}{}
 				downloadCompTasks = append(downloadCompTasks, task.NewBuilder().
@@ -349,7 +356,14 @@ func buildMonitoredDeployTask(
 					filepath.Join(deployDir, "bin"),
 					filepath.Join(deployDir, "conf"),
 					filepath.Join(deployDir, "scripts")).
-				CopyComponent(comp, version, host, deployDir).
+				CopyComponent(
+					comp,
+					info.os,
+					info.arch,
+					version,
+					host,
+					deployDir,
+				).
 				MonitoredConfig(
 					clusterName,
 					comp,

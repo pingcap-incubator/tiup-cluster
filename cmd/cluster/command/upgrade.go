@@ -117,10 +117,10 @@ func upgrade(clusterName, clusterVersion string, opt operator.Options) error {
 			if inst.IsImported() {
 				switch inst.ComponentName() {
 				case meta.ComponentPrometheus, meta.ComponentGrafana, meta.ComponentAlertManager:
-					tb.CopyComponent(inst.ComponentName(), version, inst.GetHost(), deployDir)
+					tb.CopyComponent(inst.ComponentName(), inst.OS(), inst.Arch(), version, inst.GetHost(), deployDir)
 				default:
 					tb.BackupComponent(inst.ComponentName(), metadata.Version, inst.GetHost(), deployDir).
-						CopyComponent(inst.ComponentName(), version, inst.GetHost(), deployDir)
+						CopyComponent(inst.ComponentName(), inst.OS(), inst.Arch(), version, inst.GetHost(), deployDir)
 				}
 				tb.InitConfig(
 					clusterName,
@@ -136,7 +136,7 @@ func upgrade(clusterName, clusterVersion string, opt operator.Options) error {
 				)
 			} else {
 				tb.BackupComponent(inst.ComponentName(), metadata.Version, inst.GetHost(), deployDir).
-					CopyComponent(inst.ComponentName(), version, inst.GetHost(), deployDir)
+					CopyComponent(inst.ComponentName(), inst.OS(), inst.Arch(), version, inst.GetHost(), deployDir)
 			}
 			copyCompTasks = append(copyCompTasks, tb.Build())
 		}

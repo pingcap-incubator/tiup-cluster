@@ -245,7 +245,7 @@ func buildScaleOutTask(
 		if patchedComponents.Exist(inst.ComponentName()) {
 			tb.InstallPackage(meta.ClusterPath(clusterName, meta.PatchDirName, inst.ComponentName()+".tar.gz"), inst.GetHost(), deployDir)
 		} else {
-			tb.CopyComponent(inst.ComponentName(), version, inst.GetHost(), deployDir)
+			tb.CopyComponent(inst.ComponentName(), inst.OS(), inst.Arch(), version, inst.GetHost(), deployDir)
 		}
 		t := tb.ScaleConfig(clusterName,
 			metadata.Version,
@@ -275,7 +275,7 @@ func buildScaleOutTask(
 			case meta.ComponentGrafana, meta.ComponentPrometheus, meta.ComponentAlertManager:
 				version := meta.ComponentVersion(compName, metadata.Version)
 				tb.Download(compName, inst.OS(), inst.Arch(), version).
-					CopyComponent(compName, version, inst.GetHost(), deployDir)
+					CopyComponent(compName, inst.OS(), inst.Arch(), version, inst.GetHost(), deployDir)
 			}
 		}
 

@@ -96,7 +96,7 @@ func scaleIn(clusterName string, options operator.Options) error {
 				case meta.ComponentGrafana, meta.ComponentPrometheus, meta.ComponentAlertManager:
 					version := meta.ComponentVersion(compName, metadata.Version)
 					tb.Download(compName, instance.OS(), instance.Arch(), version).
-						CopyComponent(compName, version, instance.GetHost(), deployDir)
+						CopyComponent(compName, instance.OS(), instance.Arch(), version, instance.GetHost(), deployDir)
 				}
 			}
 

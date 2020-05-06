@@ -120,9 +120,14 @@ func (b *Builder) Download(component, os, arch string, version repository.Versio
 }
 
 // CopyComponent appends a CopyComponent task to the current task collection
-func (b *Builder) CopyComponent(component string, version repository.Version, dstHost, dstDir string) *Builder {
+func (b *Builder) CopyComponent(component, os, arch string,
+	version repository.Version,
+	dstHost, dstDir string,
+) *Builder {
 	b.tasks = append(b.tasks, &CopyComponent{
 		component: component,
+		os:        os,
+		arch:      arch,
 		version:   version,
 		host:      dstHost,
 		dstDir:    dstDir,
