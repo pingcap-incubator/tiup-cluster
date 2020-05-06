@@ -122,5 +122,6 @@ func (d *Downloader) Rollback(ctx *Context) error {
 
 // String implements the fmt.Stringer interface
 func (d *Downloader) String() string {
-	return fmt.Sprintf("Download: component=%s, version=%s", d.component, d.version)
+	return fmt.Sprintf("Download: component=%s, version=%s, os=%s, arch=%s",
+		d.component, d.version, d.os, d.arch)
 }
