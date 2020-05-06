@@ -957,9 +957,14 @@ func setCustomDefaults(globalOptions *GlobalOptions, field reflect.Value) error 
 			if field.Field(j).String() == "" {
 				field.Field(j).Set(reflect.ValueOf(globalOptions.Arch))
 			}
+
+			switch strings.ToLower(field.Field(j).String()) {
 			// replace "x86_64" with amd64, they are the same in our repo
-			if strings.ToLower(field.Field(j).String()) == "x86_64" {
+			case "x86_64":
 				field.Field(j).Set(reflect.ValueOf("amd64"))
+			// replace "aarch64" with arm64
+			case "aarch64":
+				field.Field(j).Set(reflect.ValueOf("arm64"))
 			}
 		case "OS":
 			if field.Field(j).String() == "" {
