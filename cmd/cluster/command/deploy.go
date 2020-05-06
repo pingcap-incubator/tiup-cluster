@@ -232,7 +232,7 @@ func deploy(clusterName, clusterVersion, topoFile string, opt deployOptions) err
 				globalOptions.User,
 				meta.DirPaths{
 					Deploy: deployDir,
-					Data:   strings.Join(dataDirs, " "),
+					Data:   dataDirs,
 					Log:    logDir,
 					Cache:  meta.ClusterPath(clusterName, "config"),
 				},
@@ -324,7 +324,7 @@ func buildMonitoredDeployTask(
 					globalOptions.User,
 					meta.DirPaths{
 						Deploy: deployDir,
-						Data:   dataDir,
+						Data:   []string{dataDir},
 						Log:    logDir,
 						Cache:  meta.ClusterPath(clusterName, "config"),
 					},

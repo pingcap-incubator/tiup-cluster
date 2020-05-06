@@ -482,7 +482,7 @@ func (i *TiKVInstance) InitConfig(e executor.TiOpsExecutor, clusterName, cluster
 	cfg := scripts.NewTiKVScript(
 		i.GetHost(),
 		paths.Deploy,
-		paths.Data,
+		paths.Data[0],
 		paths.Log,
 	).WithPort(spec.Port).WithNumaNode(spec.NumaNode).WithStatusPort(spec.StatusPort).AppendEndpoints(i.instance.topo.Endpoints(deployUser)...)
 	fp := filepath.Join(paths.Cache, fmt.Sprintf("run_tikv_%s_%d.sh", i.GetHost(), i.GetPort()))
@@ -602,7 +602,7 @@ func (i *PDInstance) InitConfig(e executor.TiOpsExecutor, clusterName, clusterVe
 		name,
 		i.GetHost(),
 		paths.Deploy,
-		paths.Data,
+		paths.Data[0],
 		paths.Log,
 	).WithClientPort(spec.ClientPort).WithPeerPort(spec.PeerPort).AppendEndpoints(i.instance.topo.Endpoints(deployUser)...)
 
@@ -677,7 +677,7 @@ func (i *PDInstance) ScaleConfig(e executor.TiOpsExecutor, b Specification, clus
 		name,
 		i.GetHost(),
 		paths.Deploy,
-		paths.Data,
+		paths.Data[0],
 		paths.Log,
 	).WithPeerPort(spec.PeerPort).WithNumaNode(spec.NumaNode).WithClientPort(spec.ClientPort).AppendEndpoints(c.Endpoints(deployUser)...)
 
@@ -869,7 +869,7 @@ func (i *TiFlashInstance) InitConfig(e executor.TiOpsExecutor, clusterName, clus
 		}
 	}
 
-	dataDir := paths.Data
+	dataDir := strings.Join(paths.Data, ",")
 	if dir, ok := i.instance.topo.ServerConfigs.TiFlash["data_dir"].(string); ok && dir != "" {
 		dataDir = dir
 	}
@@ -1031,7 +1031,7 @@ func (i *MonitorInstance) InitConfig(e executor.TiOpsExecutor, clusterName, clus
 	cfg := scripts.NewPrometheusScript(
 		i.GetHost(),
 		paths.Deploy,
-		paths.Data,
+		paths.Data[0],
 		paths.Log,
 	).WithPort(spec.Port).
 		WithNumaNode(spec.NumaNode)
@@ -1278,7 +1278,7 @@ func (i *AlertManagerInstance) InitConfig(e executor.TiOpsExecutor, clusterName,
 
 	// Transfer start script
 	spec := i.InstanceSpec.(AlertManagerSpec)
-	cfg := scripts.NewAlertManagerScript(spec.Host, paths.Deploy, paths.Data, paths.Log).
+	cfg := scripts.NewAlertManagerScript(spec.Host, paths.Deploy, paths.Data[0], paths.Log).
 		WithWebPort(spec.WebPort).WithClusterPort(spec.ClusterPort).WithNumaNode(spec.NumaNode).AppendEndpoints(i.instance.topo.AlertManagerEndpoints(deployUser))
 
 	fp := filepath.Join(paths.Cache, fmt.Sprintf("run_alertmanager_%s_%d.sh", i.GetHost(), i.GetPort()))

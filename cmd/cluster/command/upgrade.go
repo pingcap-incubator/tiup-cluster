@@ -138,7 +138,7 @@ func upgrade(clusterName, clusterVersion string, opt upgradeOptions) error {
 					metadata.User,
 					meta.DirPaths{
 						Deploy: deployDir,
-						Data:   strings.Join(dataDirs, " "),
+						Data:   dataDirs,
 						Log:    logDir,
 						Cache:  meta.ClusterPath(clusterName, "config"),
 					},
