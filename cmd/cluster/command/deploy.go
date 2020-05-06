@@ -168,7 +168,11 @@ func deploy(clusterName, clusterVersion, topoFile string, opt deployOptions) err
 	)
 
 	// Initialize environment
-	uniqueHosts := map[string]int{} // host -> ssh-port
+	uniqueHosts := make(map[string]struct {
+		ssh  int
+		os   string
+		arch string
+	}) // host -> ssh-port, os, arch
 	globalOptions := topo.GlobalOptions
 	var iterErr error // error when itering over instances
 	iterErr = nil
@@ -183,7 +187,15 @@ func deploy(clusterName, clusterVersion, topoFile string, opt deployOptions) err
 				return // skip the host to avoid issues
 			}
 
-			uniqueHosts[inst.GetHost()] = inst.GetSSHPort()
+			uniqueHosts[inst.GetHost()] = struct {
+				ssh  int
+				os   string
+				arch string
+			}{
+				ssh:  inst.GetSSHPort(),
+				os:   inst.OS(),
+				arch: inst.Arch(),
+			}
 			var dirs []string
 			for _, dir := range []string{globalOptions.DeployDir, globalOptions.LogDir} {
 				if dir == "" {
@@ -295,19 +307,30 @@ func deploy(clusterName, clusterVersion, topoFile string, opt deployOptions) err
 
 func buildMonitoredDeployTask(
 	clusterName string,
-	uniqueHosts map[string]int, // host -> ssh-port
+	uniqueHosts map[string]struct {
+		ssh  int
+		os   string
+		arch string
+	}, // host -> ssh-port, os, arch
 	globalOptions meta.GlobalOptions,
 	monitoredOptions meta.MonitoredOptions,
 	version string,
 ) (downloadCompTasks []*task.StepDisplay, deployCompTasks []*task.StepDisplay) {
+	uniqueOsArch := make(map[string]struct{}) // os-arch -> {}
+	// monitoring agents
 	for _, comp := range []string{meta.ComponentNodeExporter, meta.ComponentBlackboxExporter} {
 		version := meta.ComponentVersion(comp, version)
-		t := task.NewBuilder().
-			Download(comp, "linux", "amd64", version).
-			BuildAsStep(fmt.Sprintf("  - Download %s:%s", comp, version))
-		downloadCompTasks = append(downloadCompTasks, t)
 
-		for host, sshPort := range uniqueHosts {
+		for host, info := range uniqueHosts {
+			// populate unique os/arch set
+			key := fmt.Sprintf("%s/%s", info.os, info.arch)
+			if _, found := uniqueOsArch[key]; !found {
+				uniqueOsArch[key] = struct{}{}
+				downloadCompTasks = append(downloadCompTasks, task.NewBuilder().
+					Download(comp, info.os, info.arch, version).
+					BuildAsStep(fmt.Sprintf("  - Download %s:%s", comp, version)))
+			}
+
 			deployDir := clusterutil.Abs(globalOptions.User, monitoredOptions.DeployDir)
 			// data dir would be empty for components which don't need it
 			dataDir := monitoredOptions.DataDir
@@ -320,7 +343,7 @@ func buildMonitoredDeployTask(
 
 			// Deploy component
 			t := task.NewBuilder().
-				UserSSH(host, sshPort, globalOptions.User, gOpt.SSHTimeout).
+				UserSSH(host, info.ssh, globalOptions.User, gOpt.SSHTimeout).
 				Mkdir(globalOptions.User, host,
 					deployDir, dataDir, logDir,
 					filepath.Join(deployDir, "bin"),
