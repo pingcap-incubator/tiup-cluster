@@ -253,11 +253,19 @@ func (i *instance) DataDir() string {
 	}
 
 	// the default data_dir is relative to deploy_dir
-	if dataDir.String() != "" && !strings.HasPrefix(dataDir.String(), "/") {
-		return filepath.Join(i.DeployDir(), dataDir.String())
+	var dirs []string
+	for _, dir := range strings.Split(dataDir.String(), ",") {
+		if dir == "" {
+			continue
+		}
+		if !strings.HasPrefix(dir, "/") {
+			dirs = append(dirs, filepath.Join(i.DeployDir(), dir))
+		} else {
+			dirs = append(dirs, dir)
+		}
 	}
 
-	return dataDir.String()
+	return strings.Join(dirs, ",")
 }
 
 // MergeResourceControl merge the rhs into lhs and overwrite rhs if lhs has value for same field

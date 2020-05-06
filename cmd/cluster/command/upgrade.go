@@ -15,6 +15,7 @@ package command
 
 import (
 	"os"
+	"strings"
 
 	"github.com/joomcode/errorx"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/clusterutil"
@@ -113,7 +114,10 @@ func upgrade(clusterName, clusterVersion string, opt upgradeOptions) error {
 
 			deployDir := clusterutil.Abs(metadata.User, inst.DeployDir())
 			// data dir would be empty for components which don't need it
-			dataDir := clusterutil.Abs(metadata.User, inst.DataDir())
+			var dataDirs []string
+			for _, dataDir := range strings.Split(inst.DataDir(), ",") {
+				dataDirs = append(dataDirs, clusterutil.Abs(metadata.User, dataDir))
+			}
 			// log dir will always be with values, but might not used by the component
 			logDir := clusterutil.Abs(metadata.User, inst.LogDir())
 
@@ -134,7 +138,7 @@ func upgrade(clusterName, clusterVersion string, opt upgradeOptions) error {
 					metadata.User,
 					meta.DirPaths{
 						Deploy: deployDir,
-						Data:   dataDir,
+						Data:   strings.Join(dataDirs, " "),
 						Log:    logDir,
 						Cache:  meta.ClusterPath(clusterName, "config"),
 					},

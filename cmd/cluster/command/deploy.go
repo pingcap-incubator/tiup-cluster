@@ -180,7 +180,7 @@ func deploy(clusterName, clusterVersion, topoFile string, opt deployOptions) err
 				}
 				dirs = append(dirs, clusterutil.Abs(globalOptions.User, dir))
 			}
-			// the dafault, relative path of data dir is under deploy dir
+			// the default, relative path of data dir is under deploy dir
 			if strings.HasPrefix(globalOptions.DataDir, "/") {
 				dirs = append(dirs, globalOptions.DataDir)
 			}
@@ -209,17 +209,21 @@ func deploy(clusterName, clusterVersion, topoFile string, opt deployOptions) err
 		version := meta.ComponentVersion(inst.ComponentName(), clusterVersion)
 		deployDir := clusterutil.Abs(globalOptions.User, inst.DeployDir())
 		// data dir would be empty for components which don't need it
-		dataDir := clusterutil.Abs(globalOptions.User, inst.DataDir())
+		var dataDirs []string
+		for _, dataDir := range strings.Split(inst.DataDir(), ",") {
+			dataDirs = append(dataDirs, clusterutil.Abs(globalOptions.User, dataDir))
+		}
 		// log dir will always be with values, but might not used by the component
 		logDir := clusterutil.Abs(globalOptions.User, inst.LogDir())
 		// Deploy component
 		t := task.NewBuilder().
 			UserSSH(inst.GetHost(), inst.GetSSHPort(), globalOptions.User, sshTimeout).
 			Mkdir(globalOptions.User, inst.GetHost(),
-				deployDir, dataDir, logDir,
+				deployDir, logDir,
 				filepath.Join(deployDir, "bin"),
 				filepath.Join(deployDir, "conf"),
 				filepath.Join(deployDir, "scripts")).
+			Mkdir(globalOptions.User, inst.GetHost(), dataDirs...).
 			CopyComponent(inst.ComponentName(), version, inst.GetHost(), deployDir).
 			InitConfig(
 				clusterName,
@@ -228,7 +232,7 @@ func deploy(clusterName, clusterVersion, topoFile string, opt deployOptions) err
 				globalOptions.User,
 				meta.DirPaths{
 					Deploy: deployDir,
-					Data:   dataDir,
+					Data:   strings.Join(dataDirs, " "),
 					Log:    logDir,
 					Cache:  meta.ClusterPath(clusterName, "config"),
 				},
