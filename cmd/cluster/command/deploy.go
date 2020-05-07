@@ -323,16 +323,16 @@ func buildMonitoredDeployTask(
 	monitoredOptions meta.MonitoredOptions,
 	version string,
 ) (downloadCompTasks []*task.StepDisplay, deployCompTasks []*task.StepDisplay) {
-	uniqueOsArch := make(map[string]struct{}) // os-arch -> {}
+	uniqueCompOSArch := make(map[string]struct{}) // comp-os-arch -> {}
 	// monitoring agents
 	for _, comp := range []string{meta.ComponentNodeExporter, meta.ComponentBlackboxExporter} {
 		version := meta.ComponentVersion(comp, version)
 
 		for host, info := range uniqueHosts {
 			// populate unique os/arch set
-			key := fmt.Sprintf("%s-%s", info.os, info.arch)
-			if _, found := uniqueOsArch[key]; !found {
-				uniqueOsArch[key] = struct{}{}
+			key := fmt.Sprintf("%s-%s-%s", comp, info.os, info.arch)
+			if _, found := uniqueCompOSArch[key]; !found {
+				uniqueCompOSArch[key] = struct{}{}
 				downloadCompTasks = append(downloadCompTasks, task.NewBuilder().
 					Download(comp, info.os, info.arch, version).
 					BuildAsStep(fmt.Sprintf("  - Download %s:%s", comp, version)))
