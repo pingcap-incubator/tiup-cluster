@@ -14,6 +14,8 @@
 package command
 
 import (
+	"context"
+	"io/ioutil"
 	"path/filepath"
 	"strings"
 
@@ -25,6 +27,7 @@ import (
 	"github.com/pingcap-incubator/tiup-cluster/pkg/logger"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/meta"
 	operator "github.com/pingcap-incubator/tiup-cluster/pkg/operation"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/report"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/task"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/utils"
 	"github.com/pingcap-incubator/tiup/pkg/set"
@@ -72,6 +75,10 @@ func scaleOut(clusterName, topoFile string, opt scaleOutOptions) error {
 	var newPart meta.TopologySpecification
 	if err := utils.ParseTopologyYaml(topoFile, &newPart); err != nil {
 		return err
+	}
+
+	if data, err := ioutil.ReadFile(topoFile); err == nil {
+		teleTopology = string(data)
 	}
 
 	metadata, err := meta.ClusterMetadata(clusterName)
@@ -290,6 +297,14 @@ func buildScaleOutTask(
 		refreshConfigTasks = append(refreshConfigTasks, t)
 	})
 
+	nodeInfoTask := task.NewBuilder().Func("hidden", func(ctx *task.Context) error {
+		var err error
+		teleNodeInfos, err = operator.GetNodeInfo(context.Background(), ctx, newPart)
+		_ = err
+		// intend to never return error
+		return nil
+	}).BuildAsStep("").SetHidden(true)
+
 	// Deploy monitor relevant components to remote
 	dlTasks, dpTasks := buildMonitoredDeployTask(
 		clusterName,
@@ -300,6 +315,9 @@ func buildScaleOutTask(
 	)
 	downloadCompTasks = append(downloadCompTasks, convertStepDisplaysToTasks(dlTasks)...)
 	deployCompTasks = append(deployCompTasks, convertStepDisplaysToTasks(dpTasks)...)
+	if report.Enable() {
+		deployCompTasks = append(deployCompTasks, nodeInfoTask)
+	}
 
 	return task.NewBuilder().
 		SSHKeySet(
@@ -307,12 +325,12 @@ func buildScaleOutTask(
 			meta.ClusterPath(clusterName, "ssh", "id_rsa.pub")).
 		Parallel(downloadCompTasks...).
 		Parallel(envInitTasks...).
+		ClusterSSH(metadata.Topology, metadata.User, gOpt.SSHTimeout).
 		Parallel(deployCompTasks...).
 		// TODO: find another way to make sure current cluster started
-		ClusterSSH(metadata.Topology, metadata.User, gOpt.SSHTimeout).
 		ClusterOperate(metadata.Topology, operator.StartOperation, operator.Options{OptTimeout: timeout}).
 		ClusterSSH(newPart, metadata.User, gOpt.SSHTimeout).
-		Func("save meta", func() error {
+		Func("save meta", func(_ *task.Context) error {
 			metadata.Topology = mergedTopo
 			return meta.SaveClusterMeta(clusterName, metadata)
 		}).

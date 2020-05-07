@@ -13,7 +13,18 @@
 
 package flags
 
+import (
+	"os"
+)
+
 // Global flags
 var (
 	ShowBacktrace = false
+	DebugMode     = true
 )
+
+func init() {
+	if s := os.Getenv("TIUP_CLUSTER_DEBUG"); s == "enable" {
+		DebugMode = true
+	}
+}
