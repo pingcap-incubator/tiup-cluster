@@ -93,7 +93,7 @@ func confirmTopology(clusterName, version string, topo *meta.ClusterSpecificatio
 
 	clusterTable := [][]string{
 		// Header
-		{"Type", "Host", "Ports", "Directories"},
+		{"Type", "Host", "Ports", "OS/Arch", "Directories"},
 	}
 
 	topo.IterInstance(func(instance meta.Instance) {
@@ -105,6 +105,7 @@ func confirmTopology(clusterName, version string, topo *meta.ClusterSpecificatio
 			comp,
 			instance.GetHost(),
 			utils.JoinInt(instance.UsedPorts(), "/"),
+			cliutil.OsArch(instance.OS(), instance.Arch()),
 			strings.Join(instance.UsedDirs(), ","),
 		})
 	})
@@ -335,7 +336,7 @@ func buildMonitoredDeployTask(
 				uniqueCompOSArch[key] = struct{}{}
 				downloadCompTasks = append(downloadCompTasks, task.NewBuilder().
 					Download(comp, info.os, info.arch, version).
-					BuildAsStep(fmt.Sprintf("  - Download %s:%s", comp, version)))
+					BuildAsStep(fmt.Sprintf("  - Download %s:%s (%s/%s)", comp, version, info.os, info.arch)))
 			}
 
 			deployDir := clusterutil.Abs(globalOptions.User, monitoredOptions.DeployDir)
