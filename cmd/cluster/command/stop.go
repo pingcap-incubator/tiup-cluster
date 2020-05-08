@@ -75,5 +75,7 @@ func newStopCmd() *cobra.Command {
 
 	cmd.Flags().StringSliceVarP(&options.Roles, "role", "R", nil, "Only stop specified roles")
 	cmd.Flags().StringSliceVarP(&options.Nodes, "node", "N", nil, "Only stop specified nodes")
+	cmd.Flags().Int64Var(&options.OptTimeout, "wait-timeout", 60, "Timeout in seconds to wait for an operation to complete, ignored for operations that don't fit.")
+
 	return cmd
 }

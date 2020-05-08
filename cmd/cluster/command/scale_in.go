@@ -60,7 +60,8 @@ func newScaleInCmd() *cobra.Command {
 	}
 
 	cmd.Flags().StringSliceVarP(&options.Nodes, "node", "N", nil, "Specify the nodes")
-	cmd.Flags().Int64Var(&options.Timeout, "transfer-timeout", 300, "Timeout in seconds when transferring PD and TiKV store leaders")
+	cmd.Flags().Int64Var(&options.APITimeout, "transfer-timeout", 300, "Timeout in seconds when transferring PD and TiKV store leaders")
+	cmd.Flags().Int64Var(&options.OptTimeout, "wait-timeout", 60, "Timeout in seconds to wait for an operation to complete, ignored for operations that don't fit.")
 	cmd.Flags().BoolVar(&options.Force, "force", false, "Force just try stop and destroy instance before removing the instance from topo")
 
 	_ = cmd.MarkFlagRequired("node")

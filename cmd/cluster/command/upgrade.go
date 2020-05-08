@@ -49,7 +49,8 @@ func newUpgradeCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&opt.options.Force, "force", false, "Force upgrade won't transfer leader")
-	cmd.Flags().Int64Var(&opt.options.Timeout, "transfer-timeout", 300, "Timeout in seconds when transferring PD and TiKV store leaders")
+	cmd.Flags().Int64Var(&opt.options.APITimeout, "transfer-timeout", 300, "Timeout in seconds when transferring PD and TiKV store leaders")
+	cmd.Flags().Int64Var(&opt.options.OptTimeout, "wait-timeout", 60, "Timeout in seconds to wait for an operation to complete, ignored for operations that don't fit.")
 
 	return cmd
 }

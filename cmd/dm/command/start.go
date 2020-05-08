@@ -47,6 +47,8 @@ func newStartCmd() *cobra.Command {
 
 	cmd.Flags().StringSliceVarP(&options.Roles, "role", "R", nil, "Only start specified roles")
 	cmd.Flags().StringSliceVarP(&options.Nodes, "node", "N", nil, "Only start specified nodes")
+	cmd.Flags().Int64Var(&options.OptTimeout, "wait-timeout", 60, "Timeout in seconds to wait for an operation to complete, ignored for operations that don't fit.")
+
 	return cmd
 }
 

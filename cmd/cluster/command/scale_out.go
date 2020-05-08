@@ -36,6 +36,7 @@ type scaleOutOptions struct {
 	user         string // username to login to the SSH server
 	identityFile string // path to the private key file
 	usePassword  bool   // use password instead of identity file for ssh connection
+	timeout      int64  // wait timeout for operations
 }
 
 func newScaleOutCmd() *cobra.Command {
@@ -59,6 +60,7 @@ func newScaleOutCmd() *cobra.Command {
 	cmd.Flags().StringVar(&opt.user, "user", utils.CurrentUser(), "The user name to login via SSH. The user must has root (or sudo) privilege.")
 	cmd.Flags().StringVarP(&opt.identityFile, "identity_file", "i", opt.identityFile, "The path of the SSH identity file. If specified, public key authentication will be used.")
 	cmd.Flags().BoolVarP(&opt.usePassword, "password", "p", false, "Use password of target hosts. If specified, password authentication will be used.")
+	cmd.Flags().Int64Var(&opt.timeout, "wait-timeout", 60, "Timeout in seconds to wait for an operation to complete, ignored for operations that don't fit.")
 
 	return cmd
 }
@@ -115,7 +117,7 @@ func scaleOut(clusterName, topoFile string, opt scaleOutOptions) error {
 	}
 
 	// Build the scale out tasks
-	t, err := buildScaleOutTask(clusterName, metadata, mergedTopo, opt, sshConnProps, &newPart, patchedComponents)
+	t, err := buildScaleOutTask(clusterName, metadata, mergedTopo, opt, sshConnProps, &newPart, patchedComponents, opt.timeout)
 	if err != nil {
 		return err
 	}
@@ -149,7 +151,9 @@ func buildScaleOutTask(
 	opt scaleOutOptions,
 	sshConnProps *cliutil.SSHConnectionProps,
 	newPart *meta.TopologySpecification,
-	patchedComponents set.StringSet) (task.Task, error) {
+	patchedComponents set.StringSet,
+	timeout int64,
+) (task.Task, error) {
 	var (
 		envInitTasks       []task.Task // tasks which are used to initialize environment
 		downloadCompTasks  []task.Task // tasks which are used to download components
@@ -283,15 +287,18 @@ func buildScaleOutTask(
 		Parallel(deployCompTasks...).
 		// TODO: find another way to make sure current cluster started
 		ClusterSSH(metadata.Topology, metadata.User, sshTimeout).
-		ClusterOperate(metadata.Topology, operator.StartOperation, operator.Options{}).
+		ClusterOperate(metadata.Topology, operator.StartOperation, operator.Options{OptTimeout: timeout}).
 		ClusterSSH(newPart, metadata.User, sshTimeout).
 		Func("save meta", func() error {
 			metadata.Topology = mergedTopo
 			return meta.SaveClusterMeta(clusterName, metadata)
 		}).
-		ClusterOperate(newPart, operator.StartOperation, operator.Options{}).
+		ClusterOperate(newPart, operator.StartOperation, operator.Options{OptTimeout: timeout}).
 		Parallel(refreshConfigTasks...).
-		ClusterOperate(metadata.Topology, operator.RestartOperation, operator.Options{Roles: []string{meta.ComponentPrometheus}}).
+		ClusterOperate(metadata.Topology, operator.RestartOperation, operator.Options{
+			Roles:      []string{meta.ComponentPrometheus},
+			OptTimeout: timeout,
+		}).
 		Build(), nil
 
 }
