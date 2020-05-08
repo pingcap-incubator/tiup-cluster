@@ -621,6 +621,64 @@ func findField(v reflect.Value, fieldName string) (int, bool) {
 	return -1, false
 }
 
+// platformConflictsDetect checks for conflicts in topology for different OS / Arch
+// for set to the same host / IP
+func (topo *TopologySpecification) platformConflictsDetect() error {
+	type (
+		conflict struct {
+			os   string
+			arch string
+			cfg  string
+		}
+	)
+
+	platformStats := map[string]conflict{}
+	topoSpec := reflect.ValueOf(topo).Elem()
+	topoType := reflect.TypeOf(topo).Elem()
+
+	for i := 0; i < topoSpec.NumField(); i++ {
+		if isSkipField(topoSpec.Field(i)) {
+			continue
+		}
+
+		compSpecs := topoSpec.Field(i)
+		for index := 0; index < compSpecs.Len(); index++ {
+			compSpec := compSpecs.Index(index)
+			// skip nodes imported from TiDB-Ansible
+			if compSpec.Interface().(InstanceSpec).IsImported() {
+				continue
+			}
+			// check hostname
+			host := compSpec.FieldByName("Host").String()
+			cfg := topoType.Field(i).Tag.Get("yaml")
+			if host == "" {
+				return errors.Errorf("`%s` contains empty host field", cfg)
+			}
+
+			// platform conflicts
+			stat := conflict{
+				cfg: cfg,
+			}
+			if j, found := findField(compSpec, "OS"); found {
+				stat.os = compSpec.Field(j).String()
+			}
+			if j, found := findField(compSpec, "Arch"); found {
+				stat.arch = compSpec.Field(j).String()
+			}
+
+			prev, exist := platformStats[host]
+			if exist {
+				if prev.os != stat.os || prev.arch != stat.arch {
+					return errors.Errorf("platform different for '%s' between '%s/%s:%s' and '%s/%s:%s'",
+						host, prev.os, prev.arch, prev.cfg, stat.os, stat.arch, stat.cfg)
+				}
+			}
+			platformStats[host] = stat
+		}
+	}
+	return nil
+}
+
 func (topo *TopologySpecification) portConflictsDetect() error {
 	type (
 		usedPort struct {
@@ -806,6 +864,10 @@ func (topo *TopologySpecification) dirConflictsDetect() error {
 // Validate validates the topology specification and produce error if the
 // specification invalid (e.g: port conflicts or directory conflicts)
 func (topo *TopologySpecification) Validate() error {
+	if err := topo.platformConflictsDetect(); err != nil {
+		return err
+	}
+
 	if err := topo.portConflictsDetect(); err != nil {
 		return err
 	}
