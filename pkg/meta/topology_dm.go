@@ -59,8 +59,8 @@ type MasterSpec struct {
 	Offline   bool                   `yaml:"offline,omitempty"`
 	NumaNode  string                 `yaml:"numa_node,omitempty"`
 	Config    map[string]interface{} `yaml:"config,omitempty"`
-	Arch      string                 `yaml:"arch,omitempty" default:"amd64"`
-	OS        string                 `yaml:"os,omitempty" default:"linux"`
+	Arch      string                 `yaml:"arch,omitempty"`
+	OS        string                 `yaml:"os,omitempty"`
 }
 
 // Status queries current status of the instance
@@ -103,8 +103,8 @@ type WorkerSpec struct {
 	Offline   bool                   `yaml:"offline,omitempty"`
 	NumaNode  string                 `yaml:"numa_node,omitempty"`
 	Config    map[string]interface{} `yaml:"config,omitempty"`
-	Arch      string                 `yaml:"arch,omitempty" default:"amd64"`
-	OS        string                 `yaml:"os,omitempty" default:"linux"`
+	Arch      string                 `yaml:"arch,omitempty"`
+	OS        string                 `yaml:"os,omitempty"`
 }
 
 // Status queries current status of the instance
@@ -420,12 +420,62 @@ func setDMCustomDefaults(globalOptions *GlobalOptions, field reflect.Value) erro
 			port := field.FieldByName("Port").Int()
 			field.Field(j).Set(reflect.ValueOf(fmt.Sprintf("dm-%s-%d", host, port)))
 		case "DataDir":
-			setDefaultDir(globalOptions.DataDir, field.Interface().(InstanceSpec).Role(), getPort(field), field.Field(j))
+			dataDir := field.Field(j).String()
+			if dataDir != "" { // already have a value, skip filling default values
+				continue
+			}
+			// If the data dir in global options is an obsolute path, it appends to
+			// the global and has a comp-port sub directory
+			if strings.HasPrefix(globalOptions.DataDir, "/") {
+				field.Field(j).Set(reflect.ValueOf(filepath.Join(
+					globalOptions.DataDir,
+					fmt.Sprintf("%s-%s", field.Interface().(InstanceSpec).Role(), getPort(field)),
+				)))
+				continue
+			}
+			// If the data dir in global options is empty or a relative path, keep it be relative
+			// Our run_*.sh start scripts are run inside deploy_path, so the final location
+			// will be deploy_path/global.data_dir
+			// (the default value of global.data_dir is "data")
+			if globalOptions.DataDir == "" {
+				field.Field(j).Set(reflect.ValueOf("data"))
+			} else {
+				field.Field(j).Set(reflect.ValueOf(globalOptions.DataDir))
+			}
 		case "DeployDir":
 			setDefaultDir(globalOptions.DeployDir, field.Interface().(InstanceSpec).Role(), getPort(field), field.Field(j))
 		case "LogDir":
 			if field.Field(j).String() == "" && defaults.CanUpdate(field.Field(j).Interface()) {
 				field.Field(j).Set(reflect.ValueOf(globalOptions.LogDir))
+			}
+		case "Arch":
+			// default values of globalOptions are set before fillCustomDefaults in Unmarshal
+			// so the globalOptions.Arch already has its default value set, no need to check again
+			if field.Field(j).String() == "" {
+				field.Field(j).Set(reflect.ValueOf(globalOptions.Arch))
+			}
+
+			switch strings.ToLower(field.Field(j).String()) {
+			// replace "x86_64" with amd64, they are the same in our repo
+			case "x86_64":
+				field.Field(j).Set(reflect.ValueOf("amd64"))
+			// replace "aarch64" with arm64
+			case "aarch64":
+				field.Field(j).Set(reflect.ValueOf("arm64"))
+			}
+
+			// convert to lower case
+			if field.Field(j).String() != "" {
+				field.Field(j).Set(reflect.ValueOf(strings.ToLower(field.Field(j).String())))
+			}
+		case "OS":
+			// default value of globalOptions.OS is already set, same as "Arch"
+			if field.Field(j).String() == "" {
+				field.Field(j).Set(reflect.ValueOf(globalOptions.OS))
+			}
+			// convert to lower case
+			if field.Field(j).String() != "" {
+				field.Field(j).Set(reflect.ValueOf(strings.ToLower(field.Field(j).String())))
 			}
 		}
 	}
