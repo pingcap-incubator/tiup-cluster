@@ -65,8 +65,8 @@ type (
 		DataDir         string          `yaml:"data_dir,omitempty" default:"data"`
 		LogDir          string          `yaml:"log_dir,omitempty"`
 		ResourceControl ResourceControl `yaml:"resource_control,omitempty"`
-		OS              string          `yaml:"os,omitempty"`
-		Arch            string          `yaml:"arch,omitempty"`
+		OS              string          `yaml:"os,omitempty" default:"linux"`
+		Arch            string          `yaml:"arch,omitempty" default:"arm64"`
 	}
 
 	// MonitoredOptions represents the monitored node configuration
@@ -133,8 +133,8 @@ type TiDBSpec struct {
 	NumaNode        string                 `yaml:"numa_node,omitempty"`
 	Config          map[string]interface{} `yaml:"config,omitempty"`
 	ResourceControl ResourceControl        `yaml:"resource_control,omitempty"`
-	Arch            string                 `yaml:"arch,omitempty" default:"amd64"`
-	OS              string                 `yaml:"os,omitempty" default:"linux"`
+	Arch            string                 `yaml:"arch,omitempty"`
+	OS              string                 `yaml:"os,omitempty"`
 }
 
 // statusByURL queries current status of the instance by http status api.
@@ -193,8 +193,8 @@ type TiKVSpec struct {
 	NumaNode        string                 `yaml:"numa_node,omitempty"`
 	Config          map[string]interface{} `yaml:"config,omitempty"`
 	ResourceControl ResourceControl        `yaml:"resource_control,omitempty"`
-	Arch            string                 `yaml:"arch,omitempty" default:"amd64"`
-	OS              string                 `yaml:"os,omitempty" default:"linux"`
+	Arch            string                 `yaml:"arch,omitempty"`
+	OS              string                 `yaml:"os,omitempty"`
 }
 
 // Status queries current status of the instance
@@ -265,8 +265,8 @@ type PDSpec struct {
 	NumaNode        string                 `yaml:"numa_node,omitempty"`
 	Config          map[string]interface{} `yaml:"config,omitempty"`
 	ResourceControl ResourceControl        `yaml:"resource_control,omitempty"`
-	Arch            string                 `yaml:"arch,omitempty" default:"amd64"`
-	OS              string                 `yaml:"os,omitempty" default:"linux"`
+	Arch            string                 `yaml:"arch,omitempty"`
+	OS              string                 `yaml:"os,omitempty"`
 }
 
 // Status queries current status of the instance
@@ -339,8 +339,8 @@ type TiFlashSpec struct {
 	Config               map[string]interface{} `yaml:"config,omitempty"`
 	LearnerConfig        map[string]interface{} `yaml:"learner_config,omitempty"`
 	ResourceControl      ResourceControl        `yaml:"resource_control,omitempty"`
-	Arch                 string                 `yaml:"arch,omitempty" default:"amd64"`
-	OS                   string                 `yaml:"os,omitempty" default:"linux"`
+	Arch                 string                 `yaml:"arch,omitempty"`
+	OS                   string                 `yaml:"os,omitempty"`
 }
 
 // Status queries current status of the instance
@@ -382,8 +382,8 @@ type PumpSpec struct {
 	NumaNode        string                 `yaml:"numa_node,omitempty"`
 	Config          map[string]interface{} `yaml:"config,omitempty"`
 	ResourceControl ResourceControl        `yaml:"resource_control"`
-	Arch            string                 `yaml:"arch,omitempty" default:"amd64"`
-	OS              string                 `yaml:"os,omitempty" default:"linux"`
+	Arch            string                 `yaml:"arch,omitempty"`
+	OS              string                 `yaml:"os,omitempty"`
 }
 
 // Role returns the component role of the instance
@@ -420,8 +420,8 @@ type DrainerSpec struct {
 	NumaNode        string                 `yaml:"numa_node,omitempty"`
 	Config          map[string]interface{} `yaml:"config,omitempty"`
 	ResourceControl ResourceControl        `yaml:"resource_control,omitempty"`
-	Arch            string                 `yaml:"arch,omitempty" default:"amd64"`
-	OS              string                 `yaml:"os,omitempty" default:"linux"`
+	Arch            string                 `yaml:"arch,omitempty"`
+	OS              string                 `yaml:"os,omitempty"`
 }
 
 // Role returns the component role of the instance
@@ -456,8 +456,8 @@ type CDCSpec struct {
 	NumaNode        string                 `yaml:"numa_node,omitempty"`
 	Config          map[string]interface{} `yaml:"config,omitempty"`
 	ResourceControl ResourceControl        `yaml:"resource_control,omitempty"`
-	Arch            string                 `yaml:"arch,omitempty" default:"amd64"`
-	OS              string                 `yaml:"os,omitempty" default:"linux"`
+	Arch            string                 `yaml:"arch,omitempty"`
+	OS              string                 `yaml:"os,omitempty"`
 }
 
 // Role returns the component role of the instance
@@ -492,8 +492,8 @@ type PrometheusSpec struct {
 	NumaNode        string          `yaml:"numa_node,omitempty"`
 	Retention       string          `yaml:"storage_retention,omitempty"`
 	ResourceControl ResourceControl `yaml:"resource_control,omitempty"`
-	Arch            string          `yaml:"arch,omitempty" default:"amd64"`
-	OS              string          `yaml:"os,omitempty" default:"linux"`
+	Arch            string          `yaml:"arch,omitempty"`
+	OS              string          `yaml:"os,omitempty"`
 }
 
 // Role returns the component role of the instance
@@ -524,8 +524,8 @@ type GrafanaSpec struct {
 	Port            int             `yaml:"port" default:"3000"`
 	DeployDir       string          `yaml:"deploy_dir,omitempty"`
 	ResourceControl ResourceControl `yaml:"resource_control,omitempty"`
-	Arch            string          `yaml:"arch,omitempty" default:"amd64"`
-	OS              string          `yaml:"os,omitempty" default:"linux"`
+	Arch            string          `yaml:"arch,omitempty"`
+	OS              string          `yaml:"os,omitempty"`
 }
 
 // Role returns the component role of the instance
@@ -560,8 +560,8 @@ type AlertManagerSpec struct {
 	LogDir          string          `yaml:"log_dir,omitempty"`
 	NumaNode        string          `yaml:"numa_node,omitempty"`
 	ResourceControl ResourceControl `yaml:"resource_control,omitempty"`
-	Arch            string          `yaml:"arch,omitempty" default:"amd64"`
-	OS              string          `yaml:"os,omitempty" default:"linux"`
+	Arch            string          `yaml:"arch,omitempty"`
+	OS              string          `yaml:"os,omitempty"`
 }
 
 // Role returns the component role of the instance
@@ -591,6 +591,7 @@ func (topo *TopologySpecification) UnmarshalYAML(unmarshal func(interface{}) err
 		return err
 	}
 
+	// set default values from tag
 	if err := defaults.Set(topo); err != nil {
 		return errors.Trace(err)
 	}
@@ -605,6 +606,7 @@ func (topo *TopologySpecification) UnmarshalYAML(unmarshal func(interface{}) err
 			fmt.Sprintf("%s-%d", RoleMonitor, topo.MonitoredOptions.NodeExporterPort))
 	}
 
+	// populate custom default values as needed
 	if err := fillCustomDefaults(&topo.GlobalOptions, topo); err != nil {
 		return err
 	}
@@ -1016,6 +1018,8 @@ func setCustomDefaults(globalOptions *GlobalOptions, field reflect.Value) error 
 				field.Field(j).Set(reflect.ValueOf(globalOptions.LogDir))
 			}
 		case "Arch":
+			// default values of globalOptions are set before fillCustomDefaults in Unmarshal
+			// so the globalOptions.Arch already has its default value set, no need to check again
 			if field.Field(j).String() == "" {
 				field.Field(j).Set(reflect.ValueOf(globalOptions.Arch))
 			}
@@ -1034,6 +1038,7 @@ func setCustomDefaults(globalOptions *GlobalOptions, field reflect.Value) error 
 				field.Field(j).Set(reflect.ValueOf(strings.ToLower(field.Field(j).String())))
 			}
 		case "OS":
+			// default value of globalOptions.OS is already set, same as "Arch"
 			if field.Field(j).String() == "" {
 				field.Field(j).Set(reflect.ValueOf(globalOptions.OS))
 			}
