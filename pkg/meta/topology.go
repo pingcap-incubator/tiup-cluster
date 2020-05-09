@@ -66,7 +66,7 @@ type (
 		LogDir          string          `yaml:"log_dir,omitempty"`
 		ResourceControl ResourceControl `yaml:"resource_control,omitempty"`
 		OS              string          `yaml:"os,omitempty" default:"linux"`
-		Arch            string          `yaml:"arch,omitempty" default:"arm64"`
+		Arch            string          `yaml:"arch,omitempty" default:"amd64"`
 	}
 
 	// MonitoredOptions represents the monitored node configuration
@@ -671,8 +671,8 @@ func (topo *TopologySpecification) platformConflictsDetect() error {
 			prev, exist := platformStats[host]
 			if exist {
 				if prev.os != stat.os || prev.arch != stat.arch {
-					return errors.Errorf("platform different for '%s' between '%s/%s:%s' and '%s/%s:%s'",
-						host, prev.os, prev.arch, prev.cfg, stat.os, stat.arch, stat.cfg)
+					return errors.Errorf("platform mismatch for '%s' as in '%s:%s/%s' and '%s:%s/%s'",
+						host, prev.cfg, prev.os, prev.arch, stat.cfg, stat.os, stat.arch)
 				}
 			}
 			platformStats[host] = stat
