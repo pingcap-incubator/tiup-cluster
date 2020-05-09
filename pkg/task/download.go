@@ -72,12 +72,25 @@ func (d *Downloader) Execute(_ *Context) error {
 			return err
 		}
 
+		// validate component and platform info
+		manifest, err := repo.Manifest()
+		if err != nil {
+			return err
+		}
+		compInfo, found := manifest.FindComponent(d.component)
+		if !found {
+			return errors.Errorf("component '%s' not supported", d.component)
+		}
+		if !compInfo.IsSupport(d.os, d.arch) {
+			return errors.Errorf("component '%s' does not support platform %s/%s", d.component, d.os, d.arch)
+		}
+
 		versions, err := repo.ComponentVersions(d.component)
 		if err != nil {
 			return err
 		}
 		if !d.version.IsNightly() && !versions.ContainsVersion(d.version) {
-			return errors.Errorf("component '%s' doesn't contains version '%s'", d.component, d.version)
+			return errors.Errorf("component '%s' does not contain version '%s'", d.component, d.version)
 		}
 
 		err = repo.Mirror().Download(fileName, meta.ProfilePath(meta.TiOpsPackageCacheDir))
