@@ -26,8 +26,6 @@ import (
 )
 
 func newStopCmd() *cobra.Command {
-	var options operator.Options
-
 	cmd := &cobra.Command{
 		Use:   "stop <cluster-name>",
 		Short: "Stop a DM cluster",
@@ -51,8 +49,8 @@ func newStopCmd() *cobra.Command {
 				SSHKeySet(
 					meta.ClusterPath(clusterName, "ssh", "id_rsa"),
 					meta.ClusterPath(clusterName, "ssh", "id_rsa.pub")).
-				ClusterSSH(metadata.Topology, metadata.User, sshTimeout).
-				ClusterOperate(metadata.Topology, operator.StopOperation, options).
+				ClusterSSH(metadata.Topology, metadata.User, gOpt.SSHTimeout).
+				ClusterOperate(metadata.Topology, operator.StopOperation, gOpt).
 				Build()
 
 			if err := t.Execute(task.NewContext()); err != nil {
@@ -69,9 +67,8 @@ func newStopCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringSliceVarP(&options.Roles, "role", "R", nil, "Only stop specified roles")
-	cmd.Flags().StringSliceVarP(&options.Nodes, "node", "N", nil, "Only stop specified nodes")
-	cmd.Flags().Int64Var(&options.OptTimeout, "wait-timeout", 60, "Timeout in seconds to wait for an operation to complete, ignored for operations that don't fit.")
+	cmd.Flags().StringSliceVarP(&gOpt.Roles, "role", "R", nil, "Only stop specified roles")
+	cmd.Flags().StringSliceVarP(&gOpt.Nodes, "node", "N", nil, "Only stop specified nodes")
 
 	return cmd
 }

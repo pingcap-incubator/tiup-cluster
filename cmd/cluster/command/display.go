@@ -34,7 +34,6 @@ import (
 func newDisplayCmd() *cobra.Command {
 	var (
 		clusterName string
-		options     operator.Options
 	)
 	cmd := &cobra.Command{
 		Use:   "display <cluster-name>",
@@ -45,10 +44,10 @@ func newDisplayCmd() *cobra.Command {
 			}
 
 			clusterName = args[0]
-			if err := displayClusterMeta(clusterName, &options); err != nil {
+			if err := displayClusterMeta(clusterName, &gOpt); err != nil {
 				return err
 			}
-			if err := displayClusterTopology(clusterName, &options); err != nil {
+			if err := displayClusterTopology(clusterName, &gOpt); err != nil {
 				return err
 			}
 
@@ -56,13 +55,12 @@ func newDisplayCmd() *cobra.Command {
 			if err != nil {
 				return errors.AddStack(err)
 			}
-			return destroyTombstoneIfNeed(clusterName, metadata, options)
+			return destroyTombstoneIfNeed(clusterName, metadata, gOpt)
 		},
 	}
 
-	cmd.Flags().StringSliceVarP(&options.Roles, "role", "R", nil, "Only display specified roles")
-	cmd.Flags().StringSliceVarP(&options.Nodes, "node", "N", nil, "Only display specified nodes")
-	cmd.Flags().Int64Var(&options.OptTimeout, "wait-timeout", 60, "Timeout in seconds to wait for an operation to complete, ignored for operations that don't fit.")
+	cmd.Flags().StringSliceVarP(&gOpt.Roles, "role", "R", nil, "Only display specified roles")
+	cmd.Flags().StringSliceVarP(&gOpt.Nodes, "node", "N", nil, "Only display specified nodes")
 
 	return cmd
 }
@@ -99,7 +97,7 @@ func destroyTombstoneIfNeed(clusterName string, metadata *meta.ClusterMeta, opt 
 		return errors.AddStack(err)
 	}
 
-	err = ctx.SetClusterSSH(topo, metadata.User, sshTimeout)
+	err = ctx.SetClusterSSH(topo, metadata.User, gOpt.SSHTimeout)
 	if err != nil {
 		return errors.AddStack(err)
 	}
@@ -145,7 +143,7 @@ func displayClusterTopology(clusterName string, opt *operator.Options) error {
 		return errors.AddStack(err)
 	}
 
-	err = ctx.SetClusterSSH(topo, metadata.User, sshTimeout)
+	err = ctx.SetClusterSSH(topo, metadata.User, gOpt.SSHTimeout)
 	if err != nil {
 		return errors.AddStack(err)
 	}

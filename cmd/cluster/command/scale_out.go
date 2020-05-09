@@ -36,7 +36,6 @@ type scaleOutOptions struct {
 	user         string // username to login to the SSH server
 	identityFile string // path to the private key file
 	usePassword  bool   // use password instead of identity file for ssh connection
-	timeout      int64  // wait timeout for operations
 }
 
 func newScaleOutCmd() *cobra.Command {
@@ -60,7 +59,6 @@ func newScaleOutCmd() *cobra.Command {
 	cmd.Flags().StringVar(&opt.user, "user", utils.CurrentUser(), "The user name to login via SSH. The user must has root (or sudo) privilege.")
 	cmd.Flags().StringVarP(&opt.identityFile, "identity_file", "i", opt.identityFile, "The path of the SSH identity file. If specified, public key authentication will be used.")
 	cmd.Flags().BoolVarP(&opt.usePassword, "password", "p", false, "Use password of target hosts. If specified, password authentication will be used.")
-	cmd.Flags().Int64Var(&opt.timeout, "wait-timeout", 60, "Timeout in seconds to wait for an operation to complete, ignored for operations that don't fit.")
 
 	return cmd
 }
@@ -117,7 +115,7 @@ func scaleOut(clusterName, topoFile string, opt scaleOutOptions) error {
 	}
 
 	// Build the scale out tasks
-	t, err := buildScaleOutTask(clusterName, metadata, mergedTopo, opt, sshConnProps, &newPart, patchedComponents, opt.timeout)
+	t, err := buildScaleOutTask(clusterName, metadata, mergedTopo, opt, sshConnProps, &newPart, patchedComponents, gOpt.OptTimeout)
 	if err != nil {
 		return err
 	}
@@ -187,7 +185,7 @@ func buildScaleOutTask(
 					sshConnProps.Password,
 					sshConnProps.IdentityFile,
 					sshConnProps.IdentityFilePassphrase,
-					sshTimeout,
+					gOpt.SSHTimeout,
 				).
 				EnvInit(instance.GetHost(), metadata.User).
 				Mkdir(globalOptions.User, instance.GetHost(), dirs...).
@@ -210,7 +208,7 @@ func buildScaleOutTask(
 
 		// Deploy component
 		tb := task.NewBuilder().
-			UserSSH(inst.GetHost(), inst.GetSSHPort(), metadata.User, sshTimeout).
+			UserSSH(inst.GetHost(), inst.GetSSHPort(), metadata.User, gOpt.SSHTimeout).
 			Mkdir(metadata.User, inst.GetHost(),
 				deployDir, dataDir, logDir,
 				filepath.Join(deployDir, "bin"),
@@ -286,9 +284,9 @@ func buildScaleOutTask(
 		Parallel(envInitTasks...).
 		Parallel(deployCompTasks...).
 		// TODO: find another way to make sure current cluster started
-		ClusterSSH(metadata.Topology, metadata.User, sshTimeout).
+		ClusterSSH(metadata.Topology, metadata.User, gOpt.SSHTimeout).
 		ClusterOperate(metadata.Topology, operator.StartOperation, operator.Options{OptTimeout: timeout}).
-		ClusterSSH(newPart, metadata.User, sshTimeout).
+		ClusterSSH(newPart, metadata.User, gOpt.SSHTimeout).
 		Func("save meta", func() error {
 			metadata.Topology = mergedTopo
 			return meta.SaveClusterMeta(clusterName, metadata)
