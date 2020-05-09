@@ -43,16 +43,25 @@ var (
 	errDeployNameDuplicate = errNSDeploy.NewType("name_dup", errutil.ErrTraitPreCheck)
 )
 
-type componentInfo struct {
-	component string
-	version   repository.Version
-}
+type (
+	componentInfo struct {
+		component string
+		version   repository.Version
+	}
 
-type deployOptions struct {
-	user         string // username to login to the SSH server
-	identityFile string // path to the private key file
-	usePassword  bool   // use password instead of identity file for ssh connection
-}
+	deployOptions struct {
+		user         string // username to login to the SSH server
+		identityFile string // path to the private key file
+		usePassword  bool   // use password instead of identity file for ssh connection
+	}
+
+	hostInfo struct {
+		ssh  int    // ssh port of host
+		os   string // operating system
+		arch string // cpu architecture
+		// vendor string
+	}
+)
 
 func newDeploy() *cobra.Command {
 	opt := deployOptions{
@@ -169,11 +178,7 @@ func deploy(clusterName, clusterVersion, topoFile string, opt deployOptions) err
 	)
 
 	// Initialize environment
-	uniqueHosts := make(map[string]struct {
-		ssh  int
-		os   string
-		arch string
-	}) // host -> ssh-port, os, arch
+	uniqueHosts := make(map[string]hostInfo) // host -> ssh-port, os, arch
 	globalOptions := topo.GlobalOptions
 	var iterErr error // error when itering over instances
 	iterErr = nil
@@ -188,11 +193,7 @@ func deploy(clusterName, clusterVersion, topoFile string, opt deployOptions) err
 				return // skip the host to avoid issues
 			}
 
-			uniqueHosts[inst.GetHost()] = struct {
-				ssh  int
-				os   string
-				arch string
-			}{
+			uniqueHosts[inst.GetHost()] = hostInfo{
 				ssh:  inst.GetSSHPort(),
 				os:   inst.OS(),
 				arch: inst.Arch(),
@@ -315,11 +316,7 @@ func deploy(clusterName, clusterVersion, topoFile string, opt deployOptions) err
 
 func buildMonitoredDeployTask(
 	clusterName string,
-	uniqueHosts map[string]struct {
-		ssh  int
-		os   string
-		arch string
-	}, // host -> ssh-port, os, arch
+	uniqueHosts map[string]hostInfo, // host -> ssh-port, os, arch
 	globalOptions meta.GlobalOptions,
 	monitoredOptions meta.MonitoredOptions,
 	version string,

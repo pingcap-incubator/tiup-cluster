@@ -165,12 +165,8 @@ func buildScaleOutTask(
 		initializedHosts.Insert(instance.GetHost())
 	})
 	// uninitializedHosts are hosts which haven't been initialized yet
-	uninitializedHosts := make(map[string]struct {
-		ssh  int
-		os   string
-		arch string
-	}) // host -> ssh-port, os, arch
-	var iterErr error // error when itering over instances
+	uninitializedHosts := make(map[string]hostInfo) // host -> ssh-port, os, arch
+	var iterErr error                               // error when itering over instances
 	iterErr = nil
 	newPart.IterInstance(func(instance meta.Instance) {
 		if host := instance.GetHost(); !initializedHosts.Exist(host) {
@@ -183,11 +179,7 @@ func buildScaleOutTask(
 				return // skip the host to avoid issues
 			}
 
-			uninitializedHosts[host] = struct {
-				ssh  int
-				os   string
-				arch string
-			}{
+			uninitializedHosts[host] = hostInfo{
 				ssh:  instance.GetSSHPort(),
 				os:   instance.OS(),
 				arch: instance.Arch(),
