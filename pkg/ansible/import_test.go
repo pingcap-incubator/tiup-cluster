@@ -17,7 +17,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"reflect"
 	"sort"
 	"testing"
 
@@ -96,68 +95,34 @@ func (s *ansSuite) TestParseGroupVars(c *C) {
 }
 
 func sortClusterMeta(clsMeta *meta.ClusterMeta) {
-	v := reflect.ValueOf(clsMeta.Topology).Elem()
-
-	for i := 0; i < v.Type().NumField(); i++ {
-		switch v.Field(i).Kind() {
-		case reflect.Slice:
-			field := v.Field(i)
-			switch v.Type().Field(i).Name {
-			case "TiDBServers":
-				lst := field.Interface().([]meta.TiDBSpec)
-				sort.Slice(lst, func(i, j int) bool {
-					return lst[i].Host < lst[j].Host
-				})
-				v.Field(i).Set(reflect.ValueOf(lst))
-			case "TiKVServers":
-				lst := field.Interface().([]meta.TiKVSpec)
-				sort.Slice(lst, func(i, j int) bool {
-					return lst[i].Host < lst[j].Host
-				})
-				v.Field(i).Set(reflect.ValueOf(lst))
-			case "PDServers":
-				lst := field.Interface().([]meta.PDSpec)
-				sort.Slice(lst, func(i, j int) bool {
-					return lst[i].Host < lst[j].Host
-				})
-				v.Field(i).Set(reflect.ValueOf(lst))
-			case "TiFlashServers":
-				lst := field.Interface().([]meta.TiFlashSpec)
-				sort.Slice(lst, func(i, j int) bool {
-					return lst[i].Host < lst[j].Host
-				})
-				v.Field(i).Set(reflect.ValueOf(lst))
-			case "PumpServers":
-				lst := field.Interface().([]meta.PumpSpec)
-				sort.Slice(lst, func(i, j int) bool {
-					return lst[i].Host < lst[j].Host
-				})
-				v.Field(i).Set(reflect.ValueOf(lst))
-			case "Drainers":
-				lst := field.Interface().([]meta.DrainerSpec)
-				sort.Slice(lst, func(i, j int) bool {
-					return lst[i].Host < lst[j].Host
-				})
-				v.Field(i).Set(reflect.ValueOf(lst))
-			case "Monitors":
-				lst := field.Interface().([]meta.PrometheusSpec)
-				sort.Slice(lst, func(i, j int) bool {
-					return lst[i].Host < lst[j].Host
-				})
-				v.Field(i).Set(reflect.ValueOf(lst))
-			case "Alertmanager":
-				lst := field.Interface().([]meta.AlertManagerSpec)
-				sort.Slice(lst, func(i, j int) bool {
-					return lst[i].Host < lst[j].Host
-				})
-				v.Field(i).Set(reflect.ValueOf(lst))
-			case "Grafana":
-				lst := field.Interface().([]meta.GrafanaSpec)
-				sort.Slice(lst, func(i, j int) bool {
-					return lst[i].Host < lst[j].Host
-				})
-				v.Field(i).Set(reflect.ValueOf(lst))
-			}
-		}
-	}
+	sort.Slice(clsMeta.Topology.TiDBServers, func(i, j int) bool {
+		return clsMeta.Topology.TiDBServers[i].Host < clsMeta.Topology.TiDBServers[j].Host
+	})
+	sort.Slice(clsMeta.Topology.TiKVServers, func(i, j int) bool {
+		return clsMeta.Topology.TiKVServers[i].Host < clsMeta.Topology.TiKVServers[j].Host
+	})
+	sort.Slice(clsMeta.Topology.TiFlashServers, func(i, j int) bool {
+		return clsMeta.Topology.TiFlashServers[i].Host < clsMeta.Topology.TiFlashServers[j].Host
+	})
+	sort.Slice(clsMeta.Topology.PDServers, func(i, j int) bool {
+		return clsMeta.Topology.PDServers[i].Host < clsMeta.Topology.PDServers[j].Host
+	})
+	sort.Slice(clsMeta.Topology.PumpServers, func(i, j int) bool {
+		return clsMeta.Topology.PumpServers[i].Host < clsMeta.Topology.PumpServers[j].Host
+	})
+	sort.Slice(clsMeta.Topology.Drainers, func(i, j int) bool {
+		return clsMeta.Topology.Drainers[i].Host < clsMeta.Topology.Drainers[j].Host
+	})
+	sort.Slice(clsMeta.Topology.CDCServers, func(i, j int) bool {
+		return clsMeta.Topology.CDCServers[i].Host < clsMeta.Topology.CDCServers[j].Host
+	})
+	sort.Slice(clsMeta.Topology.Monitors, func(i, j int) bool {
+		return clsMeta.Topology.Monitors[i].Host < clsMeta.Topology.Monitors[j].Host
+	})
+	sort.Slice(clsMeta.Topology.Grafana, func(i, j int) bool {
+		return clsMeta.Topology.Grafana[i].Host < clsMeta.Topology.Grafana[j].Host
+	})
+	sort.Slice(clsMeta.Topology.Alertmanager, func(i, j int) bool {
+		return clsMeta.Topology.Alertmanager[i].Host < clsMeta.Topology.Alertmanager[j].Host
+	})
 }
