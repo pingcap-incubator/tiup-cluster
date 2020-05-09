@@ -160,6 +160,64 @@ func (topo *DMTopologySpecification) UnmarshalYAML(unmarshal func(interface{}) e
 	return topo.Validate()
 }
 
+// platformConflictsDetect checks for conflicts in topology for different OS / Arch
+// for set to the same host / IP
+func (topo *DMTopologySpecification) platformConflictsDetect() error {
+	type (
+		conflict struct {
+			os   string
+			arch string
+			cfg  string
+		}
+	)
+
+	platformStats := map[string]conflict{}
+	topoSpec := reflect.ValueOf(topo).Elem()
+	topoType := reflect.TypeOf(topo).Elem()
+
+	for i := 0; i < topoSpec.NumField(); i++ {
+		if isSkipField(topoSpec.Field(i)) {
+			continue
+		}
+
+		compSpecs := topoSpec.Field(i)
+		for index := 0; index < compSpecs.Len(); index++ {
+			compSpec := compSpecs.Index(index)
+			// skip nodes imported from TiDB-Ansible
+			if compSpec.Interface().(InstanceSpec).IsImported() {
+				continue
+			}
+			// check hostname
+			host := compSpec.FieldByName("Host").String()
+			cfg := topoType.Field(i).Tag.Get("yaml")
+			if host == "" {
+				return errors.Errorf("`%s` contains empty host field", cfg)
+			}
+
+			// platform conflicts
+			stat := conflict{
+				cfg: cfg,
+			}
+			if j, found := findField(compSpec, "OS"); found {
+				stat.os = compSpec.Field(j).String()
+			}
+			if j, found := findField(compSpec, "Arch"); found {
+				stat.arch = compSpec.Field(j).String()
+			}
+
+			prev, exist := platformStats[host]
+			if exist {
+				if prev.os != stat.os || prev.arch != stat.arch {
+					return errors.Errorf("platform mismatch for '%s' as in '%s:%s/%s' and '%s:%s/%s'",
+						host, prev.cfg, prev.os, prev.arch, stat.cfg, stat.os, stat.arch)
+				}
+			}
+			platformStats[host] = stat
+		}
+	}
+	return nil
+}
+
 func (topo *DMTopologySpecification) portConflictsDetect() error {
 	type (
 		usedPort struct {
@@ -318,6 +376,11 @@ func (topo *DMTopologySpecification) dirConflictsDetect() error {
 						host: host,
 						dir:  compSpec.Field(j).String(),
 					}
+					// data_dir is relative to deploy_dir by default, so they can be with
+					// same (sub) paths as long as the deploy_dirs are different
+					if item.dir != "" && !strings.HasPrefix(item.dir, "/") {
+						continue
+					}
 					// `yaml:"data_dir,omitempty"`
 					tp := strings.Split(compSpec.Type().Field(j).Tag.Get("yaml"), ",")[0]
 					prev, exist := dirStats[item]
@@ -340,6 +403,10 @@ func (topo *DMTopologySpecification) dirConflictsDetect() error {
 // Validate validates the topology specification and produce error if the
 // specification invalid (e.g: port conflicts or directory conflicts)
 func (topo *DMTopologySpecification) Validate() error {
+	if err := topo.platformConflictsDetect(); err != nil {
+		return err
+	}
+
 	if err := topo.portConflictsDetect(); err != nil {
 		return err
 	}
