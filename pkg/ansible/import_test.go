@@ -64,12 +64,13 @@ monitoring_servers: []
 
 func (s *ansSuite) TestParseGroupVars(c *C) {
 	dir := "test-data"
+	ansCfgFile := ""
 	invData, err := os.Open(filepath.Join(dir, "inventory.ini"))
 	c.Assert(err, IsNil)
 	_, clsMeta, inv, err := parseInventoryFile(invData)
 	c.Assert(err, IsNil)
 
-	err = parseGroupVars(dir, clsMeta, inv)
+	err = parseGroupVars(dir, ansCfgFile, clsMeta, inv)
 	c.Assert(err, IsNil)
 	err = defaults.Set(clsMeta)
 	c.Assert(err, IsNil)

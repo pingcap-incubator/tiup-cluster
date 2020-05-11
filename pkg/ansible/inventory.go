@@ -50,7 +50,7 @@ var (
 
 // ParseAndImportInventory builds a basic ClusterMeta from the main Ansible inventory
 func ParseAndImportInventory(dir, ansCfgFile string, clsMeta *meta.ClusterMeta, inv *aini.InventoryData, sshTimeout int64) error {
-	if err := parseGroupVars(dir, clsMeta, inv); err != nil {
+	if err := parseGroupVars(dir, ansCfgFile, clsMeta, inv); err != nil {
 		return err
 	}
 
@@ -159,7 +159,7 @@ func ParseAndImportInventory(dir, ansCfgFile string, clsMeta *meta.ClusterMeta, 
 	return nil
 }
 
-func parseGroupVars(dir string, clsMeta *meta.ClusterMeta, inv *aini.InventoryData) error {
+func parseGroupVars(dir, ansCfgFile string, clsMeta *meta.ClusterMeta, inv *aini.InventoryData) error {
 	// set global vars in group_vars/all.yml
 	grpVarsAll, err := readGroupVars(dir, groupVarsGlobal)
 	if err != nil {
