@@ -178,6 +178,16 @@ func parseGroupVars(dir, ansCfgFile string, clsMeta *meta.ClusterMeta, inv *aini
 		return err
 	}
 
+	// try to set value in global ansible config to global options
+	// NOTE: we read this value again when setting port for each host, because the
+	// default host read from aini might be different from the one in ansible config
+	if ansCfg != nil {
+		rPort, err := ansCfg.Section("defaults").Key("remote_port").Int()
+		if err == nil {
+			clsMeta.Topology.GlobalOptions.SSHPort = rPort
+		}
+	}
+
 	// set hosts
 	// tidb_servers
 	if grp, ok := inv.Groups["tidb_servers"]; ok && len(grp.Hosts) > 0 {

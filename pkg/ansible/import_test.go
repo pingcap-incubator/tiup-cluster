@@ -14,6 +14,7 @@
 package ansible
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -64,7 +65,7 @@ monitoring_servers: []
 
 func (s *ansSuite) TestParseGroupVars(c *C) {
 	dir := "test-data"
-	ansCfgFile := ""
+	ansCfgFile := filepath.Join(dir, "ansible.cfg")
 	invData, err := os.Open(filepath.Join(dir, "inventory.ini"))
 	c.Assert(err, IsNil)
 	_, clsMeta, inv, err := parseInventoryFile(invData)
@@ -91,6 +92,10 @@ func (s *ansSuite) TestParseGroupVars(c *C) {
 
 	sortClusterMeta(&metaFull)
 	sortClusterMeta(&expected)
+
+	actual, err := yaml.Marshal(metaFull)
+	c.Assert(err, IsNil)
+	fmt.Printf("Got meta:\n%s\n", actual)
 
 	c.Assert(metaFull, DeepEquals, expected)
 }
