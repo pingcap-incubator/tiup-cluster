@@ -17,7 +17,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"reflect"
 	"strconv"
 
 	"github.com/creasty/defaults"
@@ -54,101 +53,77 @@ func ParseAndImportInventory(dir, ansCfgFile string, clsMeta *meta.ClusterMeta, 
 		return err
 	}
 
-	v := reflect.ValueOf(clsMeta.Topology).Elem()
-	t := v.Type()
-	for i := 0; i < t.NumField(); i++ {
-		switch t.Field(i).Name {
-		case "TiDBServers":
-			var ins []meta.TiDBSpec
-			for _, spec := range v.Field(i).Interface().([]meta.TiDBSpec) {
-				tmpIns, err := parseDirs(clsMeta.User, spec, sshTimeout)
-				if err != nil {
-					return err
-				}
-				ins = append(ins, tmpIns.(meta.TiDBSpec))
-			}
-			v.Field(i).Set(reflect.ValueOf(ins))
-		case "TiKVServers":
-			var ins []meta.TiKVSpec
-			for _, spec := range v.Field(i).Interface().([]meta.TiKVSpec) {
-				tmpIns, err := parseDirs(clsMeta.User, spec, sshTimeout)
-				if err != nil {
-					return err
-				}
-				ins = append(ins, tmpIns.(meta.TiKVSpec))
-			}
-			v.Field(i).Set(reflect.ValueOf(ins))
-		case "PDServers":
-			var ins []meta.PDSpec
-			for _, spec := range v.Field(i).Interface().([]meta.PDSpec) {
-				tmpIns, err := parseDirs(clsMeta.User, spec, sshTimeout)
-				if err != nil {
-					return err
-				}
-				ins = append(ins, tmpIns.(meta.PDSpec))
-			}
-			v.Field(i).Set(reflect.ValueOf(ins))
-		case "TiFlashServers":
-			var ins []meta.TiFlashSpec
-			for _, spec := range v.Field(i).Interface().([]meta.TiFlashSpec) {
-				tmpIns, err := parseDirs(clsMeta.User, spec, sshTimeout)
-				if err != nil {
-					return err
-				}
-				ins = append(ins, tmpIns.(meta.TiFlashSpec))
-			}
-			v.Field(i).Set(reflect.ValueOf(ins))
-		case "PumpServers":
-			var ins []meta.PumpSpec
-			for _, spec := range v.Field(i).Interface().([]meta.PumpSpec) {
-				tmpIns, err := parseDirs(clsMeta.User, spec, sshTimeout)
-				if err != nil {
-					return err
-				}
-				ins = append(ins, tmpIns.(meta.PumpSpec))
-			}
-			v.Field(i).Set(reflect.ValueOf(ins))
-		case "Drainers":
-			var ins []meta.DrainerSpec
-			for _, spec := range v.Field(i).Interface().([]meta.DrainerSpec) {
-				tmpIns, err := parseDirs(clsMeta.User, spec, sshTimeout)
-				if err != nil {
-					return err
-				}
-				ins = append(ins, tmpIns.(meta.DrainerSpec))
-			}
-			v.Field(i).Set(reflect.ValueOf(ins))
-		case "Monitors":
-			var ins []meta.PrometheusSpec
-			for _, spec := range v.Field(i).Interface().([]meta.PrometheusSpec) {
-				tmpIns, err := parseDirs(clsMeta.User, spec, sshTimeout)
-				if err != nil {
-					return err
-				}
-				ins = append(ins, tmpIns.(meta.PrometheusSpec))
-			}
-			v.Field(i).Set(reflect.ValueOf(ins))
-		case "Alertmanager":
-			var ins []meta.AlertManagerSpec
-			for _, spec := range v.Field(i).Interface().([]meta.AlertManagerSpec) {
-				tmpIns, err := parseDirs(clsMeta.User, spec, sshTimeout)
-				if err != nil {
-					return err
-				}
-				ins = append(ins, tmpIns.(meta.AlertManagerSpec))
-			}
-			v.Field(i).Set(reflect.ValueOf(ins))
-		case "Grafana":
-			var ins []meta.GrafanaSpec
-			for _, spec := range v.Field(i).Interface().([]meta.GrafanaSpec) {
-				tmpIns, err := parseDirs(clsMeta.User, spec, sshTimeout)
-				if err != nil {
-					return err
-				}
-				ins = append(ins, tmpIns.(meta.GrafanaSpec))
-			}
-			v.Field(i).Set(reflect.ValueOf(ins))
+	for i := 0; i < len(clsMeta.Topology.TiDBServers); i++ {
+		spec := clsMeta.Topology.TiDBServers[i]
+		ins, err := parseDirs(clsMeta.User, spec, sshTimeout)
+		if err != nil {
+			return err
 		}
+		clsMeta.Topology.TiDBServers[i] = ins.(meta.TiDBSpec)
+	}
+	for i := 0; i < len(clsMeta.Topology.TiKVServers); i++ {
+		spec := clsMeta.Topology.TiKVServers[i]
+		ins, err := parseDirs(clsMeta.User, spec, sshTimeout)
+		if err != nil {
+			return err
+		}
+		clsMeta.Topology.TiKVServers[i] = ins.(meta.TiKVSpec)
+	}
+	for i := 0; i < len(clsMeta.Topology.PDServers); i++ {
+		spec := clsMeta.Topology.PDServers[i]
+		ins, err := parseDirs(clsMeta.User, spec, sshTimeout)
+		if err != nil {
+			return err
+		}
+		clsMeta.Topology.PDServers[i] = ins.(meta.PDSpec)
+	}
+	for i := 0; i < len(clsMeta.Topology.TiFlashServers); i++ {
+		spec := clsMeta.Topology.TiFlashServers[i]
+		ins, err := parseDirs(clsMeta.User, spec, sshTimeout)
+		if err != nil {
+			return err
+		}
+		clsMeta.Topology.TiFlashServers[i] = ins.(meta.TiFlashSpec)
+	}
+	for i := 0; i < len(clsMeta.Topology.PumpServers); i++ {
+		spec := clsMeta.Topology.PumpServers[i]
+		ins, err := parseDirs(clsMeta.User, spec, sshTimeout)
+		if err != nil {
+			return err
+		}
+		clsMeta.Topology.PumpServers[i] = ins.(meta.PumpSpec)
+	}
+	for i := 0; i < len(clsMeta.Topology.Drainers); i++ {
+		spec := clsMeta.Topology.Drainers[i]
+		ins, err := parseDirs(clsMeta.User, spec, sshTimeout)
+		if err != nil {
+			return err
+		}
+		clsMeta.Topology.Drainers[i] = ins.(meta.DrainerSpec)
+	}
+	for i := 0; i < len(clsMeta.Topology.Monitors); i++ {
+		spec := clsMeta.Topology.Monitors[i]
+		ins, err := parseDirs(clsMeta.User, spec, sshTimeout)
+		if err != nil {
+			return err
+		}
+		clsMeta.Topology.Monitors[i] = ins.(meta.PrometheusSpec)
+	}
+	for i := 0; i < len(clsMeta.Topology.Alertmanager); i++ {
+		spec := clsMeta.Topology.Alertmanager[i]
+		ins, err := parseDirs(clsMeta.User, spec, sshTimeout)
+		if err != nil {
+			return err
+		}
+		clsMeta.Topology.Alertmanager[i] = ins.(meta.AlertManagerSpec)
+	}
+	for i := 0; i < len(clsMeta.Topology.Grafana); i++ {
+		spec := clsMeta.Topology.Grafana[i]
+		ins, err := parseDirs(clsMeta.User, spec, sshTimeout)
+		if err != nil {
+			return err
+		}
+		clsMeta.Topology.Grafana[i] = ins.(meta.GrafanaSpec)
 	}
 
 	// TODO: get values from templates of roles to overwrite defaults
