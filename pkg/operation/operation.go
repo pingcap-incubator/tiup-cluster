@@ -23,10 +23,12 @@ import (
 
 // Options represents the operation options
 type Options struct {
-	Roles   []string
-	Nodes   []string
-	Force   bool  // Option for upgrade subcommand
-	Timeout int64 // timeout in seconds for operations that support it, not to confuse with SSH timeout
+	Roles      []string
+	Nodes      []string
+	Force      bool  // Option for upgrade subcommand
+	SSHTimeout int64 // timeout in seconds when connecting an SSH server
+	OptTimeout int64 // timeout in seconds for operations that support it, not to confuse with SSH timeout
+	APITimeout int64 // timeout in seconds for API operations that support it, like transfering store leader
 }
 
 // Operation represents the type of cluster operation
@@ -41,7 +43,7 @@ const (
 	UpgradeOperation
 	ScaleInOperation
 	ScaleOutOperation
-	DestroyTombsomeOperation
+	DestroyTombstoneOperation
 )
 
 var opStringify = [...]string{
@@ -52,11 +54,11 @@ var opStringify = [...]string{
 	"UpgradeOperation",
 	"ScaleInOperation",
 	"ScaleOutOperation",
-	"DestroyTombsomeOperation",
+	"DestroyTombstoneOperation",
 }
 
 func (op Operation) String() string {
-	if op <= DestroyTombsomeOperation {
+	if op <= DestroyTombstoneOperation {
 		return opStringify[op]
 	}
 	return fmt.Sprintf("unknonw-op(%d)", op)

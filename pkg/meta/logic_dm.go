@@ -44,13 +44,13 @@ type dmInstance struct {
 }
 
 // Ready implements Instance interface
-func (i *dmInstance) Ready(e executor.TiOpsExecutor) error {
-	return PortStarted(e, i.port)
+func (i *dmInstance) Ready(e executor.TiOpsExecutor, timeout int64) error {
+	return PortStarted(e, i.port, timeout)
 }
 
 // WaitForDown implements Instance interface
-func (i *dmInstance) WaitForDown(e executor.TiOpsExecutor) error {
-	return PortStopped(e, i.port)
+func (i *dmInstance) WaitForDown(e executor.TiOpsExecutor, timeout int64) error {
+	return PortStopped(e, i.port, timeout)
 }
 
 func (i *dmInstance) InitConfig(e executor.TiOpsExecutor, _, _, user string, paths DirPaths) error {
@@ -160,6 +160,14 @@ func (i *dmInstance) LogDir() string {
 		logDir = filepath.Join(i.DeployDir(), logDir)
 	}
 	return logDir
+}
+
+func (i *dmInstance) OS() string {
+	return reflect.ValueOf(i.InstanceSpec).FieldByName("OS").Interface().(string)
+}
+
+func (i *dmInstance) Arch() string {
+	return reflect.ValueOf(i.InstanceSpec).FieldByName("Arch").Interface().(string)
 }
 
 func (i *dmInstance) GetPort() int {

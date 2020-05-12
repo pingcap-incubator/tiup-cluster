@@ -116,7 +116,7 @@ func scaleOut(clusterName, topoFile string, opt scaleOutOptions) error {
 	}
 
 	// Build the scale out tasks
-	t, err := buildScaleOutTask(clusterName, metadata, mergedTopo, opt, sshConnProps, &newPart, patchedComponents)
+	t, err := buildScaleOutTask(clusterName, metadata, mergedTopo, opt, sshConnProps, &newPart, patchedComponents, gOpt.OptTimeout)
 	if err != nil {
 		return err
 	}
@@ -150,7 +150,9 @@ func buildScaleOutTask(
 	opt scaleOutOptions,
 	sshConnProps *cliutil.SSHConnectionProps,
 	newPart *meta.TopologySpecification,
-	patchedComponents set.StringSet) (task.Task, error) {
+	patchedComponents set.StringSet,
+	timeout int64,
+) (task.Task, error) {
 	var (
 		envInitTasks       []task.Task // tasks which are used to initialize environment
 		downloadCompTasks  []task.Task // tasks which are used to download components
@@ -164,10 +166,26 @@ func buildScaleOutTask(
 		initializedHosts.Insert(instance.GetHost())
 	})
 	// uninitializedHosts are hosts which haven't been initialized yet
-	uninitializedHosts := map[string]int{} // host -> ssh-port
+	uninitializedHosts := make(map[string]hostInfo) // host -> ssh-port, os, arch
+	var iterErr error                               // error when itering over instances
+	iterErr = nil
 	newPart.IterInstance(func(instance meta.Instance) {
 		if host := instance.GetHost(); !initializedHosts.Exist(host) {
-			uninitializedHosts[host] = instance.GetSSHPort()
+			// check for "imported" parameter, it can not be true when scaling out
+			if instance.IsImported() {
+				iterErr = errors.New(
+					"'imported' is set to 'true' for new instance, this is only used " +
+						"for instances imported from tidb-ansible and make no sense when " +
+						"scaling out, please delete the line or set it to 'false' for new instances")
+				return // skip the host to avoid issues
+			}
+
+			uninitializedHosts[host] = hostInfo{
+				ssh:  instance.GetSSHPort(),
+				os:   instance.OS(),
+				arch: instance.Arch(),
+			}
+
 			var dirs []string
 			globalOptions := metadata.Topology.GlobalOptions
 			for _, dir := range []string{globalOptions.DeployDir, globalOptions.DataDir, globalOptions.LogDir} {
@@ -186,7 +204,7 @@ func buildScaleOutTask(
 					sshConnProps.Password,
 					sshConnProps.IdentityFile,
 					sshConnProps.IdentityFilePassphrase,
-					sshTimeout,
+					gOpt.SSHTimeout,
 				).
 				EnvInit(instance.GetHost(), metadata.User).
 				Mkdir(globalOptions.User, instance.GetHost(), dirs...).
@@ -194,6 +212,10 @@ func buildScaleOutTask(
 			envInitTasks = append(envInitTasks, t)
 		}
 	})
+
+	if iterErr != nil {
+		return task.NewBuilder().Build(), iterErr
+	}
 
 	// Download missing component
 	downloadCompTasks = convertStepDisplaysToTasks(prepare.BuildDownloadCompTasks(metadata.Version, newPart))
@@ -212,7 +234,7 @@ func buildScaleOutTask(
 
 		// Deploy component
 		tb := task.NewBuilder().
-			UserSSH(inst.GetHost(), inst.GetSSHPort(), metadata.User, sshTimeout).
+			UserSSH(inst.GetHost(), inst.GetSSHPort(), metadata.User, gOpt.SSHTimeout).
 			Mkdir(metadata.User, inst.GetHost(),
 				deployDir, logDir,
 				filepath.Join(deployDir, "bin"),
@@ -222,7 +244,7 @@ func buildScaleOutTask(
 		if patchedComponents.Exist(inst.ComponentName()) {
 			tb.InstallPackage(meta.ClusterPath(clusterName, meta.PatchDirName, inst.ComponentName()+".tar.gz"), inst.GetHost(), deployDir)
 		} else {
-			tb.CopyComponent(inst.ComponentName(), version, inst.GetHost(), deployDir)
+			tb.CopyComponent(inst.ComponentName(), inst.OS(), inst.Arch(), version, inst.GetHost(), deployDir)
 		}
 		t := tb.ScaleConfig(clusterName,
 			metadata.Version,
@@ -254,7 +276,8 @@ func buildScaleOutTask(
 			switch compName := inst.ComponentName(); compName {
 			case meta.ComponentGrafana, meta.ComponentPrometheus, meta.ComponentAlertManager:
 				version := meta.ComponentVersion(compName, metadata.Version)
-				tb.Download(compName, version).CopyComponent(compName, version, inst.GetHost(), deployDir)
+				tb.Download(compName, inst.OS(), inst.Arch(), version).
+					CopyComponent(compName, inst.OS(), inst.Arch(), version, inst.GetHost(), deployDir)
 			}
 		}
 
@@ -292,16 +315,19 @@ func buildScaleOutTask(
 		Parallel(envInitTasks...).
 		Parallel(deployCompTasks...).
 		// TODO: find another way to make sure current cluster started
-		ClusterSSH(metadata.Topology, metadata.User, sshTimeout).
-		ClusterOperate(metadata.Topology, operator.StartOperation, operator.Options{}).
-		ClusterSSH(newPart, metadata.User, sshTimeout).
+		ClusterSSH(metadata.Topology, metadata.User, gOpt.SSHTimeout).
+		ClusterOperate(metadata.Topology, operator.StartOperation, operator.Options{OptTimeout: timeout}).
+		ClusterSSH(newPart, metadata.User, gOpt.SSHTimeout).
 		Func("save meta", func() error {
 			metadata.Topology = mergedTopo
 			return meta.SaveClusterMeta(clusterName, metadata)
 		}).
-		ClusterOperate(newPart, operator.StartOperation, operator.Options{}).
+		ClusterOperate(newPart, operator.StartOperation, operator.Options{OptTimeout: timeout}).
 		Parallel(refreshConfigTasks...).
-		ClusterOperate(metadata.Topology, operator.RestartOperation, operator.Options{Roles: []string{meta.ComponentPrometheus}}).
+		ClusterOperate(metadata.Topology, operator.RestartOperation, operator.Options{
+			Roles:      []string{meta.ComponentPrometheus},
+			OptTimeout: timeout,
+		}).
 		Build(), nil
 
 }

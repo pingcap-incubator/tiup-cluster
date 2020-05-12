@@ -96,6 +96,24 @@ pd_servers:
 	c.Assert(topo.PDServers[0].DataDir, Equals, "pd-data")
 }
 
+func (s *metaSuite) TestDataDirAbsolute(c *C) {
+	topo := TopologySpecification{}
+	err := yaml.Unmarshal([]byte(`
+global:
+  user: "test1"
+  data_dir: "/test-data" 
+pd_servers:
+  - host: 172.16.5.53
+    data_dir: "pd-data"
+  - host: 172.16.5.54
+    client_port: 12379
+`), &topo)
+	c.Assert(err, IsNil)
+
+	c.Assert(topo.PDServers[0].DataDir, Equals, "pd-data")
+	c.Assert(topo.PDServers[1].DataDir, Equals, "/test-data/pd-12379")
+}
+
 // gopkg.in/yaml.v2 will report error
 // github.com/goccy/go-yaml will not
 /*
@@ -180,6 +198,52 @@ tikv_servers:
 `), &topo)
 	c.Assert(err, NotNil)
 	c.Assert(err.Error(), Equals, "port '1234' conflicts between 'tidb_servers:172.16.5.138.port' and 'monitored:172.16.5.138.node_exporter_port'")
+
+}
+
+func (s *metaSuite) TestPlatformConflicts(c *C) {
+	// aarch64 and arm64 are equal
+	topo := TopologySpecification{}
+	err := yaml.Unmarshal([]byte(`
+global:
+  os: "linux"
+  arch: "aarch64"
+tidb_servers:
+  - host: 172.16.5.138
+    arch: "arm64"
+tikv_servers:
+  - host: 172.16.5.138
+`), &topo)
+	c.Assert(err, IsNil)
+
+	// different arch defined for the same host
+	topo = TopologySpecification{}
+	err = yaml.Unmarshal([]byte(`
+global:
+  os: "linux"
+tidb_servers:
+  - host: 172.16.5.138
+    arch: "aarch64"
+tikv_servers:
+  - host: 172.16.5.138
+`), &topo)
+	c.Assert(err, NotNil)
+	c.Assert(err.Error(), Equals, "platform mismatch for '172.16.5.138' as in 'tidb_servers:linux/arm64' and 'tikv_servers:linux/amd64'")
+
+	// different os defined for the same host
+	topo = TopologySpecification{}
+	err = yaml.Unmarshal([]byte(`
+global:
+  os: "linux"
+  arch: "aarch64"
+tidb_servers:
+  - host: 172.16.5.138
+    os: "darwin"
+tikv_servers:
+  - host: 172.16.5.138
+`), &topo)
+	c.Assert(err, NotNil)
+	c.Assert(err.Error(), Equals, "platform mismatch for '172.16.5.138' as in 'tidb_servers:darwin/arm64' and 'tikv_servers:linux/arm64'")
 
 }
 

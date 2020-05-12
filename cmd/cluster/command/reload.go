@@ -29,8 +29,6 @@ import (
 )
 
 func newReloadCmd() *cobra.Command {
-	var options operator.Options
-
 	cmd := &cobra.Command{
 		Use:   "reload <cluster-name>",
 		Short: "Reload a TiDB cluster's config and restart if needed",
@@ -39,7 +37,7 @@ func newReloadCmd() *cobra.Command {
 				return cmd.Help()
 			}
 
-			if err := validRoles(options.Roles); err != nil {
+			if err := validRoles(gOpt.Roles); err != nil {
 				return err
 			}
 
@@ -54,7 +52,7 @@ func newReloadCmd() *cobra.Command {
 				return err
 			}
 
-			t, err := buildReloadTask(clusterName, metadata, options)
+			t, err := buildReloadTask(clusterName, metadata, gOpt)
 			if err != nil {
 				return err
 			}
@@ -73,9 +71,9 @@ func newReloadCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringSliceVarP(&options.Roles, "role", "R", nil, "Only start specified roles")
-	cmd.Flags().StringSliceVarP(&options.Nodes, "node", "N", nil, "Only start specified nodes")
-	cmd.Flags().Int64Var(&options.Timeout, "transfer-timeout", 300, "Timeout in seconds when transferring PD and TiKV store leaders")
+	cmd.Flags().StringSliceVarP(&gOpt.Roles, "role", "R", nil, "Only start specified roles")
+	cmd.Flags().StringSliceVarP(&gOpt.Nodes, "node", "N", nil, "Only start specified nodes")
+	cmd.Flags().Int64Var(&gOpt.APITimeout, "transfer-timeout", 300, "Timeout in seconds when transferring PD and TiKV store leaders")
 
 	return cmd
 }
@@ -101,12 +99,13 @@ func buildReloadTask(
 		logDir := clusterutil.Abs(metadata.User, inst.LogDir())
 
 		// Download and copy the latest component to remote if the cluster is imported from Ansible
-		tb := task.NewBuilder().UserSSH(inst.GetHost(), inst.GetSSHPort(), metadata.User, sshTimeout)
+		tb := task.NewBuilder().UserSSH(inst.GetHost(), inst.GetSSHPort(), metadata.User, gOpt.SSHTimeout)
 		if inst.IsImported() {
 			switch compName := inst.ComponentName(); compName {
 			case meta.ComponentGrafana, meta.ComponentPrometheus, meta.ComponentAlertManager:
 				version := meta.ComponentVersion(compName, metadata.Version)
-				tb.Download(compName, version).CopyComponent(compName, version, inst.GetHost(), deployDir)
+				tb.Download(compName, inst.OS(), inst.Arch(), version).
+					CopyComponent(compName, inst.OS(), inst.Arch(), version, inst.GetHost(), deployDir)
 			}
 		}
 
@@ -127,7 +126,7 @@ func buildReloadTask(
 		SSHKeySet(
 			meta.ClusterPath(clusterName, "ssh", "id_rsa"),
 			meta.ClusterPath(clusterName, "ssh", "id_rsa.pub")).
-		ClusterSSH(metadata.Topology, metadata.User, sshTimeout).
+		ClusterSSH(metadata.Topology, metadata.User, gOpt.SSHTimeout).
 		Parallel(refreshConfigTasks...).
 		ClusterOperate(metadata.Topology, operator.UpgradeOperation, options).
 		Build()

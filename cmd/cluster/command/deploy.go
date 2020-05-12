@@ -43,16 +43,25 @@ var (
 	errDeployNameDuplicate = errNSDeploy.NewType("name_dup", errutil.ErrTraitPreCheck)
 )
 
-type componentInfo struct {
-	component string
-	version   repository.Version
-}
+type (
+	componentInfo struct {
+		component string
+		version   repository.Version
+	}
 
-type deployOptions struct {
-	user         string // username to login to the SSH server
-	identityFile string // path to the private key file
-	usePassword  bool   // use password instead of identity file for ssh connection
-}
+	deployOptions struct {
+		user         string // username to login to the SSH server
+		identityFile string // path to the private key file
+		usePassword  bool   // use password instead of identity file for ssh connection
+	}
+
+	hostInfo struct {
+		ssh  int    // ssh port of host
+		os   string // operating system
+		arch string // cpu architecture
+		// vendor string
+	}
+)
 
 func newDeploy() *cobra.Command {
 	opt := deployOptions{
@@ -93,7 +102,7 @@ func confirmTopology(clusterName, version string, topo *meta.ClusterSpecificatio
 
 	clusterTable := [][]string{
 		// Header
-		{"Type", "Host", "Ports", "Directories"},
+		{"Type", "Host", "Ports", "OS/Arch", "Directories"},
 	}
 
 	topo.IterInstance(func(instance meta.Instance) {
@@ -105,6 +114,7 @@ func confirmTopology(clusterName, version string, topo *meta.ClusterSpecificatio
 			comp,
 			instance.GetHost(),
 			utils.JoinInt(instance.UsedPorts(), "/"),
+			cliutil.OsArch(instance.OS(), instance.Arch()),
 			strings.Join(instance.UsedDirs(), ","),
 		})
 	})
@@ -168,11 +178,26 @@ func deploy(clusterName, clusterVersion, topoFile string, opt deployOptions) err
 	)
 
 	// Initialize environment
-	uniqueHosts := map[string]int{} // host -> ssh-port
+	uniqueHosts := make(map[string]hostInfo) // host -> ssh-port, os, arch
 	globalOptions := topo.GlobalOptions
+	var iterErr error // error when itering over instances
+	iterErr = nil
 	topo.IterInstance(func(inst meta.Instance) {
 		if _, found := uniqueHosts[inst.GetHost()]; !found {
-			uniqueHosts[inst.GetHost()] = inst.GetSSHPort()
+			// check for "imported" parameter, it can not be true when scaling out
+			if inst.IsImported() {
+				iterErr = errors.New(
+					"'imported' is set to 'true' for new instance, this is only used " +
+						"for instances imported from tidb-ansible and make no sense when " +
+						"deploying new instances, please delete the line or set it to 'false' for new instances")
+				return // skip the host to avoid issues
+			}
+
+			uniqueHosts[inst.GetHost()] = hostInfo{
+				ssh:  inst.GetSSHPort(),
+				os:   inst.OS(),
+				arch: inst.Arch(),
+			}
 			var dirs []string
 			for _, dir := range []string{globalOptions.DeployDir, globalOptions.LogDir} {
 				if dir == "" {
@@ -192,7 +217,7 @@ func deploy(clusterName, clusterVersion, topoFile string, opt deployOptions) err
 					sshConnProps.Password,
 					sshConnProps.IdentityFile,
 					sshConnProps.IdentityFilePassphrase,
-					sshTimeout,
+					gOpt.SSHTimeout,
 				).
 				EnvInit(inst.GetHost(), globalOptions.User).
 				Mkdir(globalOptions.User, inst.GetHost(), dirs...).
@@ -200,6 +225,10 @@ func deploy(clusterName, clusterVersion, topoFile string, opt deployOptions) err
 			envInitTasks = append(envInitTasks, t)
 		}
 	})
+
+	if iterErr != nil {
+		return iterErr
+	}
 
 	// Download missing component
 	downloadCompTasks = prepare.BuildDownloadCompTasks(clusterVersion, &topo)
@@ -217,14 +246,21 @@ func deploy(clusterName, clusterVersion, topoFile string, opt deployOptions) err
 		logDir := clusterutil.Abs(globalOptions.User, inst.LogDir())
 		// Deploy component
 		t := task.NewBuilder().
-			UserSSH(inst.GetHost(), inst.GetSSHPort(), globalOptions.User, sshTimeout).
+			UserSSH(inst.GetHost(), inst.GetSSHPort(), globalOptions.User, gOpt.SSHTimeout).
 			Mkdir(globalOptions.User, inst.GetHost(),
 				deployDir, logDir,
 				filepath.Join(deployDir, "bin"),
 				filepath.Join(deployDir, "conf"),
 				filepath.Join(deployDir, "scripts")).
 			Mkdir(globalOptions.User, inst.GetHost(), dataDirs...).
-			CopyComponent(inst.ComponentName(), version, inst.GetHost(), deployDir).
+			CopyComponent(
+				inst.ComponentName(),
+				inst.OS(),
+				inst.Arch(),
+				version,
+				inst.GetHost(),
+				deployDir,
+			).
 			InitConfig(
 				clusterName,
 				clusterVersion,
@@ -284,18 +320,26 @@ func deploy(clusterName, clusterVersion, topoFile string, opt deployOptions) err
 
 func buildMonitoredDeployTask(
 	clusterName string,
-	uniqueHosts map[string]int, // host -> ssh-port
+	uniqueHosts map[string]hostInfo, // host -> ssh-port, os, arch
 	globalOptions meta.GlobalOptions,
 	monitoredOptions meta.MonitoredOptions,
-	version string) (downloadCompTasks []*task.StepDisplay, deployCompTasks []*task.StepDisplay) {
+	version string,
+) (downloadCompTasks []*task.StepDisplay, deployCompTasks []*task.StepDisplay) {
+	uniqueCompOSArch := make(map[string]struct{}) // comp-os-arch -> {}
+	// monitoring agents
 	for _, comp := range []string{meta.ComponentNodeExporter, meta.ComponentBlackboxExporter} {
 		version := meta.ComponentVersion(comp, version)
-		t := task.NewBuilder().
-			Download(comp, version).
-			BuildAsStep(fmt.Sprintf("  - Download %s:%s", comp, version))
-		downloadCompTasks = append(downloadCompTasks, t)
 
-		for host, sshPort := range uniqueHosts {
+		for host, info := range uniqueHosts {
+			// populate unique os/arch set
+			key := fmt.Sprintf("%s-%s-%s", comp, info.os, info.arch)
+			if _, found := uniqueCompOSArch[key]; !found {
+				uniqueCompOSArch[key] = struct{}{}
+				downloadCompTasks = append(downloadCompTasks, task.NewBuilder().
+					Download(comp, info.os, info.arch, version).
+					BuildAsStep(fmt.Sprintf("  - Download %s:%s (%s/%s)", comp, version, info.os, info.arch)))
+			}
+
 			deployDir := clusterutil.Abs(globalOptions.User, monitoredOptions.DeployDir)
 			// data dir would be empty for components which don't need it
 			dataDir := monitoredOptions.DataDir
@@ -308,13 +352,20 @@ func buildMonitoredDeployTask(
 
 			// Deploy component
 			t := task.NewBuilder().
-				UserSSH(host, sshPort, globalOptions.User, sshTimeout).
+				UserSSH(host, info.ssh, globalOptions.User, gOpt.SSHTimeout).
 				Mkdir(globalOptions.User, host,
 					deployDir, dataDir, logDir,
 					filepath.Join(deployDir, "bin"),
 					filepath.Join(deployDir, "conf"),
 					filepath.Join(deployDir, "scripts")).
-				CopyComponent(comp, version, host, deployDir).
+				CopyComponent(
+					comp,
+					info.os,
+					info.arch,
+					version,
+					host,
+					deployDir,
+				).
 				MonitoredConfig(
 					clusterName,
 					comp,
