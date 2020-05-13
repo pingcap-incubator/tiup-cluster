@@ -46,6 +46,8 @@ server_configs:
     replication.enable-placement-rules: true
   #tiflash:
   #  logger.level: "info"
+  #tiflash-learner:
+  #  log-level: "info"
   # pump:
   #   gc: 7
 
@@ -112,6 +114,7 @@ tikv_servers:
   # # Config is used to overwrite the `server_configs.tiflash` values
   # config:
   #   logger.level: "info"
+  # # The following config is used to overwrite the `server_configs.tiflash-learner` values
   # learner_config:
   #   log-level: "info"
   #  - host: 10.0.1.15
