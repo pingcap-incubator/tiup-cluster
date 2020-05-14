@@ -155,9 +155,7 @@ func checkSystemInfo(s *cliutil.SSHConnectionProps, topo *meta.TopologySpecifica
 			// if the data dir set in topology is relative, and the home dir of deploy user
 			// and the user run the check command is on different partitions, the disk detection
 			// may be using incorrect partition for validations.
-			for _, dir := range strings.Split(inst.DataDir(), ",") {
-
-				dataDir := clusterutil.Abs(opt.user, dir)
+			for _, dataDir := range clusterutil.MultiDirAbs(opt.user, inst.DataDir()) {
 				// build checking tasks
 				t2 := task.NewBuilder().
 					CheckSys(
