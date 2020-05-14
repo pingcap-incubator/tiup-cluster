@@ -15,9 +15,6 @@ package command
 
 import (
 	"fmt"
-	"os"
-	"strings"
-
 	"github.com/joomcode/errorx"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/clusterutil"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/log"
@@ -30,6 +27,7 @@ import (
 	"github.com/pingcap/errors"
 	"github.com/spf13/cobra"
 	"golang.org/x/mod/semver"
+	"os"
 )
 
 func newUpgradeCmd() *cobra.Command {
@@ -111,10 +109,7 @@ func upgrade(clusterName, clusterVersion string, opt operator.Options) error {
 
 			deployDir := clusterutil.Abs(metadata.User, inst.DeployDir())
 			// data dir would be empty for components which don't need it
-			var dataDirs []string
-			for _, dataDir := range strings.Split(inst.DataDir(), ",") {
-				dataDirs = append(dataDirs, clusterutil.Abs(metadata.User, dataDir))
-			}
+			dataDirs := clusterutil.MultiDirAbs(metadata.User, inst.DataDir())
 			// log dir will always be with values, but might not used by the component
 			logDir := clusterutil.Abs(metadata.User, inst.LogDir())
 

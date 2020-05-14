@@ -14,8 +14,6 @@
 package command
 
 import (
-	"strings"
-
 	"github.com/joomcode/errorx"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/clusterutil"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/log"
@@ -91,10 +89,7 @@ func buildReloadTask(
 	topo.IterInstance(func(inst meta.Instance) {
 		deployDir := clusterutil.Abs(metadata.User, inst.DeployDir())
 		// data dir would be empty for components which don't need it
-		var dataDirs []string
-		for _, dataDir := range strings.Split(inst.DataDir(), ",") {
-			dataDirs = append(dataDirs, clusterutil.Abs(metadata.User, dataDir))
-		}
+		dataDirs := clusterutil.MultiDirAbs(metadata.User, inst.DataDir())
 		// log dir will always be with values, but might not used by the component
 		logDir := clusterutil.Abs(metadata.User, inst.LogDir())
 

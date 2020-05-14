@@ -238,10 +238,7 @@ func deploy(clusterName, clusterVersion, topoFile string, opt deployOptions) err
 		version := meta.ComponentVersion(inst.ComponentName(), clusterVersion)
 		deployDir := clusterutil.Abs(globalOptions.User, inst.DeployDir())
 		// data dir would be empty for components which don't need it
-		var dataDirs []string
-		for _, dataDir := range strings.Split(inst.DataDir(), ",") {
-			dataDirs = append(dataDirs, clusterutil.Abs(globalOptions.User, dataDir))
-		}
+		dataDirs := clusterutil.MultiDirAbs(globalOptions.User, inst.DataDir())
 		// log dir will always be with values, but might not used by the component
 		logDir := clusterutil.Abs(globalOptions.User, inst.LogDir())
 		// Deploy component

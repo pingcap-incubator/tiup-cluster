@@ -225,10 +225,7 @@ func buildScaleOutTask(
 		version := meta.ComponentVersion(inst.ComponentName(), metadata.Version)
 		deployDir := clusterutil.Abs(metadata.User, inst.DeployDir())
 		// data dir would be empty for components which don't need it
-		var dataDirs []string
-		for _, dataDir := range strings.Split(inst.DataDir(), ",") {
-			dataDirs = append(dataDirs, clusterutil.Abs(metadata.User, dataDir))
-		}
+		dataDirs := clusterutil.MultiDirAbs(metadata.User, inst.DataDir())
 		// log dir will always be with values, but might not used by the component
 		logDir := clusterutil.Abs(metadata.User, inst.LogDir())
 
@@ -263,10 +260,7 @@ func buildScaleOutTask(
 	mergedTopo.IterInstance(func(inst meta.Instance) {
 		deployDir := clusterutil.Abs(metadata.User, inst.DeployDir())
 		// data dir would be empty for components which don't need it
-		var dataDirs []string
-		for _, dataDir := range strings.Split(inst.DataDir(), ",") {
-			dataDirs = append(dataDirs, clusterutil.Abs(metadata.User, dataDir))
-		}
+		dataDirs := clusterutil.MultiDirAbs(metadata.User, inst.DataDir())
 		// log dir will always be with values, but might not used by the component
 		logDir := clusterutil.Abs(metadata.User, inst.LogDir())
 
