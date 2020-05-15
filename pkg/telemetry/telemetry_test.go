@@ -15,6 +15,7 @@ package telemetry
 
 import (
 	"context"
+	"encoding/json"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -39,7 +40,7 @@ func (s *TelemetrySuite) TestReport(c *check.C) {
 		}
 
 		msg := new(Report)
-		err = msg.Unmarshal(dst)
+		err = json.Unmarshal(dst, msg)
 		if err != nil {
 			w.WriteHeader(400)
 			return
