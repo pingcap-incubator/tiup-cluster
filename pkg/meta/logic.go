@@ -20,6 +20,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/clusterutil"
@@ -65,8 +66,8 @@ type Component interface {
 type Instance interface {
 	InstanceSpec
 	ID() string
-	Ready(executor.TiOpsExecutor) error
-	WaitForDown(executor.TiOpsExecutor) error
+	Ready(executor.TiOpsExecutor, int64) error
+	WaitForDown(executor.TiOpsExecutor, int64) error
 	InitConfig(e executor.TiOpsExecutor, clusterName string, clusterVersion string, deployUser string, paths DirPaths) error
 	ScaleConfig(e executor.TiOpsExecutor, topo Specification, clusterName string, clusterVersion string, deployUser string, paths DirPaths) error
 	ComponentName() string
@@ -81,6 +82,8 @@ type Instance interface {
 	Status(pdList ...string) string
 	DataDir() string
 	LogDir() string
+	OS() string // only linux supported now
+	Arch() string
 }
 
 // Specification represents the topology of cluster/dm
@@ -97,20 +100,22 @@ type Specification interface {
 }
 
 // PortStarted wait until a port is being listened
-func PortStarted(e executor.TiOpsExecutor, port int) error {
+func PortStarted(e executor.TiOpsExecutor, port int, timeout int64) error {
 	c := module.WaitForConfig{
-		Port:  port,
-		State: "started",
+		Port:    port,
+		State:   "started",
+		Timeout: time.Second * time.Duration(timeout),
 	}
 	w := module.NewWaitFor(c)
 	return w.Execute(e)
 }
 
 // PortStopped wait until a port is being released
-func PortStopped(e executor.TiOpsExecutor, port int) error {
+func PortStopped(e executor.TiOpsExecutor, port int, timeout int64) error {
 	c := module.WaitForConfig{
-		Port:  port,
-		State: "stopped",
+		Port:    port,
+		State:   "stopped",
+		Timeout: time.Second * time.Duration(timeout),
 	}
 	w := module.NewWaitFor(c)
 	return w.Execute(e)
@@ -131,13 +136,13 @@ type instance struct {
 }
 
 // Ready implements Instance interface
-func (i *instance) Ready(e executor.TiOpsExecutor) error {
-	return PortStarted(e, i.port)
+func (i *instance) Ready(e executor.TiOpsExecutor, timeout int64) error {
+	return PortStarted(e, i.port, timeout)
 }
 
 // WaitForDown implements Instance interface
-func (i *instance) WaitForDown(e executor.TiOpsExecutor) error {
-	return PortStopped(e, i.port)
+func (i *instance) WaitForDown(e executor.TiOpsExecutor, timeout int64) error {
+	return PortStopped(e, i.port, timeout)
 }
 
 func (i *instance) InitConfig(e executor.TiOpsExecutor, _, _, user string, paths DirPaths) error {
@@ -160,11 +165,11 @@ func (i *instance) InitConfig(e executor.TiOpsExecutor, _, _, user string, paths
 	}
 
 	if err := systemCfg.ConfigToFile(sysCfg); err != nil {
-		return err
+		return errors.Trace(err)
 	}
 	tgt := filepath.Join("/tmp", comp+"_"+uuid.New().String()+".service")
 	if err := e.Transfer(sysCfg, tgt, false); err != nil {
-		return err
+		return errors.Annotatef(err, "transfer from %s to %s failed", sysCfg, tgt)
 	}
 	cmd := fmt.Sprintf("mv %s /etc/systemd/system/%s-%d.service", tgt, comp, port)
 	if _, _, err := e.Execute(cmd, true); err != nil {
@@ -253,11 +258,27 @@ func (i *instance) DataDir() string {
 	}
 
 	// the default data_dir is relative to deploy_dir
-	if dataDir.String() != "" && !strings.HasPrefix(dataDir.String(), "/") {
-		return filepath.Join(i.DeployDir(), dataDir.String())
+	var dirs []string
+	for _, dir := range strings.Split(dataDir.String(), ",") {
+		if dir == "" {
+			continue
+		}
+		if !strings.HasPrefix(dir, "/") {
+			dirs = append(dirs, filepath.Join(i.DeployDir(), dir))
+		} else {
+			dirs = append(dirs, dir)
+		}
 	}
 
-	return dataDir.String()
+	return strings.Join(dirs, ",")
+}
+
+func (i *instance) OS() string {
+	return reflect.ValueOf(i.InstanceSpec).FieldByName("OS").Interface().(string)
+}
+
+func (i *instance) Arch() string {
+	return reflect.ValueOf(i.InstanceSpec).FieldByName("Arch").Interface().(string)
 }
 
 // MergeResourceControl merge the rhs into lhs and overwrite rhs if lhs has value for same field
@@ -474,7 +495,7 @@ func (i *TiKVInstance) InitConfig(e executor.TiOpsExecutor, clusterName, cluster
 	cfg := scripts.NewTiKVScript(
 		i.GetHost(),
 		paths.Deploy,
-		paths.Data,
+		paths.Data[0],
 		paths.Log,
 	).WithPort(spec.Port).WithNumaNode(spec.NumaNode).WithStatusPort(spec.StatusPort).AppendEndpoints(i.instance.topo.Endpoints(deployUser)...)
 	fp := filepath.Join(paths.Cache, fmt.Sprintf("run_tikv_%s_%d.sh", i.GetHost(), i.GetPort()))
@@ -594,7 +615,7 @@ func (i *PDInstance) InitConfig(e executor.TiOpsExecutor, clusterName, clusterVe
 		name,
 		i.GetHost(),
 		paths.Deploy,
-		paths.Data,
+		paths.Data[0],
 		paths.Log,
 	).WithClientPort(spec.ClientPort).WithPeerPort(spec.PeerPort).AppendEndpoints(i.instance.topo.Endpoints(deployUser)...)
 
@@ -669,7 +690,7 @@ func (i *PDInstance) ScaleConfig(e executor.TiOpsExecutor, b Specification, clus
 		name,
 		i.GetHost(),
 		paths.Deploy,
-		paths.Data,
+		paths.Data[0],
 		paths.Log,
 	).WithPeerPort(spec.PeerPort).WithNumaNode(spec.NumaNode).WithClientPort(spec.ClientPort).AppendEndpoints(c.Endpoints(deployUser)...)
 
@@ -861,10 +882,15 @@ func (i *TiFlashInstance) InitConfig(e executor.TiOpsExecutor, clusterName, clus
 		}
 	}
 
+	dataDir := strings.Join(paths.Data, ",")
+	if dir, ok := i.instance.topo.ServerConfigs.TiFlash["data_dir"].(string); ok && dir != "" {
+		dataDir = dir
+	}
+
 	cfg := scripts.NewTiFlashScript(
 		i.GetHost(),
 		paths.Deploy,
-		paths.Data,
+		dataDir,
 		paths.Log,
 		tidbStatusStr,
 		pdStr,
@@ -1018,7 +1044,7 @@ func (i *MonitorInstance) InitConfig(e executor.TiOpsExecutor, clusterName, clus
 	cfg := scripts.NewPrometheusScript(
 		i.GetHost(),
 		paths.Deploy,
-		paths.Data,
+		paths.Data[0],
 		paths.Log,
 	).WithPort(spec.Port).
 		WithNumaNode(spec.NumaNode)
@@ -1265,7 +1291,7 @@ func (i *AlertManagerInstance) InitConfig(e executor.TiOpsExecutor, clusterName,
 
 	// Transfer start script
 	spec := i.InstanceSpec.(AlertManagerSpec)
-	cfg := scripts.NewAlertManagerScript(spec.Host, paths.Deploy, paths.Data, paths.Log).
+	cfg := scripts.NewAlertManagerScript(spec.Host, paths.Deploy, paths.Data[0], paths.Log).
 		WithWebPort(spec.WebPort).WithClusterPort(spec.ClusterPort).WithNumaNode(spec.NumaNode).AppendEndpoints(i.instance.topo.AlertManagerEndpoints(deployUser))
 
 	fp := filepath.Join(paths.Cache, fmt.Sprintf("run_alertmanager_%s_%d.sh", i.GetHost(), i.GetPort()))

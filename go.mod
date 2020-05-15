@@ -16,6 +16,7 @@ require (
 	github.com/joomcode/errorx v1.0.1
 	github.com/juju/ansiterm v0.0.0-20180109212912-720a0952cc2a // indirect
 	github.com/lunixbochs/vtclean v1.0.0 // indirect
+	github.com/markbates/pkger v0.15.1
 	github.com/mattn/go-colorable v0.1.6 // indirect
 	github.com/mattn/go-runewidth v0.0.7
 	github.com/onsi/gomega v1.5.0 // indirect
@@ -35,6 +36,7 @@ require (
 	golang.org/x/mod v0.2.0
 	golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e
 	golang.org/x/sys v0.0.0-20200420163511-1957bb5e6d1f
+	gopkg.in/ini.v1 v1.55.0
 	gopkg.in/yaml.v2 v2.2.8
 )
 

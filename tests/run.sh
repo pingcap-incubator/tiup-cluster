@@ -11,7 +11,7 @@ export TIUP_CLUSTER_PROGRESS_REFRESH_RATE=10s
 export TIUP_CLUSTER_EXECUTE_DEFAULT_TIMEOUT=300s
 
 
-export version=${version-v4.0.0-rc}
+export version=${version-v4.0.0-rc.1}
 export old_version=${old_version-v3.0.12}
 
 function tiup-cluster() {
@@ -24,10 +24,6 @@ function tiup-cluster() {
 }
 
 . ./script/util.sh
-
-# TODO remove this once embed the files in binary
-# the work dir of tiup-cluster need this
-ln -s ../templates templates || true
 
 # use run.sh test_cmd test_upgrade to run specify cases
 do_cases=$*

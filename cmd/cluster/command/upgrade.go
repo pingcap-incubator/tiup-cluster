@@ -14,8 +14,7 @@
 package command
 
 import (
-	"os"
-
+	"fmt"
 	"github.com/joomcode/errorx"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/clusterutil"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/log"
@@ -28,14 +27,10 @@ import (
 	"github.com/pingcap/errors"
 	"github.com/spf13/cobra"
 	"golang.org/x/mod/semver"
+	"os"
 )
 
-type upgradeOptions struct {
-	options operator.Options
-}
-
 func newUpgradeCmd() *cobra.Command {
-	opt := upgradeOptions{}
 	cmd := &cobra.Command{
 		Use:   "upgrade <cluster-name> <version>",
 		Short: "Upgrade a specified TiDB cluster",
@@ -45,11 +40,11 @@ func newUpgradeCmd() *cobra.Command {
 			}
 
 			logger.EnableAuditLog()
-			return upgrade(args[0], args[1], opt)
+			return upgrade(args[0], args[1], gOpt)
 		},
 	}
-	cmd.Flags().BoolVar(&opt.options.Force, "force", false, "Force upgrade won't transfer leader")
-	cmd.Flags().Int64Var(&opt.options.Timeout, "transfer-timeout", 300, "Timeout in seconds when transferring PD and TiKV store leaders")
+	cmd.Flags().BoolVar(&gOpt.Force, "force", false, "Force upgrade won't transfer leader")
+	cmd.Flags().Int64Var(&gOpt.APITimeout, "transfer-timeout", 300, "Timeout in seconds when transferring PD and TiKV store leaders")
 
 	return cmd
 }
@@ -70,7 +65,7 @@ func versionCompare(curVersion, newVersion string) error {
 	}
 }
 
-func upgrade(clusterName, clusterVersion string, opt upgradeOptions) error {
+func upgrade(clusterName, clusterVersion string, opt operator.Options) error {
 	if utils.IsNotExist(meta.ClusterPath(clusterName, meta.MetaFileName)) {
 		return errors.Errorf("cannot upgrade non-exists cluster %s", clusterName)
 	}
@@ -84,7 +79,7 @@ func upgrade(clusterName, clusterVersion string, opt upgradeOptions) error {
 		downloadCompTasks []task.Task // tasks which are used to download components
 		copyCompTasks     []task.Task // tasks which are used to copy components to remote host
 
-		uniqueComps = map[componentInfo]struct{}{}
+		uniqueComps = map[string]struct{}{}
 	)
 
 	if err := versionCompare(metadata.Version, clusterVersion); err != nil {
@@ -103,17 +98,18 @@ func upgrade(clusterName, clusterVersion string, opt upgradeOptions) error {
 			}
 
 			// Download component from repository
-			if _, found := uniqueComps[compInfo]; !found {
-				uniqueComps[compInfo] = struct{}{}
+			key := fmt.Sprintf("%s-%s-%s-%s", compInfo.component, compInfo.version, inst.OS(), inst.Arch())
+			if _, found := uniqueComps[key]; !found {
+				uniqueComps[key] = struct{}{}
 				t := task.NewBuilder().
-					Download(inst.ComponentName(), version).
+					Download(inst.ComponentName(), inst.OS(), inst.Arch(), version).
 					Build()
 				downloadCompTasks = append(downloadCompTasks, t)
 			}
 
 			deployDir := clusterutil.Abs(metadata.User, inst.DeployDir())
 			// data dir would be empty for components which don't need it
-			dataDir := clusterutil.Abs(metadata.User, inst.DataDir())
+			dataDirs := clusterutil.MultiDirAbs(metadata.User, inst.DataDir())
 			// log dir will always be with values, but might not used by the component
 			logDir := clusterutil.Abs(metadata.User, inst.LogDir())
 
@@ -122,10 +118,10 @@ func upgrade(clusterName, clusterVersion string, opt upgradeOptions) error {
 			if inst.IsImported() {
 				switch inst.ComponentName() {
 				case meta.ComponentPrometheus, meta.ComponentGrafana, meta.ComponentAlertManager:
-					tb.CopyComponent(inst.ComponentName(), version, inst.GetHost(), deployDir)
+					tb.CopyComponent(inst.ComponentName(), inst.OS(), inst.Arch(), version, inst.GetHost(), deployDir)
 				default:
 					tb.BackupComponent(inst.ComponentName(), metadata.Version, inst.GetHost(), deployDir).
-						CopyComponent(inst.ComponentName(), version, inst.GetHost(), deployDir)
+						CopyComponent(inst.ComponentName(), inst.OS(), inst.Arch(), version, inst.GetHost(), deployDir)
 				}
 				tb.InitConfig(
 					clusterName,
@@ -134,14 +130,14 @@ func upgrade(clusterName, clusterVersion string, opt upgradeOptions) error {
 					metadata.User,
 					meta.DirPaths{
 						Deploy: deployDir,
-						Data:   dataDir,
+						Data:   dataDirs,
 						Log:    logDir,
 						Cache:  meta.ClusterPath(clusterName, "config"),
 					},
 				)
 			} else {
 				tb.BackupComponent(inst.ComponentName(), metadata.Version, inst.GetHost(), deployDir).
-					CopyComponent(inst.ComponentName(), version, inst.GetHost(), deployDir)
+					CopyComponent(inst.ComponentName(), inst.OS(), inst.Arch(), version, inst.GetHost(), deployDir)
 			}
 			copyCompTasks = append(copyCompTasks, tb.Build())
 		}
@@ -151,10 +147,10 @@ func upgrade(clusterName, clusterVersion string, opt upgradeOptions) error {
 		SSHKeySet(
 			meta.ClusterPath(clusterName, "ssh", "id_rsa"),
 			meta.ClusterPath(clusterName, "ssh", "id_rsa.pub")).
-		ClusterSSH(metadata.Topology, metadata.User, sshTimeout).
+		ClusterSSH(metadata.Topology, metadata.User, gOpt.SSHTimeout).
 		Parallel(downloadCompTasks...).
 		Parallel(copyCompTasks...).
-		ClusterOperate(metadata.Topology, operator.UpgradeOperation, opt.options).
+		ClusterOperate(metadata.Topology, operator.UpgradeOperation, opt).
 		Build()
 
 	if err := t.Execute(task.NewContext()); err != nil {

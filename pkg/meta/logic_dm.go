@@ -44,13 +44,13 @@ type dmInstance struct {
 }
 
 // Ready implements Instance interface
-func (i *dmInstance) Ready(e executor.TiOpsExecutor) error {
-	return PortStarted(e, i.port)
+func (i *dmInstance) Ready(e executor.TiOpsExecutor, timeout int64) error {
+	return PortStarted(e, i.port, timeout)
 }
 
 // WaitForDown implements Instance interface
-func (i *dmInstance) WaitForDown(e executor.TiOpsExecutor) error {
-	return PortStopped(e, i.port)
+func (i *dmInstance) WaitForDown(e executor.TiOpsExecutor, timeout int64) error {
+	return PortStopped(e, i.port, timeout)
 }
 
 func (i *dmInstance) InitConfig(e executor.TiOpsExecutor, _, _, user string, paths DirPaths) error {
@@ -162,6 +162,14 @@ func (i *dmInstance) LogDir() string {
 	return logDir
 }
 
+func (i *dmInstance) OS() string {
+	return reflect.ValueOf(i.InstanceSpec).FieldByName("OS").Interface().(string)
+}
+
+func (i *dmInstance) Arch() string {
+	return reflect.ValueOf(i.InstanceSpec).FieldByName("Arch").Interface().(string)
+}
+
 func (i *dmInstance) GetPort() int {
 	return i.port
 }
@@ -239,7 +247,7 @@ func (i *DMMasterInstance) InitConfig(e executor.TiOpsExecutor, clusterName, clu
 		name,
 		i.GetHost(),
 		paths.Deploy,
-		paths.Data,
+		paths.Data[0],
 		paths.Log,
 	).WithPort(spec.Port).WithNumaNode(spec.NumaNode).AppendEndpoints(i.dmInstance.topo.Endpoints(deployUser)...)
 	fp := filepath.Join(paths.Cache, fmt.Sprintf("run_dm_master_%s_%d.sh", i.GetHost(), i.GetPort()))

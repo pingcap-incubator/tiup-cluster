@@ -15,6 +15,7 @@ package command
 
 import (
 	"fmt"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/clusterutil"
 	"path"
 	"path/filepath"
 	"strings"
@@ -23,7 +24,6 @@ import (
 	"github.com/joomcode/errorx"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/cliutil"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/cliutil/prepare"
-	"github.com/pingcap-incubator/tiup-cluster/pkg/clusterutil"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/log"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/logger"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/meta"
@@ -101,11 +101,26 @@ func checkSystemInfo(s *cliutil.SSHConnectionProps, topo *meta.TopologySpecifica
 		checkSysTasks []*task.StepDisplay
 		cleanTasks    []*task.StepDisplay
 		applyFixTasks []*task.StepDisplay
+		downloadTasks []*task.StepDisplay
 	)
 	insightVer := meta.ComponentVersion(meta.ComponentCheckCollector, "")
 
-	uniqueHosts := map[string]int{} // host -> ssh-port
+	uniqueHosts := map[string]int{}             // host -> ssh-port
+	uniqueArchList := make(map[string]struct{}) // map["os-arch"]{}
 	topo.IterInstance(func(inst meta.Instance) {
+		archKey := fmt.Sprintf("%s-%s", inst.OS(), inst.Arch())
+		if _, found := uniqueArchList[archKey]; !found {
+			uniqueArchList[archKey] = struct{}{}
+			t0 := task.NewBuilder().
+				Download(
+					meta.ComponentCheckCollector,
+					inst.OS(),
+					inst.Arch(),
+					insightVer,
+				).
+				BuildAsStep(fmt.Sprintf("  - Downloading check tools for %s/%s", inst.OS(), inst.Arch()))
+			downloadTasks = append(downloadTasks, t0)
+		}
 		if _, found := uniqueHosts[inst.GetHost()]; !found {
 			uniqueHosts[inst.GetHost()] = inst.GetSSHPort()
 
@@ -118,10 +133,17 @@ func checkSystemInfo(s *cliutil.SSHConnectionProps, topo *meta.TopologySpecifica
 					s.Password,
 					s.IdentityFile,
 					s.IdentityFilePassphrase,
-					sshTimeout,
+					gOpt.SSHTimeout,
 				).
 				Mkdir(opt.user, inst.GetHost(), filepath.Join(task.CheckToolsPathDir, "bin")).
-				CopyComponent(meta.ComponentCheckCollector, insightVer, inst.GetHost(), task.CheckToolsPathDir).
+				CopyComponent(
+					meta.ComponentCheckCollector,
+					inst.OS(),
+					inst.Arch(),
+					insightVer,
+					inst.GetHost(),
+					task.CheckToolsPathDir,
+				).
 				Shell(
 					inst.GetHost(),
 					filepath.Join(task.CheckToolsPathDir, "bin", "insight"),
@@ -133,83 +155,83 @@ func checkSystemInfo(s *cliutil.SSHConnectionProps, topo *meta.TopologySpecifica
 			// if the data dir set in topology is relative, and the home dir of deploy user
 			// and the user run the check command is on different partitions, the disk detection
 			// may be using incorrect partition for validations.
-			dataDir := clusterutil.Abs(opt.user, inst.DataDir())
-
-			// build checking tasks
-			t2 := task.NewBuilder().
-				CheckSys(
-					inst.GetHost(),
-					dataDir,
-					task.CheckTypeSystemInfo,
-					topo,
-					opt.opr,
-				).
-				CheckSys(
-					inst.GetHost(),
-					dataDir,
-					task.CheckTypePartitions,
-					topo,
-					opt.opr,
-				).
-				Shell(
-					inst.GetHost(),
-					"ss -lnt",
-					false,
-				).
-				CheckSys(
-					inst.GetHost(),
-					dataDir,
-					task.CheckTypePort,
-					topo,
-					opt.opr,
-				).
-				Shell(
-					inst.GetHost(),
-					"cat /etc/security/limits.conf",
-					false,
-				).
-				CheckSys(
-					inst.GetHost(),
-					dataDir,
-					task.CheckTypeSystemLimits,
-					topo,
-					opt.opr,
-				).
-				Shell(
-					inst.GetHost(),
-					"sysctl -a",
-					true,
-				).
-				CheckSys(
-					inst.GetHost(),
-					dataDir,
-					task.CheckTypeSystemConfig,
-					topo,
-					opt.opr,
-				).
-				CheckSys(
-					inst.GetHost(),
-					dataDir,
-					task.CheckTypeService,
-					topo,
-					opt.opr,
-				).
-				CheckSys(
-					inst.GetHost(),
-					dataDir,
-					task.CheckTypePackage,
-					topo,
-					opt.opr,
-				).
-				CheckSys(
-					inst.GetHost(),
-					dataDir,
-					task.CheckTypeFIO,
-					topo,
-					opt.opr,
-				).
-				BuildAsStep(fmt.Sprintf("  - Checking node %s", inst.GetHost()))
-			checkSysTasks = append(checkSysTasks, t2)
+			for _, dataDir := range clusterutil.MultiDirAbs(opt.user, inst.DataDir()) {
+				// build checking tasks
+				t2 := task.NewBuilder().
+					CheckSys(
+						inst.GetHost(),
+						dataDir,
+						task.CheckTypeSystemInfo,
+						topo,
+						opt.opr,
+					).
+					CheckSys(
+						inst.GetHost(),
+						dataDir,
+						task.CheckTypePartitions,
+						topo,
+						opt.opr,
+					).
+					Shell(
+						inst.GetHost(),
+						"ss -lnt",
+						false,
+					).
+					CheckSys(
+						inst.GetHost(),
+						dataDir,
+						task.CheckTypePort,
+						topo,
+						opt.opr,
+					).
+					Shell(
+						inst.GetHost(),
+						"cat /etc/security/limits.conf",
+						false,
+					).
+					CheckSys(
+						inst.GetHost(),
+						dataDir,
+						task.CheckTypeSystemLimits,
+						topo,
+						opt.opr,
+					).
+					Shell(
+						inst.GetHost(),
+						"sysctl -a",
+						true,
+					).
+					CheckSys(
+						inst.GetHost(),
+						dataDir,
+						task.CheckTypeSystemConfig,
+						topo,
+						opt.opr,
+					).
+					CheckSys(
+						inst.GetHost(),
+						dataDir,
+						task.CheckTypeService,
+						topo,
+						opt.opr,
+					).
+					CheckSys(
+						inst.GetHost(),
+						dataDir,
+						task.CheckTypePackage,
+						topo,
+						opt.opr,
+					).
+					CheckSys(
+						inst.GetHost(),
+						dataDir,
+						task.CheckTypeFIO,
+						topo,
+						opt.opr,
+					).
+					BuildAsStep(fmt.Sprintf("  - Checking node %s", inst.GetHost()))
+				checkSysTasks = append(checkSysTasks, t2)
+			}
 
 			t3 := task.NewBuilder().
 				RootSSH(
@@ -219,7 +241,7 @@ func checkSystemInfo(s *cliutil.SSHConnectionProps, topo *meta.TopologySpecifica
 					s.Password,
 					s.IdentityFile,
 					s.IdentityFilePassphrase,
-					sshTimeout,
+					gOpt.SSHTimeout,
 				).
 				Rmdir(inst.GetHost(), task.CheckToolsPathDir).
 				BuildAsStep(fmt.Sprintf("  - Cleanup check files on %s:%d", inst.GetHost(), inst.GetSSHPort()))
@@ -228,7 +250,7 @@ func checkSystemInfo(s *cliutil.SSHConnectionProps, topo *meta.TopologySpecifica
 	})
 
 	t := task.NewBuilder().
-		Download(meta.ComponentCheckCollector, insightVer).
+		ParallelStep("+ Download necessary tools", downloadTasks...).
 		ParallelStep("+ Collect basic system information", collectTasks...).
 		ParallelStep("+ Check system requirements", checkSysTasks...).
 		ParallelStep("+ Cleanup check files", cleanTasks...).
@@ -258,7 +280,7 @@ func checkSystemInfo(s *cliutil.SSHConnectionProps, topo *meta.TopologySpecifica
 				s.Password,
 				s.IdentityFile,
 				s.IdentityFilePassphrase,
-				sshTimeout,
+				gOpt.SSHTimeout,
 			)
 		resLines, err := handleCheckResults(ctx, host, opt, tf)
 		if err != nil {

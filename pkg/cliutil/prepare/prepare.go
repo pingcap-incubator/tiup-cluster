@@ -102,22 +102,26 @@ func CheckClusterDirConflict(clusterName string, topo meta.Specification) error 
 		f := fixDir(metadata.Topology)
 		metadata.Topology.IterInstance(func(inst meta.Instance) {
 			for _, dirAccessor := range instanceDirAccessor {
-				existingEntries = append(existingEntries, Entry{
-					clusterName: fi.Name(),
-					dirKind:     dirAccessor.dirKind,
-					dir:         f(dirAccessor.accessor(inst, metadata.Topology)),
-					instance:    inst,
-				})
+				for _, dir := range strings.Split(f(dirAccessor.accessor(inst, metadata.Topology)), ",") {
+					existingEntries = append(existingEntries, Entry{
+						clusterName: fi.Name(),
+						dirKind:     dirAccessor.dirKind,
+						dir:         dir,
+						instance:    inst,
+					})
+				}
 			}
 		})
 		metadata.Topology.IterHost(func(inst meta.Instance) {
 			for _, dirAccessor := range hostDirAccessor {
-				existingEntries = append(existingEntries, Entry{
-					clusterName: fi.Name(),
-					dirKind:     dirAccessor.dirKind,
-					dir:         f(dirAccessor.accessor(inst, metadata.Topology)),
-					instance:    inst,
-				})
+				for _, dir := range strings.Split(f(dirAccessor.accessor(inst, metadata.Topology)), ",") {
+					existingEntries = append(existingEntries, Entry{
+						clusterName: fi.Name(),
+						dirKind:     dirAccessor.dirKind,
+						dir:         dir,
+						instance:    inst,
+					})
+				}
 			}
 		})
 	}
@@ -125,20 +129,24 @@ func CheckClusterDirConflict(clusterName string, topo meta.Specification) error 
 	f := fixDir(topo)
 	topo.IterInstance(func(inst meta.Instance) {
 		for _, dirAccessor := range instanceDirAccessor {
-			currentEntries = append(currentEntries, Entry{
-				dirKind:  dirAccessor.dirKind,
-				dir:      f(dirAccessor.accessor(inst, topo)),
-				instance: inst,
-			})
+			for _, dir := range strings.Split(f(dirAccessor.accessor(inst, topo)), ",") {
+				currentEntries = append(currentEntries, Entry{
+					dirKind:  dirAccessor.dirKind,
+					dir:      dir,
+					instance: inst,
+				})
+			}
 		}
 	})
 	topo.IterHost(func(inst meta.Instance) {
 		for _, dirAccessor := range hostDirAccessor {
-			currentEntries = append(currentEntries, Entry{
-				dirKind:  dirAccessor.dirKind,
-				dir:      f(dirAccessor.accessor(inst, topo)),
-				instance: inst,
-			})
+			for _, dir := range strings.Split(f(dirAccessor.accessor(inst, topo)), ",") {
+				currentEntries = append(currentEntries, Entry{
+					dirKind:  dirAccessor.dirKind,
+					dir:      dir,
+					instance: inst,
+				})
+			}
 		}
 	})
 
@@ -274,16 +282,20 @@ Please change to use another port or another host.
 // BuildDownloadCompTasks build download component tasks
 func BuildDownloadCompTasks(version string, topo meta.Specification) []*task.StepDisplay {
 	var tasks []*task.StepDisplay
-	topo.IterComponent(func(comp meta.Component) {
-		if len(comp.Instances()) < 1 {
-			return
+	uniqueTaskList := make(map[string]struct{}) // map["comp-os-arch"]{}
+	topo.IterInstance(func(inst meta.Instance) {
+		key := fmt.Sprintf("%s-%s-%s", inst.ComponentName(), inst.OS(), inst.Arch())
+		if _, found := uniqueTaskList[key]; !found {
+			uniqueTaskList[key] = struct{}{}
+
+			version := meta.ComponentVersion(inst.ComponentName(), version)
+			t := task.
+				NewBuilder().
+				Download(inst.ComponentName(), inst.OS(), inst.Arch(), version).
+				BuildAsStep(fmt.Sprintf("  - Download %s:%s (%s/%s)",
+					inst.ComponentName(), version, inst.OS(), inst.Arch()))
+			tasks = append(tasks, t)
 		}
-		version := meta.ComponentVersion(comp.Name(), version)
-		t := task.
-			NewBuilder().
-			Download(comp.Name(), version).
-			BuildAsStep(fmt.Sprintf("  - Download %s:%s", comp.Name(), version))
-		tasks = append(tasks, t)
 	})
 	return tasks
 }
