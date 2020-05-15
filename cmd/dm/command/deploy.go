@@ -31,6 +31,7 @@ import (
 	"github.com/pingcap-incubator/tiup-cluster/pkg/meta"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/task"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/utils"
+	"github.com/pingcap-incubator/tiup/pkg/repository"
 	"github.com/pingcap-incubator/tiup/pkg/set"
 	tiuputils "github.com/pingcap-incubator/tiup/pkg/utils"
 	"github.com/pingcap/errors"
@@ -42,11 +43,25 @@ var (
 	errDeployNameDuplicate = errNSDeploy.NewType("name_dup", errutil.ErrTraitPreCheck)
 )
 
-type deployOptions struct {
-	user         string // username to login to the SSH server
-	identityFile string // path to the private key file
-	usePassword  bool   // use password instead of identity file for ssh connection
-}
+type (
+	componentInfo struct {
+		component string
+		version   repository.Version
+	}
+
+	deployOptions struct {
+		user         string // username to login to the SSH server
+		identityFile string // path to the private key file
+		usePassword  bool   // use password instead of identity file for ssh connection
+	}
+
+	hostInfo struct {
+		ssh  int    // ssh port of host
+		os   string // operating system
+		arch string // cpu architecture
+		// vendor string
+	}
+)
 
 func newDeploy() *cobra.Command {
 	opt := deployOptions{
@@ -162,11 +177,15 @@ func deploy(clusterName, clusterVersion, topoFile string, opt deployOptions) err
 	)
 
 	// Initialize environment
-	uniqueHosts := map[string]int{} // host -> ssh-port
+	uniqueHosts := make(map[string]hostInfo) // host -> ssh-port, os, arch
 	globalOptions := topo.GlobalOptions
 	topo.IterInstance(func(inst meta.Instance) {
 		if _, found := uniqueHosts[inst.GetHost()]; !found {
-			uniqueHosts[inst.GetHost()] = inst.GetSSHPort()
+			uniqueHosts[inst.GetHost()] = hostInfo{
+				ssh:  inst.GetSSHPort(),
+				os:   inst.OS(),
+				arch: inst.Arch(),
+			}
 			var dirs []string
 			for _, dir := range []string{globalOptions.DeployDir, globalOptions.LogDir} {
 				if dir == "" {
@@ -214,7 +233,14 @@ func deploy(clusterName, clusterVersion, topoFile string, opt deployOptions) err
 				filepath.Join(deployDir, "bin"),
 				filepath.Join(deployDir, "conf"),
 				filepath.Join(deployDir, "scripts")).
-			CopyComponent(inst.ComponentName(), inst.OS(), inst.Arch(), version, inst.GetHost(), deployDir).
+			CopyComponent(
+				inst.ComponentName(),
+				inst.OS(),
+				inst.Arch(),
+				version,
+				inst.GetHost(),
+				deployDir,
+			).
 			InitConfig(
 				clusterName,
 				clusterVersion,

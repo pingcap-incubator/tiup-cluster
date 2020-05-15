@@ -97,6 +97,16 @@ func (b *Builder) UpdateMeta(cluster string, metadata *meta.ClusterMeta, deleted
 	return b
 }
 
+// UpdateDMMeta maintain the dm meta information
+func (b *Builder) UpdateDMMeta(cluster string, metadata *meta.DMMeta, deletedNodeIds []string) *Builder {
+	b.tasks = append(b.tasks, &UpdateDMMeta{
+		cluster:        cluster,
+		metadata:       metadata,
+		deletedNodesID: deletedNodeIds,
+	})
+	return b
+}
+
 // CopyFile appends a CopyFile task to the current task collection
 func (b *Builder) CopyFile(src, dst, server string, download bool) *Builder {
 	b.tasks = append(b.tasks, &CopyFile{
@@ -169,7 +179,7 @@ func (b *Builder) InitConfig(clusterName, clusterVersion string, inst meta.Insta
 }
 
 // ScaleConfig generate temporary config on scaling
-func (b *Builder) ScaleConfig(clusterName, clusterVersion string, base *meta.TopologySpecification, inst meta.Instance, deployUser string, paths meta.DirPaths) *Builder {
+func (b *Builder) ScaleConfig(clusterName, clusterVersion string, base meta.Specification, inst meta.Instance, deployUser string, paths meta.DirPaths) *Builder {
 	b.tasks = append(b.tasks, &ScaleConfig{
 		clusterName:    clusterName,
 		clusterVersion: clusterVersion,

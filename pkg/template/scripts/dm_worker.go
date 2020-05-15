@@ -83,7 +83,7 @@ func (c *DMWorkerScript) ConfigToFile(file string) error {
 
 // ConfigWithTemplate generate the DM worker config content by tpl
 func (c *DMWorkerScript) ConfigWithTemplate(tpl string) ([]byte, error) {
-	tmpl, err := template.New("dm-master").Parse(tpl)
+	tmpl, err := template.New("dm-worker").Parse(tpl)
 	if err != nil {
 		return nil, err
 	}

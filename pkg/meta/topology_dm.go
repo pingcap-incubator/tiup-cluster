@@ -414,6 +414,17 @@ func (topo *DMTopologySpecification) Validate() error {
 	return topo.dirConflictsDetect()
 }
 
+// GetMasterList returns a list of Master API hosts of the current cluster
+func (topo *DMTopologySpecification) GetMasterList() []string {
+	var masterList []string
+
+	for _, master := range topo.Masters {
+		masterList = append(masterList, fmt.Sprintf("%s:%d", master.Host, master.Port))
+	}
+
+	return masterList
+}
+
 // Merge returns a new TopologySpecification which sum old ones
 func (topo *DMTopologySpecification) Merge(that *DMTopologySpecification) *DMTopologySpecification {
 	return &DMTopologySpecification{

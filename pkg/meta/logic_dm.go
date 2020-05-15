@@ -24,6 +24,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/clusterutil"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/executor"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/log"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/template/scripts"
 	system "github.com/pingcap-incubator/tiup-cluster/pkg/template/systemd"
 	"github.com/pingcap/errors"
@@ -202,30 +203,33 @@ func (c *DMMasterComponent) Instances() []Instance {
 	ins := make([]Instance, 0, len(c.Masters))
 	for _, s := range c.Masters {
 		s := s
-		ins = append(ins, &DMMasterInstance{dmInstance{
-			InstanceSpec: s,
-			name:         c.Name(),
-			host:         s.Host,
-			port:         s.Port,
-			sshp:         s.SSHPort,
-			topo:         c.DMSpecification,
+		ins = append(ins, &DMMasterInstance{
+			Name: s.Name,
+			dmInstance: dmInstance{
+				InstanceSpec: s,
+				name:         c.Name(),
+				host:         s.Host,
+				port:         s.Port,
+				sshp:         s.SSHPort,
+				topo:         c.DMSpecification,
 
-			usedPorts: []int{
-				s.Port,
-				s.PeerPort,
-			},
-			usedDirs: []string{
-				s.DeployDir,
-				s.DataDir,
-			},
-			statusFn: s.Status,
-		}})
+				usedPorts: []int{
+					s.Port,
+					s.PeerPort,
+				},
+				usedDirs: []string{
+					s.DeployDir,
+					s.DataDir,
+				},
+				statusFn: s.Status,
+			}})
 	}
 	return ins
 }
 
 // DMMasterInstance represent the TiDB instance
 type DMMasterInstance struct {
+	Name string
 	dmInstance
 }
 
@@ -249,7 +253,7 @@ func (i *DMMasterInstance) InitConfig(e executor.TiOpsExecutor, clusterName, clu
 		paths.Deploy,
 		paths.Data,
 		paths.Log,
-	).WithPort(spec.Port).WithNumaNode(spec.NumaNode).AppendEndpoints(i.dmInstance.topo.Endpoints(deployUser)...)
+	).WithPort(spec.Port).WithNumaNode(spec.NumaNode).WithPeerPort(spec.PeerPort).AppendEndpoints(i.dmInstance.topo.Endpoints(deployUser)...)
 	fp := filepath.Join(paths.Cache, fmt.Sprintf("run_dm_master_%s_%d.sh", i.GetHost(), i.GetPort()))
 	if err := cfg.ConfigToFile(fp); err != nil {
 		return err
@@ -292,10 +296,43 @@ func (i *DMMasterInstance) InitConfig(e executor.TiOpsExecutor, clusterName, clu
 
 // ScaleConfig deploy temporary config on scaling
 func (i *DMMasterInstance) ScaleConfig(e executor.TiOpsExecutor, b Specification, clusterName, clusterVersion, deployUser string, paths DirPaths) error {
-	s := i.dmInstance.topo
-	defer func() { i.dmInstance.topo = s }()
-	i.dmInstance.topo = b.GetDMSpecification()
-	return i.InitConfig(e, clusterName, clusterVersion, deployUser, paths)
+	if err := i.dmInstance.InitConfig(e, clusterName, clusterVersion, deployUser, paths); err != nil {
+		return err
+	}
+
+	c := b.GetDMSpecification()
+	name := i.Name
+	for _, spec := range c.Masters {
+		if spec.Host == i.GetHost() && spec.Port == i.GetPort() {
+			name = spec.Name
+		}
+	}
+
+	spec := i.InstanceSpec.(MasterSpec)
+	cfg := scripts.NewDMMasterScaleScript(
+		name,
+		i.GetHost(),
+		paths.Deploy,
+		paths.Data,
+		paths.Log,
+	).WithPort(spec.Port).WithNumaNode(spec.NumaNode).WithPeerPort(spec.PeerPort).AppendEndpoints(c.Endpoints(deployUser)...)
+
+	fp := filepath.Join(paths.Cache, fmt.Sprintf("run_dm_master_%s_%d.sh", i.GetHost(), i.GetPort()))
+	log.Infof("script path: %s", fp)
+	if err := cfg.ConfigToFile(fp); err != nil {
+		return err
+	}
+
+	dst := filepath.Join(paths.Deploy, "scripts", "run_dm_master.sh")
+	if err := e.Transfer(fp, dst, false); err != nil {
+		return err
+	}
+	if _, _, err := e.Execute("chmod +x "+dst, false); err != nil {
+		return err
+	}
+
+	specConfig := spec.Config
+	return i.mergeServerConfig(e, i.topo.ServerConfigs.Master, specConfig, paths)
 }
 
 // DMWorkerComponent represents DM worker component.
