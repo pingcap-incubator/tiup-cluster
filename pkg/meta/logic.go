@@ -765,6 +765,7 @@ func (i *TiFlashInstance) checkIncorrectDataDir() error {
 	if err := i.checkIncorrectKey("path"); err != nil {
 		return err
 	}
+	return nil
 }
 
 // DataDir represents TiFlash's DataDir
