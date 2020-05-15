@@ -526,9 +526,6 @@ func (pc *PDClient) DelStore(host string, retryOpt *utils.RetryOption) error {
 	// get store ID of host
 	var storeID uint64
 	for _, storeInfo := range stores.Stores {
-		log.Infof("store: %v", storeInfo.Store.Address)
-	}
-	for _, storeInfo := range stores.Stores {
 		if storeInfo.Store.Address != host {
 			continue
 		}
