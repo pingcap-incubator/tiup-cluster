@@ -5,13 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/pingcap/errors"
-
-	"go.etcd.io/etcd/clientv3"
-
-	"github.com/pingcap-incubator/tiup/pkg/set"
-
 	"github.com/pingcap-incubator/tiup-cluster/pkg/meta"
+	"github.com/pingcap-incubator/tiup/pkg/set"
+	"github.com/pingcap/errors"
+	"go.etcd.io/etcd/clientv3"
 )
 
 // UpdateTopology is used to maintain the cluster meta information
