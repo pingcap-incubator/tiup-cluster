@@ -16,6 +16,7 @@ package telemetry
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"net/http"
 
 	"github.com/pingcap/errors"
@@ -41,7 +42,7 @@ func NewTelemetry() *Telemetry {
 
 // Report report the msg right away.
 func (t *Telemetry) Report(ctx context.Context, msg *Report) error {
-	dst, err := msg.Marshal()
+	dst, err := json.Marshal(msg)
 	if err != nil {
 		return errors.AddStack(err)
 	}
@@ -51,7 +52,7 @@ func (t *Telemetry) Report(ctx context.Context, msg *Report) error {
 		return errors.AddStack(err)
 	}
 
-	req.Header.Add("Content-Type", "application/x-protobuf")
+	req.Header.Add("Content-Type", "application/json")
 	resp, err := t.cli.Do(req)
 	if err != nil {
 		return errors.AddStack(err)
