@@ -50,3 +50,17 @@ func (dm *DMMasterClient) GetLeader() (string, error) {
 func (dm *DMMasterClient) EvictDMMasterLeader(retryOpt *utils.RetryOption) error {
 	return nil
 }
+
+func (dm *DMMasterClient) GetRegisteredMastersWorkers() ([]string, []string, error) {
+	return []string{}, []string{}, nil
+}
+
+// OfflineWorker offlines the dm worker
+func (dm *DMMasterClient) OfflineWorker(name string) error {
+	return nil
+}
+
+// OfflineMaster offlines the dm master
+func (dm *DMMasterClient) OfflineMaster(name string) error {
+	return nil
+}

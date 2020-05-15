@@ -350,29 +350,32 @@ func (c *DMWorkerComponent) Instances() []Instance {
 	ins := make([]Instance, 0, len(c.Workers))
 	for _, s := range c.Workers {
 		s := s
-		ins = append(ins, &DMWorkerInstance{dmInstance{
-			InstanceSpec: s,
-			name:         c.Name(),
-			host:         s.Host,
-			port:         s.Port,
-			sshp:         s.SSHPort,
-			topo:         c.DMSpecification,
+		ins = append(ins, &DMWorkerInstance{
+			Name: c.Name(),
+			dmInstance: dmInstance{
+				InstanceSpec: s,
+				name:         c.Name(),
+				host:         s.Host,
+				port:         s.Port,
+				sshp:         s.SSHPort,
+				topo:         c.DMSpecification,
 
-			usedPorts: []int{
-				s.Port,
-			},
-			usedDirs: []string{
-				s.DeployDir,
-				s.DataDir,
-			},
-			statusFn: s.Status,
-		}})
+				usedPorts: []int{
+					s.Port,
+				},
+				usedDirs: []string{
+					s.DeployDir,
+					s.DataDir,
+				},
+				statusFn: s.Status,
+			}})
 	}
 	return ins
 }
 
 // DMWorkerInstance represent the DM worker instance
 type DMWorkerInstance struct {
+	Name string
 	dmInstance
 }
 

@@ -17,9 +17,13 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/fatih/color"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/api"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/cliutil"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/log"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/meta"
 	operator "github.com/pingcap-incubator/tiup-cluster/pkg/operation"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/task"
@@ -28,6 +32,7 @@ import (
 	tiuputils "github.com/pingcap-incubator/tiup/pkg/utils"
 	"github.com/pingcap/errors"
 	"github.com/spf13/cobra"
+	"go.uber.org/zap"
 )
 
 func newDisplayCmd() *cobra.Command {
@@ -49,7 +54,12 @@ func newDisplayCmd() *cobra.Command {
 			if err := displayClusterTopology(clusterName, &gOpt); err != nil {
 				return err
 			}
-			return nil
+
+			metadata, err := meta.DMMetadata(clusterName)
+			if err != nil {
+				return errors.AddStack(err)
+			}
+			return clearOutDatedEtcdInfo(clusterName, metadata, gOpt)
 		},
 	}
 
@@ -75,6 +85,69 @@ func displayDMMeta(clusterName string, opt *operator.Options) error {
 	fmt.Printf("DM Version: %s\n", cyan.Sprint(clsMeta.Version))
 
 	return nil
+}
+
+func clearOutDatedEtcdInfo(clusterName string, metadata *meta.DMMeta, opt operator.Options) error {
+	topo := metadata.Topology
+
+	existedMasters := make(map[string]struct{})
+	existedWorkers := make(map[string]struct{})
+	mastersToDelete := make([]string, 0)
+	workersToDelete := make([]string, 0)
+
+	for _, masterSpec := range topo.Masters {
+		existedMasters[masterSpec.Name] = struct{}{}
+	}
+	for _, workerSpec := range topo.Workers {
+		existedWorkers[workerSpec.Name] = struct{}{}
+	}
+
+	dmMasterClient := api.NewDMMasterClient(topo.GetMasterList(), 10*time.Second, nil)
+	registeredMasters, registeredWorkers, err := dmMasterClient.GetRegisteredMastersWorkers()
+	if err != nil {
+		return err
+	}
+
+	for _, master := range registeredMasters {
+		if _, ok := existedMasters[master]; !ok {
+			mastersToDelete = append(mastersToDelete, master)
+		}
+	}
+	for _, worker := range registeredWorkers {
+		if _, ok := existedWorkers[worker]; !ok {
+			workersToDelete = append(workersToDelete, worker)
+		}
+	}
+
+	log.Infof("Outdated components needed to clear etcd info", zap.Strings("masters", mastersToDelete), zap.Strings("workers", workersToDelete))
+
+	errCh := make(chan error, len(existedMasters)+len(existedWorkers))
+	var wg sync.WaitGroup
+
+	for _, master := range mastersToDelete {
+		master := master
+		wg.Add(1)
+		go func() {
+			errCh <- dmMasterClient.OfflineMaster(master)
+			wg.Done()
+		}()
+	}
+	for _, worker := range workersToDelete {
+		worker := worker
+		wg.Add(1)
+		go func() {
+			errCh <- dmMasterClient.OfflineWorker(worker)
+			wg.Done()
+		}()
+	}
+
+	wg.Wait()
+	if len(errCh) == 0 {
+		return nil
+	}
+
+	// return any one error
+	return <-errCh
 }
 
 func displayClusterTopology(clusterName string, opt *operator.Options) error {

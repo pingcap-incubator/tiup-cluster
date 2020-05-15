@@ -277,28 +277,33 @@ func ScaleInDMCluster(
 					continue
 				}
 				// just try stop and destroy
-				if options.Force {
-					if err := StopComponent(getter, []meta.Instance{instance}); err != nil {
-						log.Warnf("failed to stop %s: %v", component.Name(), err)
-					}
-					if err := DestroyComponent(getter, []meta.Instance{instance}, options.OptTimeout); err != nil {
-						log.Warnf("failed to destroy %s: %v", component.Name(), err)
-					}
-
-					continue
+				if err := StopComponent(getter, []meta.Instance{instance}); err != nil {
+					log.Warnf("failed to stop %s: %v", component.Name(), err)
 				}
+				if err := DestroyComponent(getter, []meta.Instance{instance}, options.OptTimeout); err != nil {
+					log.Warnf("failed to destroy %s: %v", component.Name(), err)
+				}
+
+				continue
 			}
 		}
 		return nil
 	}
 
-	// At least a dm-master server exists
-	var masterEndpoint []string
+	// At least a DMMaster server exists
+	var dmMasterClient *api.DMMasterClient
+	var dmMasterEndpoint []string
 	for _, instance := range (&meta.DMMasterComponent{DMSpecification: spec}).Instances() {
 		if !deletedNodes.Exist(instance.ID()) {
-			masterEndpoint = append(masterEndpoint, addr(instance))
+			dmMasterEndpoint = append(dmMasterEndpoint, addr(instance))
 		}
 	}
+
+	if len(dmMasterEndpoint) == 0 {
+		return errors.New("cannot find available dm-master instance")
+	}
+
+	dmMasterClient = api.NewDMMasterClient(dmMasterEndpoint, 10*time.Second, nil)
 
 	// Delete member from cluster
 	for _, component := range spec.ComponentsByStartOrder() {
@@ -307,33 +312,21 @@ func ScaleInDMCluster(
 				continue
 			}
 
-			switch component.Name() {
-			case meta.ComponentDMMaster:
-			case meta.ComponentDMWorker:
+			if component.Name() == meta.ComponentDMMaster {
+				name := instance.(*meta.DMMasterInstance).Name
+				err := dmMasterClient.OfflineMaster(name)
+				if err != nil {
+					return errors.AddStack(err)
+				}
 			}
 
-			if !asyncOfflineComps.Exist(instance.ComponentName()) {
-				if err := StopComponent(getter, []meta.Instance{instance}); err != nil {
-					return errors.Annotatef(err, "failed to stop %s", component.Name())
-				}
-				if err := DestroyComponent(getter, []meta.Instance{instance}, options.OptTimeout); err != nil {
-					return errors.Annotatef(err, "failed to destroy %s", component.Name())
-				}
-			} else {
-				log.Warnf("The component `%s` will be destroyed when display cluster info when it become tombstone, maybe exists in several minutes or hours",
-					component.Name())
+			if err := StopComponent(getter, []meta.Instance{instance}); err != nil {
+				return errors.Annotatef(err, "failed to stop %s", component.Name())
+			}
+			if err := DestroyComponent(getter, []meta.Instance{instance}, options.OptTimeout); err != nil {
+				return errors.Annotatef(err, "failed to destroy %s", component.Name())
 			}
 		}
-	}
-
-	for i := 0; i < len(spec.Workers); i++ {
-		s := spec.Workers[i]
-		id := s.Host + ":" + strconv.Itoa(s.Port)
-		if !deletedNodes.Exist(id) {
-			continue
-		}
-		s.Offline = true
-		spec.Workers[i] = s
 	}
 
 	return nil
