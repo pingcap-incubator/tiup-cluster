@@ -170,7 +170,7 @@ func (i *dmInstance) Arch() string {
 	return reflect.ValueOf(i.InstanceSpec).FieldByName("Arch").Interface().(string)
 }
 
-func (i *dmInstance) PreStartCheck() error {
+func (i *dmInstance) PrepareStart() error {
 	return nil
 }
 

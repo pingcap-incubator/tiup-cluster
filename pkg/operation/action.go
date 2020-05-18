@@ -453,7 +453,7 @@ func StartComponent(getter ExecutorGetter, instances []meta.Instance, options Op
 		ins := ins
 
 		errg.Go(func() error {
-			if err := ins.PreStartCheck(); err != nil {
+			if err := ins.PrepareStart(); err != nil {
 				return err
 			}
 			err := startInstance(getter, ins, options.OptTimeout)

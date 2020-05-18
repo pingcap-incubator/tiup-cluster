@@ -73,7 +73,7 @@ type Instance interface {
 	WaitForDown(executor.TiOpsExecutor, int64) error
 	InitConfig(e executor.TiOpsExecutor, clusterName string, clusterVersion string, deployUser string, paths DirPaths) error
 	ScaleConfig(e executor.TiOpsExecutor, topo Specification, clusterName string, clusterVersion string, deployUser string, paths DirPaths) error
-	PreStartCheck() error
+	PrepareStart() error
 	ComponentName() string
 	InstanceName() string
 	ServiceName() string
@@ -277,8 +277,8 @@ func (i *instance) Arch() string {
 	return reflect.ValueOf(i.InstanceSpec).FieldByName("Arch").Interface().(string)
 }
 
-// PreStartCheck checks instance requirements before starting
-func (i *instance) PreStartCheck() error {
+// PrepareStart checks instance requirements before starting
+func (i *instance) PrepareStart() error {
 	return nil
 }
 
@@ -1031,8 +1031,8 @@ func (i *TiFlashInstance) getEndpoints() []string {
 	return endpoints
 }
 
-// PreStartCheck checks TiFlash requirements before starting
-func (i *TiFlashInstance) PreStartCheck() error {
+// PrepareStart checks TiFlash requirements before starting
+func (i *TiFlashInstance) PrepareStart() error {
 	endPoints := i.getEndpoints()
 	// set enable-placement-rules to true via PDClient
 	pdClient := api.NewPDClient(endPoints, 10*time.Second, nil)
