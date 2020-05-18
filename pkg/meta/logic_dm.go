@@ -170,6 +170,10 @@ func (i *dmInstance) Arch() string {
 	return reflect.ValueOf(i.InstanceSpec).FieldByName("Arch").Interface().(string)
 }
 
+func (i *dmInstance) PreStartCheck() error {
+	return nil
+}
+
 func (i *dmInstance) GetPort() int {
 	return i.port
 }
