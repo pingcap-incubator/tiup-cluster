@@ -911,11 +911,7 @@ func (i *TiFlashInstance) InitConfig(e executor.TiOpsExecutor, clusterName, clus
 	}
 	tidbStatusStr := strings.Join(tidbStatusAddrs, ",")
 
-	var pdAddrs []string
-	for _, pd := range i.instance.topo.PDServers {
-		pdAddrs = append(pdAddrs, fmt.Sprintf("%s:%d", pd.Host, uint64(pd.ClientPort)))
-	}
-	pdStr := strings.Join(pdAddrs, ",")
+	pdStr := strings.Join(i.getEndpoints(), ",")
 
 	cfg := scripts.NewTiFlashScript(
 		i.GetHost(),
