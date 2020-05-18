@@ -917,18 +917,6 @@ func (i *TiFlashInstance) InitConfig(e executor.TiOpsExecutor, clusterName, clus
 	}
 	pdStr := strings.Join(pdAddrs, ",")
 
-	// replication.enable-placement-rules should be set to true to enable TiFlash
-	// TODO: Move this logic to an independent checkConfig procedure
-	const key = "replication.enable-placement-rules"
-	globalEnabled, ok1 := i.instance.topo.ServerConfigs.PD[key].(bool)
-	for _, pd := range i.instance.topo.PDServers {
-		// if instance config exists AND the config is false, throw an error.
-		// if instance config does not exist, if global config does not exist OR the config is false, throw an error
-		if instanceEnabled, ok2 := pd.Config[key].(bool); (ok2 && !instanceEnabled) || (!ok2 && (!ok1 || !globalEnabled)) {
-			log.Warnf("replication.enable-placement-rules is set to true in pd conf to enable TiFlash")
-		}
-	}
-
 	cfg := scripts.NewTiFlashScript(
 		i.GetHost(),
 		paths.Deploy,
