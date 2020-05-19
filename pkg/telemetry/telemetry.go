@@ -22,7 +22,7 @@ import (
 	"github.com/pingcap/errors"
 )
 
-var defaultURL = "https://TODO/v1/telemetry"
+var defaultURL = "https://telemetry.pingcap.com/api/v1/clusters/report"
 
 // Telemetry control telemetry.
 type Telemetry struct {
