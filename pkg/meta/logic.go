@@ -14,6 +14,8 @@
 package meta
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -23,6 +25,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/api"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/clusterutil"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/executor"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/log"
@@ -70,6 +73,7 @@ type Instance interface {
 	WaitForDown(executor.TiOpsExecutor, int64) error
 	InitConfig(e executor.TiOpsExecutor, clusterName string, clusterVersion string, deployUser string, paths DirPaths) error
 	ScaleConfig(e executor.TiOpsExecutor, topo Specification, clusterName string, clusterVersion string, deployUser string, paths DirPaths) error
+	PrepareStart() error
 	ComponentName() string
 	InstanceName() string
 	ServiceName() string
@@ -258,19 +262,11 @@ func (i *instance) DataDir() string {
 	}
 
 	// the default data_dir is relative to deploy_dir
-	var dirs []string
-	for _, dir := range strings.Split(dataDir.String(), ",") {
-		if dir == "" {
-			continue
-		}
-		if !strings.HasPrefix(dir, "/") {
-			dirs = append(dirs, filepath.Join(i.DeployDir(), dir))
-		} else {
-			dirs = append(dirs, dir)
-		}
+	if dataDir.String() != "" && !strings.HasPrefix(dataDir.String(), "/") {
+		return filepath.Join(i.DeployDir(), dataDir.String())
 	}
 
-	return strings.Join(dirs, ",")
+	return dataDir.String()
 }
 
 func (i *instance) OS() string {
@@ -279,6 +275,11 @@ func (i *instance) OS() string {
 
 func (i *instance) Arch() string {
 	return reflect.ValueOf(i.InstanceSpec).FieldByName("Arch").Interface().(string)
+}
+
+// PrepareStart checks instance requirements before starting
+func (i *instance) PrepareStart() error {
+	return nil
 }
 
 // MergeResourceControl merge the rhs into lhs and overwrite rhs if lhs has value for same field
@@ -603,16 +604,9 @@ func (i *PDInstance) InitConfig(e executor.TiOpsExecutor, clusterName, clusterVe
 		return err
 	}
 
-	var name string
-	for _, spec := range i.instance.topo.PDServers {
-		if spec.Host == i.GetHost() && spec.ClientPort == i.GetPort() {
-			name = spec.Name
-		}
-	}
-
 	spec := i.InstanceSpec.(PDSpec)
 	cfg := scripts.NewPDScript(
-		name,
+		spec.Name,
 		i.GetHost(),
 		paths.Deploy,
 		paths.Data[0],
@@ -678,16 +672,9 @@ func (i *PDInstance) ScaleConfig(e executor.TiOpsExecutor, b Specification, clus
 	}
 
 	c := b.GetClusterSpecification()
-	name := i.Name
-	for _, spec := range c.PDServers {
-		if spec.Host == i.GetHost() {
-			name = spec.Name
-		}
-	}
-
 	spec := i.InstanceSpec.(PDSpec)
 	cfg := scripts.NewPDScaleScript(
-		name,
+		i.Name,
 		i.GetHost(),
 		paths.Deploy,
 		paths.Data[0],
@@ -751,6 +738,52 @@ func (c *TiFlashComponent) Instances() []Instance {
 // TiFlashInstance represent the TiFlash instance
 type TiFlashInstance struct {
 	instance
+}
+
+// checkIncorrectDataDir checks TiFlash's key should not be set in config
+func (i *TiFlashInstance) checkIncorrectKey(key string) error {
+	errMsg := "NOTE: TiFlash `%s` is should NOT be set in topo's \"%s\" config, its value will be ignored, you should set `data_dir` in each host instead, please check your topology"
+	if dir, ok := i.InstanceSpec.(TiFlashSpec).Config[key].(string); ok && dir != "" {
+		return fmt.Errorf(errMsg, key, "host")
+	}
+	if dir, ok := i.instance.topo.ServerConfigs.TiFlash[key].(string); ok && dir != "" {
+		return fmt.Errorf(errMsg, key, "server_configs")
+	}
+	return nil
+}
+
+// checkIncorrectDataDir checks incorrect data_dir settings
+func (i *TiFlashInstance) checkIncorrectDataDir() error {
+	if err := i.checkIncorrectKey("data_dir"); err != nil {
+		return err
+	}
+	if err := i.checkIncorrectKey("path"); err != nil {
+		return err
+	}
+	return nil
+}
+
+// DataDir represents TiFlash's DataDir
+func (i *TiFlashInstance) DataDir() string {
+	if err := i.checkIncorrectDataDir(); err != nil {
+		log.Errorf(err.Error())
+	}
+	dataDir := reflect.ValueOf(i.InstanceSpec).FieldByName("DataDir")
+	if !dataDir.IsValid() {
+		return ""
+	}
+	var dirs []string
+	for _, dir := range strings.Split(dataDir.String(), ",") {
+		if dir == "" {
+			continue
+		}
+		if !strings.HasPrefix(dir, "/") {
+			dirs = append(dirs, filepath.Join(i.DeployDir(), dir))
+		} else {
+			dirs = append(dirs, dir)
+		}
+	}
+	return strings.Join(dirs, ",")
 }
 
 // InitTiFlashConfig initializes TiFlash config file
@@ -864,33 +897,12 @@ func (i *TiFlashInstance) InitConfig(e executor.TiOpsExecutor, clusterName, clus
 	}
 	tidbStatusStr := strings.Join(tidbStatusAddrs, ",")
 
-	var pdAddrs []string
-	for _, pd := range i.instance.topo.PDServers {
-		pdAddrs = append(pdAddrs, fmt.Sprintf("%s:%d", pd.Host, uint64(pd.ClientPort)))
-	}
-	pdStr := strings.Join(pdAddrs, ",")
-
-	// replication.enable-placement-rules should be set to true to enable TiFlash
-	// TODO: Move this logic to an independent checkConfig procedure
-	const key = "replication.enable-placement-rules"
-	globalEnabled, ok1 := i.instance.topo.ServerConfigs.PD[key].(bool)
-	for _, pd := range i.instance.topo.PDServers {
-		// if instance config exists AND the config is false, throw an error.
-		// if instance config does not exist, if global config does not exist OR the config is false, throw an error
-		if instanceEnabled, ok2 := pd.Config[key].(bool); (ok2 && !instanceEnabled) || (!ok2 && (!ok1 || !globalEnabled)) {
-			log.Warnf("should set replication.enable-placement-rules to true in pd conf to enable TiFlash")
-		}
-	}
-
-	dataDir := strings.Join(paths.Data, ",")
-	if dir, ok := i.instance.topo.ServerConfigs.TiFlash["data_dir"].(string); ok && dir != "" {
-		dataDir = dir
-	}
+	pdStr := strings.Join(i.getEndpoints(), ",")
 
 	cfg := scripts.NewTiFlashScript(
 		i.GetHost(),
 		paths.Deploy,
-		dataDir,
+		strings.Join(paths.Data, ","),
 		paths.Log,
 		tidbStatusStr,
 		pdStr,
@@ -991,6 +1003,35 @@ func (i *TiFlashInstance) ScaleConfig(e executor.TiOpsExecutor, b Specification,
 	}()
 	i.instance.topo = b.GetClusterSpecification()
 	return i.InitConfig(e, clusterName, clusterVersion, deployUser, paths)
+}
+
+type replicateConfig struct {
+	EnablePlacementRules string `json:"enable-placement-rules"`
+}
+
+func (i *TiFlashInstance) getEndpoints() []string {
+	var endpoints []string
+	for _, pd := range i.instance.topo.PDServers {
+		endpoints = append(endpoints, fmt.Sprintf("%s:%d", pd.Host, uint64(pd.ClientPort)))
+	}
+	return endpoints
+}
+
+// PrepareStart checks TiFlash requirements before starting
+func (i *TiFlashInstance) PrepareStart() error {
+	endPoints := i.getEndpoints()
+	// set enable-placement-rules to true via PDClient
+	pdClient := api.NewPDClient(endPoints, 10*time.Second, nil)
+	enablePlacementRules, err := json.Marshal(replicateConfig{
+		EnablePlacementRules: "true",
+	})
+	if err != nil {
+		return nil
+	}
+	if err := pdClient.UpdateReplicateConfig(bytes.NewBuffer(enablePlacementRules)); err != nil {
+		return err
+	}
+	return nil
 }
 
 // MonitorComponent represents Monitor component.

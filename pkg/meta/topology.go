@@ -20,6 +20,8 @@ import (
 	"strings"
 	"time"
 
+	"go.etcd.io/etcd/clientv3"
+
 	"github.com/creasty/defaults"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/api"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/utils"
@@ -605,6 +607,12 @@ func (topo *TopologySpecification) UnmarshalYAML(unmarshal func(interface{}) err
 		topo.MonitoredOptions.DataDir = filepath.Join(topo.GlobalOptions.DataDir,
 			fmt.Sprintf("%s-%d", RoleMonitor, topo.MonitoredOptions.NodeExporterPort))
 	}
+	if topo.MonitoredOptions.LogDir == "" {
+		topo.MonitoredOptions.LogDir = "log"
+	}
+	if !strings.HasPrefix(topo.MonitoredOptions.LogDir, "/") {
+		topo.MonitoredOptions.LogDir = filepath.Join(topo.MonitoredOptions.DeployDir, topo.MonitoredOptions.LogDir)
+	}
 
 	// populate custom default values as needed
 	if err := fillCustomDefaults(&topo.GlobalOptions, topo); err != nil {
@@ -886,6 +894,13 @@ func (topo *TopologySpecification) GetPDList() []string {
 	}
 
 	return pdList
+}
+
+// GetEtcdClient load EtcdClient of current cluster
+func (topo *TopologySpecification) GetEtcdClient() (*clientv3.Client, error) {
+	return clientv3.New(clientv3.Config{
+		Endpoints: topo.GetPDList(),
+	})
 }
 
 // Merge returns a new TopologySpecification which sum old ones
