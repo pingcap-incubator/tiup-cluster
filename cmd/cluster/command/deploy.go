@@ -290,13 +290,13 @@ func deploy(clusterName, clusterVersion, topoFile string, opt deployOptions) err
 		deployCompTasks = append(deployCompTasks, t)
 	})
 
-	nodeInfoTask := task.NewBuilder().Func("get node info", func(ctx *task.Context) error {
+	nodeInfoTask := task.NewBuilder().Func("Check status", func(ctx *task.Context) error {
 		var err error
 		teleNodeInfos, err = operator.GetNodeInfo(context.Background(), ctx, &topo)
 		_ = err
 		// intend to never return error
 		return nil
-	}).BuildAsStep("get node info").SetHidden(true)
+	}).BuildAsStep("Check status").SetHidden(true)
 
 	// Deploy monitor relevant components to remote
 	dlTasks, dpTasks := buildMonitoredDeployTask(
@@ -312,13 +312,18 @@ func deploy(clusterName, clusterVersion, topoFile string, opt deployOptions) err
 		deployCompTasks = append(deployCompTasks, nodeInfoTask)
 	}
 
-	t := task.NewBuilder().
+	builder := task.NewBuilder().
 		Step("+ Generate SSH keys",
 			task.NewBuilder().SSHKeyGen(meta.ClusterPath(clusterName, "ssh", "id_rsa")).Build()).
 		ParallelStep("+ Download TiDB components", downloadCompTasks...).
 		ParallelStep("+ Initialize target host environments", envInitTasks...).
-		ParallelStep("+ Copy files", deployCompTasks...).
-		Build()
+		ParallelStep("+ Copy files", deployCompTasks...)
+
+	if report.Enable() {
+		builder.ParallelStep("+ Check status", nodeInfoTask)
+	}
+
+	t := builder.Build()
 
 	if err := t.Execute(task.NewContext()); err != nil {
 		if errorx.Cast(err) != nil {

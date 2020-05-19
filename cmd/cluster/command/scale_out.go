@@ -297,13 +297,13 @@ func buildScaleOutTask(
 		refreshConfigTasks = append(refreshConfigTasks, t)
 	})
 
-	nodeInfoTask := task.NewBuilder().Func("hidden", func(ctx *task.Context) error {
+	nodeInfoTask := task.NewBuilder().Func("Check status", func(ctx *task.Context) error {
 		var err error
 		teleNodeInfos, err = operator.GetNodeInfo(context.Background(), ctx, newPart)
 		_ = err
 		// intend to never return error
 		return nil
-	}).BuildAsStep("").SetHidden(true)
+	}).BuildAsStep("Check status").SetHidden(true)
 
 	// Deploy monitor relevant components to remote
 	dlTasks, dpTasks := buildMonitoredDeployTask(
@@ -315,20 +315,22 @@ func buildScaleOutTask(
 	)
 	downloadCompTasks = append(downloadCompTasks, convertStepDisplaysToTasks(dlTasks)...)
 	deployCompTasks = append(deployCompTasks, convertStepDisplaysToTasks(dpTasks)...)
-	if report.Enable() {
-		deployCompTasks = append(deployCompTasks, nodeInfoTask)
-	}
 
-	return task.NewBuilder().
+	builder := task.NewBuilder().
 		SSHKeySet(
 			meta.ClusterPath(clusterName, "ssh", "id_rsa"),
 			meta.ClusterPath(clusterName, "ssh", "id_rsa.pub")).
 		Parallel(downloadCompTasks...).
 		Parallel(envInitTasks...).
 		ClusterSSH(metadata.Topology, metadata.User, gOpt.SSHTimeout).
-		Parallel(deployCompTasks...).
-		// TODO: find another way to make sure current cluster started
-		ClusterOperate(metadata.Topology, operator.StartOperation, operator.Options{OptTimeout: timeout}).
+		Parallel(deployCompTasks...)
+
+	if report.Enable() {
+		builder.Parallel(convertStepDisplaysToTasks([]*task.StepDisplay{nodeInfoTask})...)
+	}
+
+	// TODO: find another way to make sure current cluster started
+	builder.ClusterOperate(metadata.Topology, operator.StartOperation, operator.Options{OptTimeout: timeout}).
 		ClusterSSH(newPart, metadata.User, gOpt.SSHTimeout).
 		Func("save meta", func(_ *task.Context) error {
 			metadata.Topology = mergedTopo
@@ -340,7 +342,8 @@ func buildScaleOutTask(
 			Roles:      []string{meta.ComponentPrometheus},
 			OptTimeout: timeout,
 		}).
-		UpdateTopology(clusterName, metadata, nil).
-		Build(), nil
+		UpdateTopology(clusterName, metadata, nil)
+
+	return builder.Build(), nil
 
 }
