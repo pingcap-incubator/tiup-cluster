@@ -25,6 +25,11 @@ import (
 	"github.com/pingcap/errors"
 )
 
+const (
+	// AnsibleImportedConfigPath is the sub path where all imported configs are stored
+	AnsibleImportedConfigPath = "ansible-imported-configs"
+)
+
 // strKeyMap tries to convert `map[interface{}]interface{}` to `map[string]interface{}`
 func strKeyMap(val interface{}) interface{} {
 	m, ok := val.(map[interface{}]interface{})
@@ -111,7 +116,7 @@ func merge2Toml(comp string, global, overwrite map[string]interface{}) ([]byte, 
 		return nil, errors.AddStack(err)
 	}
 
-	buf := bytes.NewBufferString(fmt.Sprintf(`# WARNING: This file was auto-generated. Do not edit! All your edit might be overwritten!
+	buf := bytes.NewBufferString(fmt.Sprintf(`# WARNING: This file is auto-generated. Do not edit! All your modification will be overwritten!
 # You can use 'tiup cluster edit-config' and 'tiup cluster reload' to update the configuration
 # All configuration items you want to change can be added to:
 # server_configs:
@@ -135,7 +140,7 @@ func mergeImported(importConfig []byte, specConfig map[string]interface{}) (map[
 		return specConfig, errors.Trace(err)
 	}
 
-	// overwrite topology specifieced configs to the imported configs
+	// overwrite topology specifieced configs upon the imported configs
 	lhs, err := merge(configData, specConfig)
 	if err != nil {
 		return specConfig, errors.Trace(err)
