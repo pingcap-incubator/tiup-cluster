@@ -4,6 +4,8 @@ server_configs:
         binlog.ignore-error: false
     tikv:
         storage.reserve-space: 1K
+    pd:
+        replication.enable-placement-rules: true
     pump:
         storage.stop-write-at-available-space: 1 mib
 
@@ -44,6 +46,11 @@ drainer_servers:
     commit_ts: -1
     config:
         syncer.db-type: "file"
+
+cdc_servers:
+  - host: 172.19.0.103
+  - host: 172.19.0.104
+  - host: 172.19.0.105
 
 monitoring_servers:
   - host: 172.19.0.101
