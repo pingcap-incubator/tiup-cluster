@@ -118,6 +118,10 @@ func clearOutDatedEtcdInfo(clusterName string, metadata *meta.DMMeta, opt operat
 		}
 	}
 
+	timeoutOpt := &utils.RetryOption{
+		Timeout: time.Second * time.Duration(opt.APITimeout),
+		Delay:   time.Second * 2,
+	}
 	zap.L().Info("Outdated components needed to clear etcd info", zap.Strings("masters", mastersToDelete), zap.Strings("workers", workersToDelete))
 
 	errCh := make(chan error, len(existedMasters)+len(existedWorkers))
@@ -127,7 +131,7 @@ func clearOutDatedEtcdInfo(clusterName string, metadata *meta.DMMeta, opt operat
 		master := master
 		wg.Add(1)
 		go func() {
-			errCh <- dmMasterClient.OfflineMaster(master)
+			errCh <- dmMasterClient.OfflineMaster(master, timeoutOpt)
 			wg.Done()
 		}()
 	}
@@ -135,7 +139,7 @@ func clearOutDatedEtcdInfo(clusterName string, metadata *meta.DMMeta, opt operat
 		worker := worker
 		wg.Add(1)
 		go func() {
-			errCh <- dmMasterClient.OfflineWorker(worker)
+			errCh <- dmMasterClient.OfflineWorker(worker, timeoutOpt)
 			wg.Done()
 		}()
 	}

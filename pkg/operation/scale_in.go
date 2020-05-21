@@ -303,6 +303,10 @@ func ScaleInDMCluster(
 		return errors.New("cannot find available dm-master instance")
 	}
 
+	retryOpt := &utils.RetryOption{
+		Timeout: time.Second * time.Duration(options.APITimeout),
+		Delay:   time.Second * 2,
+	}
 	dmMasterClient = api.NewDMMasterClient(dmMasterEndpoint, 10*time.Second, nil)
 
 	// Delete member from cluster
@@ -322,13 +326,13 @@ func ScaleInDMCluster(
 			switch component.Name() {
 			case meta.ComponentDMMaster:
 				name := instance.(*meta.DMMasterInstance).Name
-				err := dmMasterClient.OfflineMaster(name)
+				err := dmMasterClient.OfflineMaster(name, retryOpt)
 				if err != nil {
 					return errors.AddStack(err)
 				}
 			case meta.ComponentDMWorker:
 				name := instance.(*meta.DMWorkerInstance).Name
-				err := dmMasterClient.OfflineWorker(name)
+				err := dmMasterClient.OfflineWorker(name, retryOpt)
 				if err != nil {
 					return errors.AddStack(err)
 				}

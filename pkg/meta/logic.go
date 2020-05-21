@@ -672,7 +672,7 @@ func (i *PDInstance) ScaleConfig(e executor.TiOpsExecutor, b Specification, clus
 	c := b.GetClusterSpecification()
 	name := i.Name
 	for _, spec := range c.PDServers {
-		if spec.Host == i.GetHost() {
+		if spec.Host == i.GetHost() && spec.ClientPort == i.GetPort() {
 			name = spec.Name
 		}
 	}

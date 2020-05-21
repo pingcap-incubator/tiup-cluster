@@ -351,7 +351,7 @@ func (c *DMWorkerComponent) Instances() []Instance {
 	for _, s := range c.Workers {
 		s := s
 		ins = append(ins, &DMWorkerInstance{
-			Name: c.Name(),
+			Name: s.Name,
 			dmInstance: dmInstance{
 				InstanceSpec: s,
 				name:         c.Name(),
@@ -385,7 +385,7 @@ func (i *DMWorkerInstance) InitConfig(e executor.TiOpsExecutor, clusterName, clu
 		return err
 	}
 
-	var name string
+	name := i.Name
 	for _, spec := range i.dmInstance.topo.Workers {
 		if spec.Host == i.GetHost() && spec.Port == i.GetPort() {
 			name = spec.Name

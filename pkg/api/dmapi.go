@@ -235,18 +235,34 @@ func (dm *DMMasterClient) EvictDMMasterLeader(retryOpt *utils.RetryOption) error
 	return nil
 }
 
-// OfflineWorker offlines the dm worker
-func (dm *DMMasterClient) OfflineWorker(name string) error {
-	query := "/worker/" + name
+// OfflineWorker offlines the member of dm cluster
+func (dm *DMMasterClient) OfflineMember(query string, retryOpt *utils.RetryOption) error {
 	endpoints := dm.getEndpoints(dmMembersURI + query)
-	_, err := dm.deleteMember(endpoints)
-	return err
+
+	if retryOpt == nil {
+		retryOpt = &utils.RetryOption{
+			Delay:   time.Second * 5,
+			Timeout: time.Second * 600,
+		}
+	}
+
+	if err := utils.Retry(func() error {
+		_, err := dm.deleteMember(endpoints)
+		return err
+	}, *retryOpt); err != nil {
+		return fmt.Errorf("error offline member %s, %v", query, err)
+	}
+	return nil
+}
+
+// OfflineWorker offlines the dm worker
+func (dm *DMMasterClient) OfflineWorker(name string, retryOpt *utils.RetryOption) error {
+	query := "/worker/" + name
+	return dm.OfflineMember(query, retryOpt)
 }
 
 // OfflineMaster offlines the dm master
-func (dm *DMMasterClient) OfflineMaster(name string) error {
+func (dm *DMMasterClient) OfflineMaster(name string, retryOpt *utils.RetryOption) error {
 	query := "/master/" + name
-	endpoints := dm.getEndpoints(dmMembersURI + query)
-	_, err := dm.deleteMember(endpoints)
-	return err
+	return dm.OfflineMember(query, retryOpt)
 }
