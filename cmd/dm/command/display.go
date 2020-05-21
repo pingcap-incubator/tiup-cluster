@@ -55,11 +55,14 @@ func newDisplayCmd() *cobra.Command {
 				return err
 			}
 
-			metadata, err := meta.DMMetadata(clusterName)
-			if err != nil {
-				return errors.AddStack(err)
-			}
-			return clearOutDatedEtcdInfo(clusterName, metadata, gOpt)
+			return nil
+			/*
+				metadata, err := meta.DMMetadata(clusterName)
+				if err != nil {
+					return errors.AddStack(err)
+				}
+				return clearOutDatedEtcdInfo(clusterName, metadata, gOpt)
+			*/
 		},
 	}
 
@@ -243,9 +246,9 @@ func displayClusterTopology(clusterName string, opt *operator.Options) error {
 
 func formatInstanceStatus(status string) string {
 	switch strings.ToLower(status) {
-	case "up", "healthy":
+	case "up", "healthy", "free":
 		return color.GreenString(status)
-	case "healthy|l": // master leader
+	case "healthy|l", "bound": // master leader
 		return color.HiGreenString(status)
 	case "offline", "tombstone", "disconnected":
 		return color.YellowString(status)

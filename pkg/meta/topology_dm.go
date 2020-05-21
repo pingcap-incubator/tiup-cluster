@@ -20,6 +20,7 @@ import (
 	"strings"
 
 	"github.com/creasty/defaults"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/api"
 	"github.com/pingcap-incubator/tiup/pkg/set"
 	"github.com/pingcap/errors"
 )
@@ -64,9 +65,26 @@ type MasterSpec struct {
 }
 
 // Status queries current status of the instance
-func (s MasterSpec) Status(pdList ...string) string {
-	url := fmt.Sprintf("http://%s:%d/status", s.Host, s.Port)
-	return statusByURL(url)
+func (s MasterSpec) Status(masterList ...string) string {
+	if len(masterList) < 1 {
+		return "N/A"
+	}
+	masterapi := api.NewDMMasterClient(masterList, statusQueryTimeout, nil)
+	isFound, isActive, isLeader, err := masterapi.GetMaster(s.Name)
+	if err != nil {
+		return "Down"
+	}
+	if !isFound {
+		return "N/A"
+	}
+	if !isActive {
+		return "Unhealthy"
+	}
+	res := "Healthy"
+	if isLeader {
+		res += "|L"
+	}
+	return res
 }
 
 // Role returns the component role of the instance
@@ -108,8 +126,19 @@ type WorkerSpec struct {
 }
 
 // Status queries current status of the instance
-func (s WorkerSpec) Status(pdList ...string) string {
-	return "N/A"
+func (s WorkerSpec) Status(masterList ...string) string {
+	if len(masterList) < 1 {
+		return "N/A"
+	}
+	masterapi := api.NewDMMasterClient(masterList, statusQueryTimeout, nil)
+	stage, err := masterapi.GetWorker(s.Name)
+	if err != nil {
+		return "Down"
+	}
+	if stage == "" {
+		return "N/A"
+	}
+	return stage
 }
 
 // Role returns the component role of the instance

@@ -41,7 +41,7 @@ type dmInstance struct {
 
 	usedPorts []int
 	usedDirs  []string
-	statusFn  func(pdHosts ...string) string
+	statusFn  func(masterHosts ...string) string
 }
 
 // Ready implements Instance interface

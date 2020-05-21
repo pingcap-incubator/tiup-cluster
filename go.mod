@@ -12,6 +12,7 @@ require (
 	github.com/creasty/defaults v1.3.0
 	github.com/fatih/color v1.9.0
 	github.com/go-sql-driver/mysql v1.5.0
+	github.com/gogo/protobuf v1.3.1
 	github.com/google/uuid v1.1.1
 	github.com/joomcode/errorx v1.0.1
 	github.com/juju/ansiterm v0.0.0-20180109212912-720a0952cc2a // indirect
@@ -19,12 +20,12 @@ require (
 	github.com/markbates/pkger v0.15.1
 	github.com/mattn/go-colorable v0.1.6 // indirect
 	github.com/mattn/go-runewidth v0.0.7
-	github.com/onsi/gomega v1.5.0 // indirect
 	github.com/pingcap-incubator/tiup v0.0.2-0.20200414234825-c398de2932f8
 	github.com/pingcap/check v0.0.0-20200212061837-5e12011dc712
+	github.com/pingcap/dm v1.1.0-alpha.0.20200521025928-83063141c5fd
 	github.com/pingcap/errors v0.11.5-0.20190809092503-95897b64e011
-	github.com/pingcap/kvproto v0.0.0-20200317095539-c42a1d8db7d3
-	github.com/pingcap/pd/v4 v4.0.0-beta.2
+	github.com/pingcap/kvproto v0.0.0-20200420075417-e0c6e8842f22
+	github.com/pingcap/pd/v4 v4.0.0-rc.1.0.20200422143320-428acd53eba2
 	github.com/pingcap/tidb-insight v0.3.1-0.20200423065530-051a0e987419
 	github.com/relex/aini v1.1.3
 	github.com/sergi/go-diff v1.0.1-0.20180205163309-da645544ed44
