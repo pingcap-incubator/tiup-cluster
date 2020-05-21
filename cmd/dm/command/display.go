@@ -23,7 +23,6 @@ import (
 	"github.com/fatih/color"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/api"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/cliutil"
-	"github.com/pingcap-incubator/tiup-cluster/pkg/log"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/meta"
 	operator "github.com/pingcap-incubator/tiup-cluster/pkg/operation"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/task"
@@ -119,7 +118,7 @@ func clearOutDatedEtcdInfo(clusterName string, metadata *meta.DMMeta, opt operat
 		}
 	}
 
-	log.Infof("Outdated components needed to clear etcd info", zap.Strings("masters", mastersToDelete), zap.Strings("workers", workersToDelete))
+	zap.L().Info("Outdated components needed to clear etcd info", zap.Strings("masters", mastersToDelete), zap.Strings("workers", workersToDelete))
 
 	errCh := make(chan error, len(existedMasters)+len(existedWorkers))
 	var wg sync.WaitGroup
