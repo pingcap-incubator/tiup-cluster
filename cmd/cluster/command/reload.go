@@ -85,6 +85,7 @@ func buildReloadTask(
 	var refreshConfigTasks []task.Task
 
 	topo := metadata.Topology
+	hasImported := false
 
 	topo.IterInstance(func(inst meta.Instance) {
 		deployDir := clusterutil.Abs(metadata.User, inst.DeployDir())
@@ -102,6 +103,7 @@ func buildReloadTask(
 				tb.Download(compName, inst.OS(), inst.Arch(), version).
 					CopyComponent(compName, inst.OS(), inst.Arch(), version, inst.GetHost(), deployDir)
 			}
+			hasImported = true
 		}
 
 		// Refresh all configuration
@@ -116,6 +118,13 @@ func buildReloadTask(
 			}).Build()
 		refreshConfigTasks = append(refreshConfigTasks, t)
 	})
+
+	// handle dir scheme changes
+	if hasImported {
+		if err := meta.HandleImportPathMigration(clusterName); err != nil {
+			return task.NewBuilder().Build(), err
+		}
+	}
 
 	t := task.NewBuilder().
 		SSHKeySet(

@@ -24,7 +24,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/clusterutil"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/executor"
-	"github.com/pingcap-incubator/tiup-cluster/pkg/log"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/template/scripts"
 	system "github.com/pingcap-incubator/tiup-cluster/pkg/template/systemd"
 	"github.com/pingcap/errors"
@@ -283,11 +282,6 @@ func (i *DMMasterInstance) InitConfig(e executor.TiOpsExecutor, clusterName, clu
 		)
 		importConfig, err := ioutil.ReadFile(configPath)
 		if err != nil {
-			if os.IsNotExist(err) {
-				dirPath := ClusterPath(clusterName)
-				log.Errorf("%s, you may try to rename '%s/config' to '%s/%s'",
-					err, dirPath, dirPath, AnsibleImportedConfigPath)
-			}
 			return err
 		}
 		mergedConfig, err := mergeImported(importConfig, spec.Config)
@@ -398,11 +392,6 @@ func (i *DMWorkerInstance) InitConfig(e executor.TiOpsExecutor, clusterName, clu
 		)
 		importConfig, err := ioutil.ReadFile(configPath)
 		if err != nil {
-			if os.IsNotExist(err) {
-				dirPath := ClusterPath(clusterName)
-				log.Errorf("%s, you may try to rename '%s/config' to '%s/%s'",
-					err, dirPath, dirPath, AnsibleImportedConfigPath)
-			}
 			return err
 		}
 		mergedConfig, err := mergeImported(importConfig, spec.Config)

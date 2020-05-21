@@ -16,12 +16,15 @@ package meta
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"path"
 	"reflect"
 	"strings"
 
 	"github.com/BurntSushi/toml"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/executor"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/log"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/utils"
 	"github.com/pingcap/errors"
 )
 
@@ -30,6 +33,8 @@ const (
 	AnsibleImportedConfigPath = "ansible-imported-configs"
 	// TempConfigPath is the sub path where generated temporary configs are stored
 	TempConfigPath = "config-cache"
+	// migrateLockName is the directory name of migrating lock
+	migrateLockName = "tiup-migrate.lck"
 )
 
 // strKeyMap tries to convert `map[interface{}]interface{}` to `map[string]interface{}`
@@ -183,4 +188,40 @@ func checkConfig(e executor.TiOpsExecutor, componentName, clusterVersion, config
 func hasConfigCheckFlag(e executor.TiOpsExecutor, binPath string) bool {
 	stdout, stderr, _ := e.Execute(fmt.Sprintf("%s --help", binPath), false)
 	return strings.Contains(string(stdout), "config-check") || strings.Contains(string(stderr), "config-check")
+}
+
+// HandleImportPathMigration tries to rename old configs file directory for imported clusters to the new name
+func HandleImportPathMigration(clsName string) error {
+	dirPath := ClusterPath(clsName)
+	targetPath := path.Join(dirPath, AnsibleImportedConfigPath)
+	_, err := os.Stat(targetPath)
+	if os.IsNotExist(err) {
+		log.Warnf("renaming '%s/config' to '%s'", dirPath, targetPath)
+
+		if lckErr := utils.Retry(func() error {
+			_, lckErr := os.Stat(path.Join(dirPath, migrateLockName))
+			if os.IsNotExist(lckErr) {
+				return nil
+			}
+			return errors.Errorf("config dir already lock by another task, %s", lckErr)
+		}); lckErr != nil {
+			return lckErr
+		}
+		if lckErr := os.Mkdir(path.Join(dirPath, migrateLockName), 0755); lckErr != nil {
+			return errors.Errorf("can not lock config dir, %s", lckErr)
+		}
+		defer func() {
+			rmErr := os.Remove(path.Join(dirPath, migrateLockName))
+			if rmErr != nil {
+				log.Errorf("error unlocking config dir, %s", rmErr)
+			}
+		}()
+
+		// ignore if the old config path does not exist
+		if _, err := os.Stat(path.Join(dirPath, "config")); os.IsNotExist(err) {
+			return nil
+		}
+		return os.Rename(path.Join(dirPath, "config"), targetPath)
+	}
+	return nil
 }
