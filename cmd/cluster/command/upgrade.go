@@ -133,7 +133,7 @@ func upgrade(clusterName, clusterVersion string, opt operator.Options) error {
 						Deploy: deployDir,
 						Data:   dataDirs,
 						Log:    logDir,
-						Cache:  meta.ClusterPath(clusterName, "config"),
+						Cache:  meta.ClusterPath(clusterName, meta.TempConfigPath),
 					},
 				)
 			} else {

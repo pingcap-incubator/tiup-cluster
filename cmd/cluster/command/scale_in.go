@@ -108,7 +108,7 @@ func scaleIn(clusterName string, options operator.Options) error {
 					Deploy: deployDir,
 					Data:   dataDirs,
 					Log:    logDir,
-					Cache:  meta.ClusterPath(clusterName, "config"),
+					Cache:  meta.ClusterPath(clusterName, meta.TempConfigPath),
 				},
 			).Build()
 			regenConfigTasks = append(regenConfigTasks, t)

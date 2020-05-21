@@ -421,6 +421,11 @@ func (i *TiDBInstance) InitConfig(e executor.TiOpsExecutor, clusterName, cluster
 		)
 		importConfig, err := ioutil.ReadFile(configPath)
 		if err != nil {
+			if os.IsNotExist(err) {
+				dirPath := ClusterPath(clusterName)
+				log.Errorf("%s, you may try to rename '%s/config' to '%s/%s'",
+					err, dirPath, dirPath, AnsibleImportedConfigPath)
+			}
 			return err
 		}
 		mergedConfig, err := mergeImported(importConfig, spec.Config)
@@ -529,6 +534,11 @@ func (i *TiKVInstance) InitConfig(e executor.TiOpsExecutor, clusterName, cluster
 		)
 		importConfig, err := ioutil.ReadFile(configPath)
 		if err != nil {
+			if os.IsNotExist(err) {
+				dirPath := ClusterPath(clusterName)
+				log.Errorf("%s, you may try to rename '%s/config' to '%s/%s'",
+					err, dirPath, dirPath, AnsibleImportedConfigPath)
+			}
 			return err
 		}
 		mergedConfig, err := mergeImported(importConfig, spec.Config)
@@ -650,6 +660,11 @@ func (i *PDInstance) InitConfig(e executor.TiOpsExecutor, clusterName, clusterVe
 		)
 		importConfig, err := ioutil.ReadFile(configPath)
 		if err != nil {
+			if os.IsNotExist(err) {
+				dirPath := ClusterPath(clusterName)
+				log.Errorf("%s, you may try to rename '%s/config' to '%s/%s'",
+					err, dirPath, dirPath, AnsibleImportedConfigPath)
+			}
 			return err
 		}
 		mergedConfig, err := mergeImported(importConfig, spec.Config)
@@ -956,6 +971,11 @@ func (i *TiFlashInstance) InitConfig(e executor.TiOpsExecutor, clusterName, clus
 		)
 		importConfig, err := ioutil.ReadFile(configPath)
 		if err != nil {
+			if os.IsNotExist(err) {
+				dirPath := ClusterPath(clusterName)
+				log.Errorf("%s, you may try to rename '%s/config' to '%s/%s'",
+					err, dirPath, dirPath, AnsibleImportedConfigPath)
+			}
 			return err
 		}
 		mergedConfig, err := mergeImported(importConfig, spec.LearnerConfig)
@@ -990,6 +1010,11 @@ func (i *TiFlashInstance) InitConfig(e executor.TiOpsExecutor, clusterName, clus
 		)
 		importConfig, err := ioutil.ReadFile(configPath)
 		if err != nil {
+			if os.IsNotExist(err) {
+				dirPath := ClusterPath(clusterName)
+				log.Errorf("%s, you may try to rename '%s/config' to '%s/%s'",
+					err, dirPath, dirPath, AnsibleImportedConfigPath)
+			}
 			return err
 		}
 		specConfig, err = mergeImported(importConfig, spec.Config)

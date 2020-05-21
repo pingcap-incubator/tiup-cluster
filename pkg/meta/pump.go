@@ -16,10 +16,12 @@ package meta
 import (
 	"fmt"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 	"strconv"
 
 	"github.com/pingcap-incubator/tiup-cluster/pkg/executor"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/log"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/template/scripts"
 )
 
@@ -119,6 +121,11 @@ func (i *PumpInstance) InitConfig(e executor.TiOpsExecutor, clusterName, cluster
 		)
 		importConfig, err := ioutil.ReadFile(configPath)
 		if err != nil {
+			if os.IsNotExist(err) {
+				dirPath := ClusterPath(clusterName)
+				log.Errorf("%s, you may try to rename '%s/config' to '%s/%s'",
+					err, dirPath, dirPath, AnsibleImportedConfigPath)
+			}
 			return err
 		}
 		mergedConfig, err := mergeImported(importConfig, spec.Config)

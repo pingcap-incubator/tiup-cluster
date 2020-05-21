@@ -112,7 +112,7 @@ func buildReloadTask(
 				Deploy: deployDir,
 				Data:   dataDirs,
 				Log:    logDir,
-				Cache:  meta.ClusterPath(clusterName, "config"),
+				Cache:  meta.ClusterPath(clusterName, meta.TempConfigPath),
 			}).Build()
 		refreshConfigTasks = append(refreshConfigTasks, t)
 	})

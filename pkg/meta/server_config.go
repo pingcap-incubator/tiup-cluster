@@ -28,6 +28,8 @@ import (
 const (
 	// AnsibleImportedConfigPath is the sub path where all imported configs are stored
 	AnsibleImportedConfigPath = "ansible-imported-configs"
+	// TempConfigPath is the sub path where generated temporary configs are stored
+	TempConfigPath = "config-cache"
 )
 
 // strKeyMap tries to convert `map[interface{}]interface{}` to `map[string]interface{}`
