@@ -14,6 +14,7 @@
 package api
 
 import (
+	"bytes"
 	"crypto/tls"
 	"fmt"
 	"strings"
@@ -70,26 +71,54 @@ func (dm *DMMasterClient) getEndpoints(cmd string) (endpoints []string) {
 }
 
 func (dm *DMMasterClient) getMember(endpoints []string) (*dmpb.ListMemberResponse, error) {
-	memberResp := &dmpb.ListMemberResponse{}
+	resp := &dmpb.ListMemberResponse{}
 	err := tryURLs(endpoints, func(endpoint string) error {
 		body, err := dm.httpClient.Get(endpoint)
 		if err != nil {
 			return err
 		}
 
-		err = jsonpb.Unmarshal(strings.NewReader(string(body)), memberResp)
+		err = jsonpb.Unmarshal(strings.NewReader(string(body)), resp)
 
 		if err != nil {
 			return err
 		}
 
-		if !memberResp.Result {
-			return errors.New("dm-master get members failed: " + memberResp.Msg)
+		if !resp.Result {
+			return errors.New("dm-master get members failed: " + resp.Msg)
 		}
 
 		return nil
 	})
-	return memberResp, err
+	return resp, err
+}
+
+func (dm *DMMasterClient) deleteMember(endpoints []string) (*dmpb.OfflineWorkerResponse, error) {
+	resp := &dmpb.OfflineWorkerResponse{}
+	err := tryURLs(endpoints, func(endpoint string) error {
+		body, statusCode, err := dm.httpClient.Delete(endpoint, nil)
+
+		if statusCode == 404 || bytes.Contains(body, []byte("not exists")) {
+			zap.L().Debug("member to offline does not exist, ignore.")
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+
+		err = jsonpb.Unmarshal(strings.NewReader(string(body)), resp)
+
+		if err != nil {
+			return err
+		}
+
+		if !resp.Result {
+			return errors.New("dm-master offline member failed: " + resp.Msg)
+		}
+
+		return nil
+	})
+	return resp, err
 }
 
 // GetMaster returns the dm master leader
@@ -170,21 +199,54 @@ func (dm *DMMasterClient) GetLeader() (string, error) {
 	return leaderName, nil
 }
 
+// GetLeader gets all registerer members of dm cluster
+func (dm *DMMasterClient) GetRegisteredMembers() ([]string, []string, error) {
+	query := "?master=true&worker=true"
+	endpoints := dm.getEndpoints(dmMembersURI + query)
+	memberResp, err := dm.getMember(endpoints)
+
+	var (
+		registeredMasters []string
+		registeredWorkers []string
+	)
+
+	if err != nil {
+		zap.L().Error("get dm master status failed", zap.Error(err))
+		return registeredMasters, registeredWorkers, errors.AddStack(err)
+	}
+
+	for _, member := range memberResp.Members {
+		if masters := member.GetMaster(); masters != nil {
+			for _, master := range masters.GetMasters() {
+				registeredMasters = append(registeredMasters, master.Name)
+			}
+		} else if workers := member.GetWorker(); workers != nil {
+			for _, worker := range workers.GetWorkers() {
+				registeredWorkers = append(registeredWorkers, worker.Name)
+			}
+		}
+	}
+
+	return registeredMasters, registeredWorkers, nil
+}
+
 // EvictDMMasterLeader evicts the dm master leader
 func (dm *DMMasterClient) EvictDMMasterLeader(retryOpt *utils.RetryOption) error {
 	return nil
 }
 
-func (dm *DMMasterClient) GetRegisteredMastersWorkers() ([]string, []string, error) {
-	return []string{}, []string{}, nil
-}
-
 // OfflineWorker offlines the dm worker
 func (dm *DMMasterClient) OfflineWorker(name string) error {
-	return nil
+	query := "/worker/" + name
+	endpoints := dm.getEndpoints(dmMembersURI + query)
+	_, err := dm.deleteMember(endpoints)
+	return err
 }
 
 // OfflineMaster offlines the dm master
 func (dm *DMMasterClient) OfflineMaster(name string) error {
-	return nil
+	query := "/master/" + name
+	endpoints := dm.getEndpoints(dmMembersURI + query)
+	_, err := dm.deleteMember(endpoints)
+	return err
 }

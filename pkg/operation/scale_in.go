@@ -312,19 +312,26 @@ func ScaleInDMCluster(
 				continue
 			}
 
-			if component.Name() == meta.ComponentDMMaster {
-				name := instance.(*meta.DMMasterInstance).Name
-				err := dmMasterClient.OfflineMaster(name)
-				if err != nil {
-					return errors.AddStack(err)
-				}
-			}
-
 			if err := StopComponent(getter, []meta.Instance{instance}); err != nil {
 				return errors.Annotatef(err, "failed to stop %s", component.Name())
 			}
 			if err := DestroyComponent(getter, []meta.Instance{instance}, options.OptTimeout); err != nil {
 				return errors.Annotatef(err, "failed to destroy %s", component.Name())
+			}
+
+			switch component.Name() {
+			case meta.ComponentDMMaster:
+				name := instance.(*meta.DMMasterInstance).Name
+				err := dmMasterClient.OfflineMaster(name)
+				if err != nil {
+					return errors.AddStack(err)
+				}
+			case meta.ComponentDMWorker:
+				name := instance.(*meta.DMWorkerInstance).Name
+				err := dmMasterClient.OfflineWorker(name)
+				if err != nil {
+					return errors.AddStack(err)
+				}
 			}
 		}
 	}

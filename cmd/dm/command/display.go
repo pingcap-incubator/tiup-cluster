@@ -55,14 +55,11 @@ func newDisplayCmd() *cobra.Command {
 				return err
 			}
 
-			return nil
-			/*
-				metadata, err := meta.DMMetadata(clusterName)
-				if err != nil {
-					return errors.AddStack(err)
-				}
-				return clearOutDatedEtcdInfo(clusterName, metadata, gOpt)
-			*/
+			metadata, err := meta.DMMetadata(clusterName)
+			if err != nil {
+				return errors.AddStack(err)
+			}
+			return clearOutDatedEtcdInfo(clusterName, metadata, gOpt)
 		},
 	}
 
@@ -106,7 +103,7 @@ func clearOutDatedEtcdInfo(clusterName string, metadata *meta.DMMeta, opt operat
 	}
 
 	dmMasterClient := api.NewDMMasterClient(topo.GetMasterList(), 10*time.Second, nil)
-	registeredMasters, registeredWorkers, err := dmMasterClient.GetRegisteredMastersWorkers()
+	registeredMasters, registeredWorkers, err := dmMasterClient.GetRegisteredMembers()
 	if err != nil {
 		return err
 	}
