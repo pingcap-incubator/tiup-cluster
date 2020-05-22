@@ -151,7 +151,7 @@ func (dm *DMMasterClient) GetMaster(name string) (isFound bool, isActive bool, i
 	return
 }
 
-// GetMaster returns the dm master leader
+// GetWorker returns the dm worker status
 // returns (worker stage, error). If worker stage is "", that means this worker is in cluster
 func (dm *DMMasterClient) GetWorker(name string) (string, error) {
 	query := "?worker=true&names=" + name
@@ -199,7 +199,7 @@ func (dm *DMMasterClient) GetLeader() (string, error) {
 	return leaderName, nil
 }
 
-// GetLeader gets all registerer members of dm cluster
+// GetRegisteredMembers gets all registerer members of dm cluster
 func (dm *DMMasterClient) GetRegisteredMembers() ([]string, []string, error) {
 	query := "?master=true&worker=true"
 	endpoints := dm.getEndpoints(dmMembersURI + query)
@@ -235,7 +235,7 @@ func (dm *DMMasterClient) EvictDMMasterLeader(retryOpt *utils.RetryOption) error
 	return nil
 }
 
-// OfflineWorker offlines the member of dm cluster
+// OfflineMember offlines the member of dm cluster
 func (dm *DMMasterClient) OfflineMember(query string, retryOpt *utils.RetryOption) error {
 	endpoints := dm.getEndpoints(dmMembersURI + query)
 

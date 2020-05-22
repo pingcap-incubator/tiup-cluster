@@ -37,13 +37,24 @@ type (
 		GlobalOptions    GlobalOptions      `yaml:"global,omitempty"`
 		MonitoredOptions MonitoredOptions   `yaml:"monitored,omitempty"`
 		ServerConfigs    DMServerConfigs    `yaml:"server_configs,omitempty"`
-		Masters          []MasterSpec       `yaml:"dm_masters"`
-		Workers          []WorkerSpec       `yaml:"dm_workers"`
+		Masters          []MasterSpec       `yaml:"dm-master_servers"`
+		Workers          []WorkerSpec       `yaml:"dm-worker_servers"`
 		Monitors         []PrometheusSpec   `yaml:"monitoring_servers"`
 		Grafana          []GrafanaSpec      `yaml:"grafana_servers,omitempty"`
 		Alertmanager     []AlertManagerSpec `yaml:"alertmanager_servers,omitempty"`
 	}
 )
+
+// AllDMComponentNames contains the names of all dm components.
+// should include all components in ComponentsByStartOrder
+func AllDMComponentNames() (roles []string) {
+	tp := &ClusterSpecification{}
+	tp.IterComponent(func(c Component) {
+		roles = append(roles, c.Name())
+	})
+
+	return
+}
 
 // MasterSpec represents the Master topology specification in topology.yaml
 type MasterSpec struct {

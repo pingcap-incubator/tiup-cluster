@@ -254,12 +254,12 @@ func (i *DMMasterInstance) InitConfig(e executor.TiOpsExecutor, clusterName, clu
 		paths.Data,
 		paths.Log,
 	).WithPort(spec.Port).WithNumaNode(spec.NumaNode).WithPeerPort(spec.PeerPort).AppendEndpoints(i.dmInstance.topo.Endpoints(deployUser)...)
-	fp := filepath.Join(paths.Cache, fmt.Sprintf("run_dm_master_%s_%d.sh", i.GetHost(), i.GetPort()))
+	fp := filepath.Join(paths.Cache, fmt.Sprintf("run_dm-master_%s_%d.sh", i.GetHost(), i.GetPort()))
 	if err := cfg.ConfigToFile(fp); err != nil {
 		return err
 	}
 
-	dst := filepath.Join(paths.Deploy, "scripts", "run_dm_master.sh")
+	dst := filepath.Join(paths.Deploy, "scripts", "run_dm-master.sh")
 	if err := e.Transfer(fp, dst, false); err != nil {
 		return err
 	}
@@ -317,13 +317,13 @@ func (i *DMMasterInstance) ScaleConfig(e executor.TiOpsExecutor, b Specification
 		paths.Log,
 	).WithPort(spec.Port).WithNumaNode(spec.NumaNode).WithPeerPort(spec.PeerPort).AppendEndpoints(c.Endpoints(deployUser)...)
 
-	fp := filepath.Join(paths.Cache, fmt.Sprintf("run_dm_master_%s_%d.sh", i.GetHost(), i.GetPort()))
+	fp := filepath.Join(paths.Cache, fmt.Sprintf("run_dm-master_%s_%d.sh", i.GetHost(), i.GetPort()))
 	log.Infof("script path: %s", fp)
 	if err := cfg.ConfigToFile(fp); err != nil {
 		return err
 	}
 
-	dst := filepath.Join(paths.Deploy, "scripts", "run_dm_master.sh")
+	dst := filepath.Join(paths.Deploy, "scripts", "run_dm-master.sh")
 	if err := e.Transfer(fp, dst, false); err != nil {
 		return err
 	}
@@ -399,11 +399,11 @@ func (i *DMWorkerInstance) InitConfig(e executor.TiOpsExecutor, clusterName, clu
 		paths.Deploy,
 		paths.Log,
 	).WithPort(spec.Port).WithNumaNode(spec.NumaNode).AppendEndpoints(i.dmInstance.topo.Endpoints(deployUser)...)
-	fp := filepath.Join(paths.Cache, fmt.Sprintf("run_dm_worker_%s_%d.sh", i.GetHost(), i.GetPort()))
+	fp := filepath.Join(paths.Cache, fmt.Sprintf("run_dm-worker_%s_%d.sh", i.GetHost(), i.GetPort()))
 	if err := cfg.ConfigToFile(fp); err != nil {
 		return err
 	}
-	dst := filepath.Join(paths.Deploy, "scripts", "run_dm_worker.sh")
+	dst := filepath.Join(paths.Deploy, "scripts", "run_dm-worker.sh")
 
 	if err := e.Transfer(fp, dst, false); err != nil {
 		return err

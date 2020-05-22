@@ -29,4 +29,4 @@ exec bin/dm-master \
     --log-file="{{.LogDir}}/dm-master.log" \
     --data-dir="{{.DataDir}}" \
     --join="{{template "MasterList" .Endpoints}}" \
-    --config=conf/dm_master.toml 2>> "{{.LogDir}}/dm-master_stderr.log"
+    --config=conf/dm-master.toml 2>> "{{.LogDir}}/dm-master_stderr.log"

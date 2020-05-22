@@ -83,7 +83,7 @@ func (c *DMMasterScript) AppendEndpoints(ends ...*DMMasterScript) *DMMasterScrip
 
 // Config generate the config file data.
 func (c *DMMasterScript) Config() ([]byte, error) {
-	fp := path.Join("/templates", "scripts", "run_dm_master.sh.tpl")
+	fp := path.Join("/templates", "scripts", "run_dm-master.sh.tpl")
 	tpl, err := embed.ReadFile(fp)
 	if err != nil {
 		return nil, err
@@ -124,7 +124,7 @@ func (c *DMMasterScript) ConfigWithTemplate(tpl string) ([]byte, error) {
 	return content.Bytes(), nil
 }
 
-// DMMasterScaleScript represent the data to generate dm_master config on scaling
+// DMMasterScaleScript represent the data to generate dm-master config on scaling
 type DMMasterScaleScript struct {
 	DMMasterScript
 }
@@ -166,7 +166,7 @@ func (c *DMMasterScaleScript) AppendEndpoints(ends ...*DMMasterScript) *DMMaster
 
 // Config generate the config file data.
 func (c *DMMasterScaleScript) Config() ([]byte, error) {
-	fp := path.Join("/templates", "scripts", "run_dm_master_scale.sh.tpl")
+	fp := path.Join("/templates", "scripts", "run_dm-master_scale.sh.tpl")
 	tpl, err := embed.ReadFile(fp)
 	if err != nil {
 		return nil, err
