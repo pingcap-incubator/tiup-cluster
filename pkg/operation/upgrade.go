@@ -119,14 +119,14 @@ func Upgrade(
 					log.Infof("Restarting component %s", component.Name())
 
 					for _, instance := range instances {
-						leader, err := dmMasterClient.GetLeader()
+						leader, err := dmMasterClient.GetLeader(timeoutOpt)
 						if err != nil {
-							return errors.Annotatef(err, "failed to get PD leader %s", instance.GetHost())
+							return errors.Annotatef(err, "failed to get dm-master leader %s", instance.GetHost())
 						}
 
 						if len(dmSpec.Masters) > 1 && leader == instance.(*meta.DMMasterInstance).Name {
 							if err := dmMasterClient.EvictDMMasterLeader(timeoutOpt); err != nil {
-								return errors.Annotatef(err, "failed to evict PD leader %s", instance.GetHost())
+								return errors.Annotatef(err, "failed to dm-master PD leader %s", instance.GetHost())
 							}
 						}
 
