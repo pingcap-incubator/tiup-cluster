@@ -44,7 +44,7 @@ func newRestartCmd() *cobra.Command {
 			}
 
 			logger.EnableAuditLog()
-			metadata, err := meta.ClusterMetadata(clusterName)
+			metadata, err := meta.DMMetadata(clusterName)
 			if err != nil {
 				return err
 			}
