@@ -56,7 +56,7 @@ func newCheckCmd() *cobra.Command {
 			}
 
 			logger.EnableAuditLog()
-			var topo meta.TopologySpecification
+			var topo meta.DMTopologySpecification
 			if err := utils.ParseTopologyYaml(args[0], &topo); err != nil {
 				return err
 			}
@@ -95,7 +95,7 @@ func newCheckCmd() *cobra.Command {
 }
 
 // checkSystemInfo performs series of checks and tests of the deploy server
-func checkSystemInfo(s *cliutil.SSHConnectionProps, topo *meta.TopologySpecification, opt *checkOptions) error {
+func checkSystemInfo(s *cliutil.SSHConnectionProps, topo *meta.DMTopologySpecification, opt *checkOptions) error {
 	var (
 		collectTasks  []*task.StepDisplay
 		checkSysTasks []*task.StepDisplay
