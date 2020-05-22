@@ -48,7 +48,7 @@ type (
 // AllDMComponentNames contains the names of all dm components.
 // should include all components in ComponentsByStartOrder
 func AllDMComponentNames() (roles []string) {
-	tp := &ClusterSpecification{}
+	tp := &DMSpecification{}
 	tp.IterComponent(func(c Component) {
 		roles = append(roles, c.Name())
 	})
