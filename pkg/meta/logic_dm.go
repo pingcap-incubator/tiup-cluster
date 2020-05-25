@@ -157,6 +157,12 @@ func (i *dmInstance) DataDir() string {
 	return dataDir.String()
 }
 
+func (i *dmInstance) resourceControl() ResourceControl {
+	return reflect.ValueOf(i.InstanceSpec).
+		FieldByName("ResourceControl").
+		Interface().(ResourceControl)
+}
+
 func (i *dmInstance) OS() string {
 	return reflect.ValueOf(i.InstanceSpec).FieldByName("OS").Interface().(string)
 }
@@ -165,10 +171,8 @@ func (i *dmInstance) Arch() string {
 	return reflect.ValueOf(i.InstanceSpec).FieldByName("Arch").Interface().(string)
 }
 
-func (i *dmInstance) resourceControl() ResourceControl {
-	return reflect.ValueOf(i.InstanceSpec).
-		FieldByName("ResourceControl").
-		Interface().(ResourceControl)
+func (i *dmInstance) PrepareStart() error {
+	return nil
 }
 
 func (i *dmInstance) LogDir() string {
@@ -256,26 +260,19 @@ func (i *DMMasterInstance) InitConfig(e executor.TiOpsExecutor, clusterName, clu
 		return err
 	}
 
-	var name string
-	for _, spec := range i.dmInstance.topo.Masters {
-		if spec.Host == i.GetHost() && spec.Port == i.GetPort() {
-			name = spec.Name
-		}
-	}
-
 	spec := i.InstanceSpec.(MasterSpec)
 	cfg := scripts.NewDMMasterScript(
-		name,
+		spec.Name,
 		i.GetHost(),
 		paths.Deploy,
-		paths.Data,
+		paths.Data[0],
 		paths.Log,
 	).WithPort(spec.Port).WithNumaNode(spec.NumaNode).WithPeerPort(spec.PeerPort).AppendEndpoints(i.dmInstance.topo.Endpoints(deployUser)...)
+
 	fp := filepath.Join(paths.Cache, fmt.Sprintf("run_dm-master_%s_%d.sh", i.GetHost(), i.GetPort()))
 	if err := cfg.ConfigToFile(fp); err != nil {
 		return err
 	}
-
 	dst := filepath.Join(paths.Deploy, "scripts", "run_dm-master.sh")
 	if err := e.Transfer(fp, dst, false); err != nil {
 		return err
@@ -289,7 +286,7 @@ func (i *DMMasterInstance) InitConfig(e executor.TiOpsExecutor, clusterName, clu
 	if i.IsImported() {
 		configPath := ClusterPath(
 			clusterName,
-			"config",
+			AnsibleImportedConfigPath,
 			fmt.Sprintf(
 				"%s-%s-%d.toml",
 				i.ComponentName(),
@@ -308,7 +305,11 @@ func (i *DMMasterInstance) InitConfig(e executor.TiOpsExecutor, clusterName, clu
 		specConfig = mergedConfig
 	}
 
-	return i.mergeServerConfig(e, i.topo.ServerConfigs.Master, specConfig, paths)
+	if err := i.mergeServerConfig(e, i.dmInstance.topo.ServerConfigs.Master, specConfig, paths); err != nil {
+		return err
+	}
+
+	return checkConfig(e, i.ComponentName(), clusterVersion, i.ComponentName()+".toml", paths)
 }
 
 // ScaleConfig deploy temporary config on scaling
@@ -318,19 +319,12 @@ func (i *DMMasterInstance) ScaleConfig(e executor.TiOpsExecutor, b Specification
 	}
 
 	c := b.GetDMSpecification()
-	name := i.Name
-	for _, spec := range c.Masters {
-		if spec.Host == i.GetHost() && spec.Port == i.GetPort() {
-			name = spec.Name
-		}
-	}
-
 	spec := i.InstanceSpec.(MasterSpec)
 	cfg := scripts.NewDMMasterScaleScript(
-		name,
+		spec.Name,
 		i.GetHost(),
 		paths.Deploy,
-		paths.Data,
+		paths.Data[0],
 		paths.Log,
 	).WithPort(spec.Port).WithNumaNode(spec.NumaNode).WithPeerPort(spec.PeerPort).AppendEndpoints(c.Endpoints(deployUser)...)
 
@@ -402,16 +396,9 @@ func (i *DMWorkerInstance) InitConfig(e executor.TiOpsExecutor, clusterName, clu
 		return err
 	}
 
-	name := i.Name
-	for _, spec := range i.dmInstance.topo.Workers {
-		if spec.Host == i.GetHost() && spec.Port == i.GetPort() {
-			name = spec.Name
-		}
-	}
-
 	spec := i.InstanceSpec.(WorkerSpec)
 	cfg := scripts.NewDMWorkerScript(
-		name,
+		i.Name,
 		i.GetHost(),
 		paths.Deploy,
 		paths.Log,
@@ -435,7 +422,7 @@ func (i *DMWorkerInstance) InitConfig(e executor.TiOpsExecutor, clusterName, clu
 	if i.IsImported() {
 		configPath := ClusterPath(
 			clusterName,
-			"config",
+			AnsibleImportedConfigPath,
 			fmt.Sprintf(
 				"%s-%s-%d.toml",
 				i.ComponentName(),
@@ -503,7 +490,15 @@ func (topo *DMSpecification) ComponentsByStopOrder() (comps []Component) {
 
 // ComponentsByStartOrder return component in the order need to start.
 func (topo *DMSpecification) ComponentsByStartOrder() (comps []Component) {
-	// "pd", "tikv", "pump", "tidb", "drainer", "prometheus", "grafana", "alertmanager"
+	// "pd", "tikv", "pump", "tidb", "tiflash", "drainer", "cdc", "prometheus", "grafana", "alertmanager"
+	comps = append(comps, &DMMasterComponent{topo})
+	comps = append(comps, &DMWorkerComponent{topo})
+	return
+}
+
+// ComponentsByUpdateOrder return component in the order need to be updated.
+func (topo *DMSpecification) ComponentsByUpdateOrder() (comps []Component) {
+	// "tiflash", "pd", "tikv", "pump", "tidb", "drainer", "cdc", "prometheus", "grafana", "alertmanager"
 	comps = append(comps, &DMMasterComponent{topo})
 	comps = append(comps, &DMWorkerComponent{topo})
 	return

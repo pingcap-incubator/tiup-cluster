@@ -87,7 +87,7 @@ func (i *PumpInstance) InitConfig(e executor.TiOpsExecutor, clusterName, cluster
 		i.GetHost()+":"+strconv.Itoa(i.GetPort()),
 		i.GetHost(),
 		paths.Deploy,
-		paths.Data,
+		paths.Data[0],
 		paths.Log,
 	).WithPort(spec.Port).WithNumaNode(spec.NumaNode).AppendEndpoints(i.instance.topo.Endpoints(deployUser)...)
 
@@ -109,7 +109,7 @@ func (i *PumpInstance) InitConfig(e executor.TiOpsExecutor, clusterName, cluster
 	if i.IsImported() {
 		configPath := ClusterPath(
 			clusterName,
-			"config",
+			AnsibleImportedConfigPath,
 			fmt.Sprintf(
 				"%s-%s-%d.toml",
 				i.ComponentName(),

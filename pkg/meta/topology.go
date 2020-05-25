@@ -20,6 +20,8 @@ import (
 	"strings"
 	"time"
 
+	"go.etcd.io/etcd/clientv3"
+
 	"github.com/creasty/defaults"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/api"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/utils"
@@ -197,8 +199,8 @@ type TiKVSpec struct {
 	OS              string                 `yaml:"os,omitempty"`
 }
 
-// Status queries current status of the instance
-func (s TiKVSpec) Status(pdList ...string) string {
+// checkStoreStatus checks the store status in current cluster
+func checkStoreStatus(storeAddr string, pdList ...string) string {
 	if len(pdList) < 1 {
 		return "N/A"
 	}
@@ -208,13 +210,11 @@ func (s TiKVSpec) Status(pdList ...string) string {
 		return "Down"
 	}
 
-	name := fmt.Sprintf("%s:%d", s.Host, s.Port)
-
 	// only get status of the latest store, it is the store with lagest ID number
 	// older stores might be legacy ones that already offlined
 	var latestStore *pdserverapi.StoreInfo
 	for _, store := range stores.Stores {
-		if name == store.Store.Address {
+		if storeAddr == store.Store.Address {
 			if latestStore == nil {
 				latestStore = store
 				continue
@@ -228,6 +228,12 @@ func (s TiKVSpec) Status(pdList ...string) string {
 		return latestStore.Store.StateName
 	}
 	return "N/A"
+}
+
+// Status queries current status of the instance
+func (s TiKVSpec) Status(pdList ...string) string {
+	storeAddr := fmt.Sprintf("%s:%d", s.Host, s.Port)
+	return checkStoreStatus(storeAddr, pdList...)
 }
 
 // Role returns the component role of the instance
@@ -335,6 +341,7 @@ type TiFlashSpec struct {
 	DataDir              string                 `yaml:"data_dir,omitempty"`
 	LogDir               string                 `yaml:"log_dir,omitempty"`
 	TmpDir               string                 `yaml:"tmp_path,omitempty"`
+	Offline              bool                   `yaml:"offline,omitempty"`
 	NumaNode             string                 `yaml:"numa_node,omitempty"`
 	Config               map[string]interface{} `yaml:"config,omitempty"`
 	LearnerConfig        map[string]interface{} `yaml:"learner_config,omitempty"`
@@ -344,9 +351,9 @@ type TiFlashSpec struct {
 }
 
 // Status queries current status of the instance
-func (s TiFlashSpec) Status(flashList ...string) string {
-	url := fmt.Sprintf("http://%s:%d/?query=select%%20version()", s.Host, s.HTTPPort)
-	return statusByURL(url)
+func (s TiFlashSpec) Status(pdList ...string) string {
+	storeAddr := fmt.Sprintf("%s:%d", s.Host, s.FlashServicePort)
+	return checkStoreStatus(storeAddr, pdList...)
 }
 
 // Role returns the component role of the instance
@@ -604,6 +611,13 @@ func (topo *TopologySpecification) UnmarshalYAML(unmarshal func(interface{}) err
 	if topo.MonitoredOptions.DataDir == "" {
 		topo.MonitoredOptions.DataDir = filepath.Join(topo.GlobalOptions.DataDir,
 			fmt.Sprintf("%s-%d", RoleMonitor, topo.MonitoredOptions.NodeExporterPort))
+	}
+	if topo.MonitoredOptions.LogDir == "" {
+		topo.MonitoredOptions.LogDir = "log"
+	}
+	if !strings.HasPrefix(topo.MonitoredOptions.LogDir, "/") &&
+		!strings.HasPrefix(topo.MonitoredOptions.LogDir, topo.MonitoredOptions.DeployDir) {
+		topo.MonitoredOptions.LogDir = filepath.Join(topo.MonitoredOptions.DeployDir, topo.MonitoredOptions.LogDir)
 	}
 
 	// populate custom default values as needed
@@ -886,6 +900,13 @@ func (topo *TopologySpecification) GetPDList() []string {
 	}
 
 	return pdList
+}
+
+// GetEtcdClient load EtcdClient of current cluster
+func (topo *TopologySpecification) GetEtcdClient() (*clientv3.Client, error) {
+	return clientv3.New(clientv3.Config{
+		Endpoints: topo.GetPDList(),
+	})
 }
 
 // Merge returns a new TopologySpecification which sum old ones

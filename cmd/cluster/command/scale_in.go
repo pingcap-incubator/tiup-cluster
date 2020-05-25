@@ -77,6 +77,7 @@ func scaleIn(clusterName string, options operator.Options) error {
 
 	// Regenerate configuration
 	var regenConfigTasks []task.Task
+	hasImported := false
 	deletedNodes := set.NewStringSet(options.Nodes...)
 	for _, component := range metadata.Topology.ComponentsByStartOrder() {
 		for _, instance := range component.Instances() {
@@ -85,7 +86,7 @@ func scaleIn(clusterName string, options operator.Options) error {
 			}
 			deployDir := clusterutil.Abs(metadata.User, instance.DeployDir())
 			// data dir would be empty for components which don't need it
-			dataDir := clusterutil.Abs(metadata.User, instance.DataDir())
+			dataDirs := clusterutil.MultiDirAbs(metadata.User, instance.DataDir())
 			// log dir will always be with values, but might not used by the component
 			logDir := clusterutil.Abs(metadata.User, instance.LogDir())
 
@@ -98,6 +99,7 @@ func scaleIn(clusterName string, options operator.Options) error {
 					tb.Download(compName, instance.OS(), instance.Arch(), version).
 						CopyComponent(compName, instance.OS(), instance.Arch(), version, instance.GetHost(), deployDir)
 				}
+				hasImported = true
 			}
 
 			t := tb.InitConfig(clusterName,
@@ -106,12 +108,19 @@ func scaleIn(clusterName string, options operator.Options) error {
 				metadata.User,
 				meta.DirPaths{
 					Deploy: deployDir,
-					Data:   dataDir,
+					Data:   dataDirs,
 					Log:    logDir,
-					Cache:  meta.ClusterPath(clusterName, "config"),
+					Cache:  meta.ClusterPath(clusterName, meta.TempConfigPath),
 				},
 			).Build()
 			regenConfigTasks = append(regenConfigTasks, t)
+		}
+	}
+
+	// handle dir scheme changes
+	if hasImported {
+		if err := meta.HandleImportPathMigration(clusterName); err != nil {
+			return err
 		}
 	}
 
@@ -123,10 +132,12 @@ func scaleIn(clusterName string, options operator.Options) error {
 
 	if !options.Force {
 		b.ClusterOperate(metadata.Topology, operator.ScaleInOperation, options).
-			UpdateMeta(clusterName, metadata, operator.AsyncNodes(metadata.Topology, options.Nodes, false))
+			UpdateMeta(clusterName, metadata, operator.AsyncNodes(metadata.Topology, options.Nodes, false)).
+			UpdateTopology(clusterName, metadata, operator.AsyncNodes(metadata.Topology, options.Nodes, false))
 	} else {
 		b.ClusterOperate(metadata.Topology, operator.ScaleInOperation, options).
-			UpdateMeta(clusterName, metadata, options.Nodes)
+			UpdateMeta(clusterName, metadata, options.Nodes).
+			UpdateTopology(clusterName, metadata, options.Nodes)
 	}
 
 	t := b.Parallel(regenConfigTasks...).Build()

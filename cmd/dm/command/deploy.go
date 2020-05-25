@@ -14,7 +14,9 @@
 package command
 
 import (
+	"context"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
@@ -29,13 +31,23 @@ import (
 	"github.com/pingcap-incubator/tiup-cluster/pkg/log"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/logger"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/meta"
+	operator "github.com/pingcap-incubator/tiup-cluster/pkg/operation"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/report"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/task"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/telemetry"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/utils"
 	"github.com/pingcap-incubator/tiup/pkg/repository"
 	"github.com/pingcap-incubator/tiup/pkg/set"
 	tiuputils "github.com/pingcap-incubator/tiup/pkg/utils"
 	"github.com/pingcap/errors"
 	"github.com/spf13/cobra"
+)
+
+var (
+	teleReport    *telemetry.Report
+	clusterReport *telemetry.ClusterReport
+	teleNodeInfos []*telemetry.NodeInfo
+	teleTopology  string
 )
 
 var (
@@ -102,7 +114,7 @@ func confirmTopology(clusterName, version string, topo *meta.DMTopologySpecifica
 
 	clusterTable := [][]string{
 		// Header
-		{"Type", "Host", "Ports", "Directories"},
+		{"Type", "Host", "Ports", "OS/Arch", "Directories"},
 	}
 
 	topo.IterInstance(func(instance meta.Instance) {
@@ -114,6 +126,7 @@ func confirmTopology(clusterName, version string, topo *meta.DMTopologySpecifica
 			comp,
 			instance.GetHost(),
 			utils.JoinInt(instance.UsedPorts(), "/"),
+			cliutil.OsArch(instance.OS(), instance.Arch()),
 			strings.Join(instance.UsedDirs(), ","),
 		})
 	})
@@ -144,6 +157,10 @@ func deploy(clusterName, clusterVersion, topoFile string, opt deployOptions) err
 	var topo meta.DMTopologySpecification
 	if err := utils.ParseTopologyYaml(topoFile, &topo); err != nil {
 		return err
+	}
+
+	if data, err := ioutil.ReadFile(topoFile); err == nil {
+		teleTopology = string(data)
 	}
 
 	if err := prepare.CheckClusterPortConflict(clusterName, &topo); err != nil {
@@ -193,7 +210,7 @@ func deploy(clusterName, clusterVersion, topoFile string, opt deployOptions) err
 				}
 				dirs = append(dirs, clusterutil.Abs(globalOptions.User, dir))
 			}
-			// the dafault, relative path of data dir is under deploy dir
+			// the default, relative path of data dir is under deploy dir
 			if strings.HasPrefix(globalOptions.DataDir, "/") {
 				dirs = append(dirs, globalOptions.DataDir)
 			}
@@ -222,17 +239,18 @@ func deploy(clusterName, clusterVersion, topoFile string, opt deployOptions) err
 		version := meta.ComponentVersion(inst.ComponentName(), clusterVersion)
 		deployDir := clusterutil.Abs(globalOptions.User, inst.DeployDir())
 		// data dir would be empty for components which don't need it
-		dataDir := clusterutil.Abs(globalOptions.User, inst.DataDir())
+		dataDirs := clusterutil.MultiDirAbs(globalOptions.User, inst.DataDir())
 		// log dir will always be with values, but might not used by the component
 		logDir := clusterutil.Abs(globalOptions.User, inst.LogDir())
 		// Deploy component
 		t := task.NewBuilder().
 			UserSSH(inst.GetHost(), inst.GetSSHPort(), globalOptions.User, gOpt.SSHTimeout).
 			Mkdir(globalOptions.User, inst.GetHost(),
-				deployDir, dataDir, logDir,
+				deployDir, logDir,
 				filepath.Join(deployDir, "bin"),
 				filepath.Join(deployDir, "conf"),
 				filepath.Join(deployDir, "scripts")).
+			Mkdir(globalOptions.User, inst.GetHost(), dataDirs...).
 			CopyComponent(
 				inst.ComponentName(),
 				inst.OS(),
@@ -248,22 +266,38 @@ func deploy(clusterName, clusterVersion, topoFile string, opt deployOptions) err
 				globalOptions.User,
 				meta.DirPaths{
 					Deploy: deployDir,
-					Data:   dataDir,
+					Data:   dataDirs,
 					Log:    logDir,
-					Cache:  meta.ClusterPath(clusterName, "config"),
+					Cache:  meta.ClusterPath(clusterName, meta.TempConfigPath),
 				},
 			).
 			BuildAsStep(fmt.Sprintf("  - Copy %s -> %s", inst.ComponentName(), inst.GetHost()))
 		deployCompTasks = append(deployCompTasks, t)
 	})
 
-	t := task.NewBuilder().
+	nodeInfoTask := task.NewBuilder().Func("Check status", func(ctx *task.Context) error {
+		var err error
+		teleNodeInfos, err = operator.GetNodeInfo(context.Background(), ctx, &topo)
+		_ = err
+		// intend to never return error
+		return nil
+	}).BuildAsStep("Check status").SetHidden(true)
+	if report.Enable() {
+		deployCompTasks = append(deployCompTasks, nodeInfoTask)
+	}
+
+	builder := task.NewBuilder().
 		Step("+ Generate SSH keys",
 			task.NewBuilder().SSHKeyGen(meta.ClusterPath(clusterName, "ssh", "id_rsa")).Build()).
 		ParallelStep("+ Download DM components", downloadCompTasks...).
 		ParallelStep("+ Initialize target host environments", envInitTasks...).
-		ParallelStep("+ Copy files", deployCompTasks...).
-		Build()
+		ParallelStep("+ Copy files", deployCompTasks...)
+
+	if report.Enable() {
+		builder.ParallelStep("+ Check status", nodeInfoTask)
+	}
+
+	t := builder.Build()
 
 	if err := t.Execute(task.NewContext()); err != nil {
 		if errorx.Cast(err) != nil {

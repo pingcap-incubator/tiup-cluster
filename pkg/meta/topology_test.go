@@ -114,25 +114,6 @@ pd_servers:
 	c.Assert(topo.PDServers[1].DataDir, Equals, "/test-data/pd-12379")
 }
 
-// gopkg.in/yaml.v2 will report error
-// github.com/goccy/go-yaml will not
-/*
-func (s *metaSuite) TestEmptyHost(c *C) {
-	topo := TopologySpecification{}
-	err := yaml.Unmarshal([]byte(`
-tidb_servers:
-  - host: 172.16.5.138
-tikv_servers:
-  - host:
-pd_servers:
-  - host: 172.16.5.138
-
-`), &topo)
-	c.Assert(err, NotNil)
-	c.Assert(err.Error(), Equals, "`tikv_servers` contains empty host field")
-}
-*/
-
 func (s *metaSuite) TestDirectoryConflicts(c *C) {
 	topo := TopologySpecification{}
 	err := yaml.Unmarshal([]byte(`
@@ -382,6 +363,35 @@ tikv_servers:
 	c.Assert(got, DeepEquals, expected)
 }
 
+func (s *metaSuite) TestLogDir(c *C) {
+	topo := TopologySpecification{}
+	err := yaml.Unmarshal([]byte(`
+tidb_servers:
+  - host: 172.16.5.138
+    deploy_dir: "test-deploy"
+    log_dir: "test-deploy/log"
+`), &topo)
+	c.Assert(err, IsNil)
+	c.Assert(topo.TiDBServers[0].LogDir, Equals, "test-deploy/log")
+}
+
+func (s *metaSuite) TestMonitorLogDir(c *C) {
+	topo := TopologySpecification{}
+	err := yaml.Unmarshal([]byte(`
+monitored:
+    deploy_dir: "test-deploy"
+    log_dir: "test-deploy/log"
+`), &topo)
+	c.Assert(err, IsNil)
+	c.Assert(topo.MonitoredOptions.LogDir, Equals, "test-deploy/log")
+
+	out, err := yaml.Marshal(topo)
+	c.Assert(err, IsNil)
+	err = yaml.Unmarshal(out, &topo)
+	c.Assert(err, IsNil)
+	c.Assert(topo.MonitoredOptions.LogDir, Equals, "test-deploy/log")
+}
+
 func (s *metaSuite) TestMerge2Toml(c *C) {
 	topo := TopologySpecification{}
 	err := yaml.Unmarshal([]byte(`
@@ -400,7 +410,7 @@ tikv_servers:
 
 `), &topo)
 	c.Assert(err, IsNil)
-	expected := `# WARNING: This file was auto-generated. Do not edit! All your edit might be overwritten!
+	expected := `# WARNING: This file is auto-generated. Do not edit! All your modification will be overwritten!
 # You can use 'tiup cluster edit-config' and 'tiup cluster reload' to update the configuration
 # All configuration items you want to change can be added to:
 # server_configs:
@@ -473,7 +483,7 @@ tikv_servers:
   - host: 172.19.0.103
 `), &topo)
 	c.Assert(err, IsNil)
-	expected := `# WARNING: This file was auto-generated. Do not edit! All your edit might be overwritten!
+	expected := `# WARNING: This file is auto-generated. Do not edit! All your modification will be overwritten!
 # You can use 'tiup cluster edit-config' and 'tiup cluster reload' to update the configuration
 # All configuration items you want to change can be added to:
 # server_configs:
@@ -547,7 +557,7 @@ itemy = 999
 item7 = 780
 `)
 
-	expected := `# WARNING: This file was auto-generated. Do not edit! All your edit might be overwritten!
+	expected := `# WARNING: This file is auto-generated. Do not edit! All your modification will be overwritten!
 # You can use 'tiup cluster edit-config' and 'tiup cluster reload' to update the configuration
 # All configuration items you want to change can be added to:
 # server_configs:

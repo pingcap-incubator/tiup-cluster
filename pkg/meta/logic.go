@@ -14,6 +14,8 @@
 package meta
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -23,6 +25,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/api"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/clusterutil"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/executor"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/log"
@@ -70,6 +73,7 @@ type Instance interface {
 	WaitForDown(executor.TiOpsExecutor, int64) error
 	InitConfig(e executor.TiOpsExecutor, clusterName string, clusterVersion string, deployUser string, paths DirPaths) error
 	ScaleConfig(e executor.TiOpsExecutor, topo Specification, clusterName string, clusterVersion string, deployUser string, paths DirPaths) error
+	PrepareStart() error
 	ComponentName() string
 	InstanceName() string
 	ServiceName() string
@@ -90,6 +94,7 @@ type Instance interface {
 type Specification interface {
 	ComponentsByStopOrder() (comps []Component)
 	ComponentsByStartOrder() (comps []Component)
+	ComponentsByUpdateOrder() (comps []Component)
 	IterComponent(fn func(comp Component))
 	IterInstance(fn func(instance Instance))
 	IterHost(fn func(instance Instance))
@@ -273,6 +278,11 @@ func (i *instance) Arch() string {
 	return reflect.ValueOf(i.InstanceSpec).FieldByName("Arch").Interface().(string)
 }
 
+// PrepareStart checks instance requirements before starting
+func (i *instance) PrepareStart() error {
+	return nil
+}
+
 // MergeResourceControl merge the rhs into lhs and overwrite rhs if lhs has value for same field
 func MergeResourceControl(lhs, rhs ResourceControl) ResourceControl {
 	if rhs.MemoryLimit != "" {
@@ -401,7 +411,7 @@ func (i *TiDBInstance) InitConfig(e executor.TiOpsExecutor, clusterName, cluster
 	if i.IsImported() {
 		configPath := ClusterPath(
 			clusterName,
-			"config",
+			AnsibleImportedConfigPath,
 			fmt.Sprintf(
 				"%s-%s-%d.toml",
 				i.ComponentName(),
@@ -487,7 +497,7 @@ func (i *TiKVInstance) InitConfig(e executor.TiOpsExecutor, clusterName, cluster
 	cfg := scripts.NewTiKVScript(
 		i.GetHost(),
 		paths.Deploy,
-		paths.Data,
+		paths.Data[0],
 		paths.Log,
 	).WithPort(spec.Port).WithNumaNode(spec.NumaNode).WithStatusPort(spec.StatusPort).AppendEndpoints(i.instance.topo.Endpoints(deployUser)...)
 	fp := filepath.Join(paths.Cache, fmt.Sprintf("run_tikv_%s_%d.sh", i.GetHost(), i.GetPort()))
@@ -509,7 +519,7 @@ func (i *TiKVInstance) InitConfig(e executor.TiOpsExecutor, clusterName, cluster
 	if i.IsImported() {
 		configPath := ClusterPath(
 			clusterName,
-			"config",
+			AnsibleImportedConfigPath,
 			fmt.Sprintf(
 				"%s-%s-%d.toml",
 				i.ComponentName(),
@@ -595,19 +605,12 @@ func (i *PDInstance) InitConfig(e executor.TiOpsExecutor, clusterName, clusterVe
 		return err
 	}
 
-	var name string
-	for _, spec := range i.instance.topo.PDServers {
-		if spec.Host == i.GetHost() && spec.ClientPort == i.GetPort() {
-			name = spec.Name
-		}
-	}
-
 	spec := i.InstanceSpec.(PDSpec)
 	cfg := scripts.NewPDScript(
-		name,
+		spec.Name,
 		i.GetHost(),
 		paths.Deploy,
-		paths.Data,
+		paths.Data[0],
 		paths.Log,
 	).WithClientPort(spec.ClientPort).WithPeerPort(spec.PeerPort).AppendEndpoints(i.instance.topo.Endpoints(deployUser)...)
 
@@ -637,7 +640,7 @@ func (i *PDInstance) InitConfig(e executor.TiOpsExecutor, clusterName, clusterVe
 	if i.IsImported() {
 		configPath := ClusterPath(
 			clusterName,
-			"config",
+			AnsibleImportedConfigPath,
 			fmt.Sprintf(
 				"%s-%s-%d.toml",
 				i.ComponentName(),
@@ -670,19 +673,12 @@ func (i *PDInstance) ScaleConfig(e executor.TiOpsExecutor, b Specification, clus
 	}
 
 	c := b.GetClusterSpecification()
-	name := i.Name
-	for _, spec := range c.PDServers {
-		if spec.Host == i.GetHost() && spec.ClientPort == i.GetPort() {
-			name = spec.Name
-		}
-	}
-
 	spec := i.InstanceSpec.(PDSpec)
 	cfg := scripts.NewPDScaleScript(
-		name,
+		i.Name,
 		i.GetHost(),
 		paths.Deploy,
-		paths.Data,
+		paths.Data[0],
 		paths.Log,
 	).WithPeerPort(spec.PeerPort).WithNumaNode(spec.NumaNode).WithClientPort(spec.ClientPort).AppendEndpoints(c.Endpoints(deployUser)...)
 
@@ -743,6 +739,57 @@ func (c *TiFlashComponent) Instances() []Instance {
 // TiFlashInstance represent the TiFlash instance
 type TiFlashInstance struct {
 	instance
+}
+
+// GetServicePort returns the service port of TiFlash
+func (i *TiFlashInstance) GetServicePort() int {
+	return i.InstanceSpec.(TiFlashSpec).FlashServicePort
+}
+
+// checkIncorrectDataDir checks TiFlash's key should not be set in config
+func (i *TiFlashInstance) checkIncorrectKey(key string) error {
+	errMsg := "NOTE: TiFlash `%s` is should NOT be set in topo's \"%s\" config, its value will be ignored, you should set `data_dir` in each host instead, please check your topology"
+	if dir, ok := i.InstanceSpec.(TiFlashSpec).Config[key].(string); ok && dir != "" {
+		return fmt.Errorf(errMsg, key, "host")
+	}
+	if dir, ok := i.instance.topo.ServerConfigs.TiFlash[key].(string); ok && dir != "" {
+		return fmt.Errorf(errMsg, key, "server_configs")
+	}
+	return nil
+}
+
+// checkIncorrectDataDir checks incorrect data_dir settings
+func (i *TiFlashInstance) checkIncorrectDataDir() error {
+	if err := i.checkIncorrectKey("data_dir"); err != nil {
+		return err
+	}
+	if err := i.checkIncorrectKey("path"); err != nil {
+		return err
+	}
+	return nil
+}
+
+// DataDir represents TiFlash's DataDir
+func (i *TiFlashInstance) DataDir() string {
+	if err := i.checkIncorrectDataDir(); err != nil {
+		log.Errorf(err.Error())
+	}
+	dataDir := reflect.ValueOf(i.InstanceSpec).FieldByName("DataDir")
+	if !dataDir.IsValid() {
+		return ""
+	}
+	var dirs []string
+	for _, dir := range strings.Split(dataDir.String(), ",") {
+		if dir == "" {
+			continue
+		}
+		if !strings.HasPrefix(dir, "/") {
+			dirs = append(dirs, filepath.Join(i.DeployDir(), dir))
+		} else {
+			dirs = append(dirs, dir)
+		}
+	}
+	return strings.Join(dirs, ",")
 }
 
 // InitTiFlashConfig initializes TiFlash config file
@@ -856,28 +903,12 @@ func (i *TiFlashInstance) InitConfig(e executor.TiOpsExecutor, clusterName, clus
 	}
 	tidbStatusStr := strings.Join(tidbStatusAddrs, ",")
 
-	var pdAddrs []string
-	for _, pd := range i.instance.topo.PDServers {
-		pdAddrs = append(pdAddrs, fmt.Sprintf("%s:%d", pd.Host, uint64(pd.ClientPort)))
-	}
-	pdStr := strings.Join(pdAddrs, ",")
-
-	// replication.enable-placement-rules should be set to true to enable TiFlash
-	// TODO: Move this logic to an independent checkConfig procedure
-	const key = "replication.enable-placement-rules"
-	globalEnabled, ok1 := i.instance.topo.ServerConfigs.PD[key].(bool)
-	for _, pd := range i.instance.topo.PDServers {
-		// if instance config exists AND the config is false, throw an error.
-		// if instance config does not exist, if global config does not exist OR the config is false, throw an error
-		if instanceEnabled, ok2 := pd.Config[key].(bool); (ok2 && !instanceEnabled) || (!ok2 && (!ok1 || !globalEnabled)) {
-			log.Warnf("should set replication.enable-placement-rules to true in pd conf to enable TiFlash")
-		}
-	}
+	pdStr := strings.Join(i.getEndpoints(), ",")
 
 	cfg := scripts.NewTiFlashScript(
 		i.GetHost(),
 		paths.Deploy,
-		paths.Data,
+		strings.Join(paths.Data, ","),
 		paths.Log,
 		tidbStatusStr,
 		pdStr,
@@ -915,7 +946,7 @@ func (i *TiFlashInstance) InitConfig(e executor.TiOpsExecutor, clusterName, clus
 	if i.IsImported() {
 		configPath := ClusterPath(
 			clusterName,
-			"config",
+			AnsibleImportedConfigPath,
 			fmt.Sprintf(
 				"%s-learner-%s-%d.toml",
 				i.ComponentName(),
@@ -949,7 +980,7 @@ func (i *TiFlashInstance) InitConfig(e executor.TiOpsExecutor, clusterName, clus
 	if i.IsImported() {
 		configPath := ClusterPath(
 			clusterName,
-			"config",
+			AnsibleImportedConfigPath,
 			fmt.Sprintf(
 				"%s-%s-%d.toml",
 				i.ComponentName(),
@@ -978,6 +1009,35 @@ func (i *TiFlashInstance) ScaleConfig(e executor.TiOpsExecutor, b Specification,
 	}()
 	i.instance.topo = b.GetClusterSpecification()
 	return i.InitConfig(e, clusterName, clusterVersion, deployUser, paths)
+}
+
+type replicateConfig struct {
+	EnablePlacementRules string `json:"enable-placement-rules"`
+}
+
+func (i *TiFlashInstance) getEndpoints() []string {
+	var endpoints []string
+	for _, pd := range i.instance.topo.PDServers {
+		endpoints = append(endpoints, fmt.Sprintf("%s:%d", pd.Host, uint64(pd.ClientPort)))
+	}
+	return endpoints
+}
+
+// PrepareStart checks TiFlash requirements before starting
+func (i *TiFlashInstance) PrepareStart() error {
+	endPoints := i.getEndpoints()
+	// set enable-placement-rules to true via PDClient
+	pdClient := api.NewPDClient(endPoints, 10*time.Second, nil)
+	enablePlacementRules, err := json.Marshal(replicateConfig{
+		EnablePlacementRules: "true",
+	})
+	if err != nil {
+		return nil
+	}
+	if err := pdClient.UpdateReplicateConfig(bytes.NewBuffer(enablePlacementRules)); err != nil {
+		return err
+	}
+	return nil
 }
 
 // MonitorComponent represents Monitor component.
@@ -1031,7 +1091,7 @@ func (i *MonitorInstance) InitConfig(e executor.TiOpsExecutor, clusterName, clus
 	cfg := scripts.NewPrometheusScript(
 		i.GetHost(),
 		paths.Deploy,
-		paths.Data,
+		paths.Data[0],
 		paths.Log,
 	).WithPort(spec.Port).
 		WithNumaNode(spec.NumaNode)
@@ -1278,7 +1338,7 @@ func (i *AlertManagerInstance) InitConfig(e executor.TiOpsExecutor, clusterName,
 
 	// Transfer start script
 	spec := i.InstanceSpec.(AlertManagerSpec)
-	cfg := scripts.NewAlertManagerScript(spec.Host, paths.Deploy, paths.Data, paths.Log).
+	cfg := scripts.NewAlertManagerScript(spec.Host, paths.Deploy, paths.Data[0], paths.Log).
 		WithWebPort(spec.WebPort).WithClusterPort(spec.ClusterPort).WithNumaNode(spec.NumaNode).AppendEndpoints(i.instance.topo.AlertManagerEndpoints(deployUser))
 
 	fp := filepath.Join(paths.Cache, fmt.Sprintf("run_alertmanager_%s_%d.sh", i.GetHost(), i.GetPort()))
@@ -1351,7 +1411,7 @@ func (topo *ClusterSpecification) ComponentsByStopOrder() (comps []Component) {
 
 // ComponentsByStartOrder return component in the order need to start.
 func (topo *ClusterSpecification) ComponentsByStartOrder() (comps []Component) {
-	// "pd", "tikv", "pump", "tidb", "drainer", "prometheus", "grafana", "alertmanager"
+	// "pd", "tikv", "pump", "tidb", "tiflash", "drainer", "cdc", "prometheus", "grafana", "alertmanager"
 	comps = append(comps, &PDComponent{topo})
 	comps = append(comps, &TiKVComponent{topo})
 	comps = append(comps, &PumpComponent{topo})
@@ -1362,6 +1422,19 @@ func (topo *ClusterSpecification) ComponentsByStartOrder() (comps []Component) {
 	comps = append(comps, &MonitorComponent{topo})
 	comps = append(comps, &GrafanaComponent{topo})
 	comps = append(comps, &AlertManagerComponent{topo})
+	return
+}
+
+// ComponentsByUpdateOrder return component in the order need to be updated.
+func (topo *ClusterSpecification) ComponentsByUpdateOrder() (comps []Component) {
+	// "tiflash", "pd", "tikv", "pump", "tidb", "drainer", "cdc", "prometheus", "grafana", "alertmanager"
+	comps = topo.ComponentsByStartOrder()
+	for i, comp := range comps {
+		if comp.Name() == ComponentTiFlash {
+			comps = append([]Component{comp}, append(comps[:i], comps[i+1:]...)...)
+			return
+		}
+	}
 	return
 }
 

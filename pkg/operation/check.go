@@ -496,39 +496,40 @@ func CheckPartitions(opt *CheckOptions, host string, topo meta.Specification, ra
 		if inst.GetHost() != host {
 			return
 		}
-		dataDir := clusterutil.Abs(topo.GetGlobalOptions().User, inst.DataDir())
-		if dataDir == "" {
-			return
-		}
+		for _, dataDir := range clusterutil.MultiDirAbs(topo.GetGlobalOptions().User, inst.DataDir()) {
+			if dataDir == "" {
+				continue
+			}
 
-		blk := getDisk(parts, dataDir)
-		if blk == nil {
-			return
-		}
+			blk := getDisk(parts, dataDir)
+			if blk == nil {
+				return
+			}
 
-		switch blk.Mount.FSType {
-		case "ext4":
-			if !strings.Contains(blk.Mount.Options, "nodelalloc") {
+			switch blk.Mount.FSType {
+			case "ext4":
+				if !strings.Contains(blk.Mount.Options, "nodelalloc") {
+					results = append(results, &CheckResult{
+						Name: CheckNameDisks,
+						Err:  fmt.Errorf("mount point %s does not have 'nodelalloc' option set", blk.Mount.MountPoint),
+					})
+				}
+				fallthrough
+			case "xfs":
+				if !strings.Contains(blk.Mount.Options, "noatime") {
+					results = append(results, &CheckResult{
+						Name: CheckNameDisks,
+						Err:  fmt.Errorf("mount point %s does not have 'noatime' option set", blk.Mount.MountPoint),
+						Warn: true,
+					})
+				}
+			default:
 				results = append(results, &CheckResult{
 					Name: CheckNameDisks,
-					Err:  fmt.Errorf("mount point %s does not have 'nodelalloc' option set", blk.Mount.MountPoint),
+					Err: fmt.Errorf("mount point %s has an unsupported filesystem '%s'",
+						blk.Mount.MountPoint, blk.Mount.FSType),
 				})
 			}
-			fallthrough
-		case "xfs":
-			if !strings.Contains(blk.Mount.Options, "noatime") {
-				results = append(results, &CheckResult{
-					Name: CheckNameDisks,
-					Err:  fmt.Errorf("mount point %s does not have 'noatime' option set", blk.Mount.MountPoint),
-					Warn: true,
-				})
-			}
-		default:
-			results = append(results, &CheckResult{
-				Name: CheckNameDisks,
-				Err: fmt.Errorf("mount point %s has an unsupported filesystem '%s'",
-					blk.Mount.MountPoint, blk.Mount.FSType),
-			})
 		}
 	})
 

@@ -14,7 +14,10 @@
 package command
 
 import (
+	"context"
+	"io/ioutil"
 	"path/filepath"
+	"strings"
 
 	"github.com/joomcode/errorx"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/cliutil"
@@ -24,6 +27,7 @@ import (
 	"github.com/pingcap-incubator/tiup-cluster/pkg/logger"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/meta"
 	operator "github.com/pingcap-incubator/tiup-cluster/pkg/operation"
+	"github.com/pingcap-incubator/tiup-cluster/pkg/report"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/task"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/utils"
 	"github.com/pingcap-incubator/tiup/pkg/set"
@@ -71,6 +75,10 @@ func scaleOut(clusterName, topoFile string, opt scaleOutOptions) error {
 	var newPart meta.TopologySpecification
 	if err := utils.ParseTopologyYaml(topoFile, &newPart); err != nil {
 		return err
+	}
+
+	if data, err := ioutil.ReadFile(topoFile); err == nil {
+		teleTopology = string(data)
 	}
 
 	metadata, err := meta.ClusterMetadata(clusterName)
@@ -170,6 +178,10 @@ func buildScaleOutTask(
 	iterErr = nil
 	newPart.IterInstance(func(instance meta.Instance) {
 		if host := instance.GetHost(); !initializedHosts.Exist(host) {
+			if _, found := uninitializedHosts[host]; found {
+				return
+			}
+
 			// check for "imported" parameter, it can not be true when scaling out
 			if instance.IsImported() {
 				iterErr = errors.New(
@@ -188,10 +200,12 @@ func buildScaleOutTask(
 			var dirs []string
 			globalOptions := metadata.Topology.GlobalOptions
 			for _, dir := range []string{globalOptions.DeployDir, globalOptions.DataDir, globalOptions.LogDir} {
-				if dir == "" {
-					continue
+				for _, dirname := range strings.Split(dir, ",") {
+					if dirname == "" {
+						continue
+					}
+					dirs = append(dirs, clusterutil.Abs(globalOptions.User, dirname))
 				}
-				dirs = append(dirs, clusterutil.Abs(globalOptions.User, dir))
 			}
 			t := task.NewBuilder().
 				RootSSH(
@@ -222,7 +236,7 @@ func buildScaleOutTask(
 		version := meta.ComponentVersion(inst.ComponentName(), metadata.Version)
 		deployDir := clusterutil.Abs(metadata.User, inst.DeployDir())
 		// data dir would be empty for components which don't need it
-		dataDir := clusterutil.Abs(metadata.User, inst.DataDir())
+		dataDirs := clusterutil.MultiDirAbs(metadata.User, inst.DataDir())
 		// log dir will always be with values, but might not used by the component
 		logDir := clusterutil.Abs(metadata.User, inst.LogDir())
 
@@ -230,10 +244,11 @@ func buildScaleOutTask(
 		tb := task.NewBuilder().
 			UserSSH(inst.GetHost(), inst.GetSSHPort(), metadata.User, gOpt.SSHTimeout).
 			Mkdir(metadata.User, inst.GetHost(),
-				deployDir, dataDir, logDir,
+				deployDir, logDir,
 				filepath.Join(deployDir, "bin"),
 				filepath.Join(deployDir, "conf"),
-				filepath.Join(deployDir, "scripts"))
+				filepath.Join(deployDir, "scripts")).
+			Mkdir(metadata.User, inst.GetHost(), dataDirs...)
 		if patchedComponents.Exist(inst.ComponentName()) {
 			tb.InstallPackage(meta.ClusterPath(clusterName, meta.PatchDirName, inst.ComponentName()+".tar.gz"), inst.GetHost(), deployDir)
 		} else {
@@ -246,17 +261,19 @@ func buildScaleOutTask(
 			metadata.User,
 			meta.DirPaths{
 				Deploy: deployDir,
-				Data:   dataDir,
+				Data:   dataDirs,
 				Log:    logDir,
 			},
 		).Build()
 		deployCompTasks = append(deployCompTasks, t)
 	})
 
+	hasImported := false
+
 	mergedTopo.IterInstance(func(inst meta.Instance) {
 		deployDir := clusterutil.Abs(metadata.User, inst.DeployDir())
 		// data dir would be empty for components which don't need it
-		dataDir := clusterutil.Abs(metadata.User, inst.DataDir())
+		dataDirs := clusterutil.MultiDirAbs(metadata.User, inst.DataDir())
 		// log dir will always be with values, but might not used by the component
 		logDir := clusterutil.Abs(metadata.User, inst.LogDir())
 
@@ -269,6 +286,7 @@ func buildScaleOutTask(
 				tb.Download(compName, inst.OS(), inst.Arch(), version).
 					CopyComponent(compName, inst.OS(), inst.Arch(), version, inst.GetHost(), deployDir)
 			}
+			hasImported = true
 		}
 
 		// Refresh all configuration
@@ -278,13 +296,28 @@ func buildScaleOutTask(
 			metadata.User,
 			meta.DirPaths{
 				Deploy: deployDir,
-				Data:   dataDir,
+				Data:   dataDirs,
 				Log:    logDir,
-				Cache:  meta.ClusterPath(clusterName, "config"),
+				Cache:  meta.ClusterPath(clusterName, meta.TempConfigPath),
 			},
 		).Build()
 		refreshConfigTasks = append(refreshConfigTasks, t)
 	})
+
+	// handle dir scheme changes
+	if hasImported {
+		if err := meta.HandleImportPathMigration(clusterName); err != nil {
+			return task.NewBuilder().Build(), err
+		}
+	}
+
+	nodeInfoTask := task.NewBuilder().Func("Check status", func(ctx *task.Context) error {
+		var err error
+		teleNodeInfos, err = operator.GetNodeInfo(context.Background(), ctx, newPart)
+		_ = err
+		// intend to never return error
+		return nil
+	}).BuildAsStep("Check status").SetHidden(true)
 
 	// Deploy monitor relevant components to remote
 	dlTasks, dpTasks := buildMonitoredDeployTask(
@@ -297,18 +330,23 @@ func buildScaleOutTask(
 	downloadCompTasks = append(downloadCompTasks, convertStepDisplaysToTasks(dlTasks)...)
 	deployCompTasks = append(deployCompTasks, convertStepDisplaysToTasks(dpTasks)...)
 
-	return task.NewBuilder().
+	builder := task.NewBuilder().
 		SSHKeySet(
 			meta.ClusterPath(clusterName, "ssh", "id_rsa"),
 			meta.ClusterPath(clusterName, "ssh", "id_rsa.pub")).
 		Parallel(downloadCompTasks...).
 		Parallel(envInitTasks...).
-		Parallel(deployCompTasks...).
-		// TODO: find another way to make sure current cluster started
 		ClusterSSH(metadata.Topology, metadata.User, gOpt.SSHTimeout).
-		ClusterOperate(metadata.Topology, operator.StartOperation, operator.Options{OptTimeout: timeout}).
+		Parallel(deployCompTasks...)
+
+	if report.Enable() {
+		builder.Parallel(convertStepDisplaysToTasks([]*task.StepDisplay{nodeInfoTask})...)
+	}
+
+	// TODO: find another way to make sure current cluster started
+	builder.ClusterOperate(metadata.Topology, operator.StartOperation, operator.Options{OptTimeout: timeout}).
 		ClusterSSH(newPart, metadata.User, gOpt.SSHTimeout).
-		Func("save meta", func() error {
+		Func("save meta", func(_ *task.Context) error {
 			metadata.Topology = mergedTopo
 			return meta.SaveClusterMeta(clusterName, metadata)
 		}).
@@ -318,6 +356,8 @@ func buildScaleOutTask(
 			Roles:      []string{meta.ComponentPrometheus},
 			OptTimeout: timeout,
 		}).
-		Build(), nil
+		UpdateTopology(clusterName, metadata, nil)
+
+	return builder.Build(), nil
 
 }

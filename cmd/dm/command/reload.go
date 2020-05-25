@@ -89,7 +89,7 @@ func buildReloadTask(
 	topo.IterInstance(func(inst meta.Instance) {
 		deployDir := clusterutil.Abs(metadata.User, inst.DeployDir())
 		// data dir would be empty for components which don't need it
-		dataDir := clusterutil.Abs(metadata.User, inst.DataDir())
+		dataDirs := clusterutil.MultiDirAbs(metadata.User, inst.DataDir())
 		// log dir will always be with values, but might not used by the component
 		logDir := clusterutil.Abs(metadata.User, inst.LogDir())
 
@@ -110,9 +110,9 @@ func buildReloadTask(
 			inst, metadata.User,
 			meta.DirPaths{
 				Deploy: deployDir,
-				Data:   dataDir,
+				Data:   dataDirs,
 				Log:    logDir,
-				Cache:  meta.ClusterPath(clusterName, "config"),
+				Cache:  meta.ClusterPath(clusterName, meta.TempConfigPath),
 			}).Build()
 		refreshConfigTasks = append(refreshConfigTasks, t)
 	})
