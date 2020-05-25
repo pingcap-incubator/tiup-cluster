@@ -187,7 +187,7 @@ func ScaleInCluster(
 		maxReplicas := config.MaxReplicas
 
 		if len(tikvInstances) < maxReplicas {
-			return fmt.Errorf("max-replicas will be more than tikv instances after scale-in. TiFlash will be unable to receive data from leader")
+			log.Warnf(fmt.Sprintf("max-replicas will be more than tikv instance number %d after scale-in. TiFlash will be unable to receive data from leader until tikv instance number reach %d", len(tikvInstances), maxReplicas))
 		}
 	}
 
