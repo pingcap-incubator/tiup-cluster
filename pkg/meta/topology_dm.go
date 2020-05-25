@@ -30,6 +30,7 @@ type (
 	DMServerConfigs struct {
 		Master map[string]interface{} `yaml:"dm-master"`
 		Worker map[string]interface{} `yaml:"dm-worker"`
+		Portal map[string]interface{} `yaml:"dm-portal"`
 	}
 
 	// DMTopologySpecification represents the specification of topology.yaml
@@ -39,6 +40,7 @@ type (
 		ServerConfigs    DMServerConfigs    `yaml:"server_configs,omitempty"`
 		Masters          []MasterSpec       `yaml:"dm-master_servers"`
 		Workers          []WorkerSpec       `yaml:"dm-worker_servers"`
+		Portals          []PortalSpec       `yaml:"dm-portal_servers"`
 		Monitors         []PrometheusSpec   `yaml:"monitoring_servers"`
 		Grafana          []GrafanaSpec      `yaml:"grafana_servers,omitempty"`
 		Alertmanager     []AlertManagerSpec `yaml:"alertmanager_servers,omitempty"`
@@ -68,7 +70,6 @@ type MasterSpec struct {
 	DeployDir       string                 `yaml:"deploy_dir,omitempty"`
 	DataDir         string                 `yaml:"data_dir,omitempty"`
 	LogDir          string                 `yaml:"log_dir,omitempty"`
-	Offline         bool                   `yaml:"offline,omitempty"`
 	NumaNode        string                 `yaml:"numa_node,omitempty"`
 	Config          map[string]interface{} `yaml:"config,omitempty"`
 	ResourceControl ResourceControl        `yaml:"resource_control,omitempty"`
@@ -130,7 +131,6 @@ type WorkerSpec struct {
 	DeployDir       string                 `yaml:"deploy_dir,omitempty"`
 	DataDir         string                 `yaml:"data_dir,omitempty"`
 	LogDir          string                 `yaml:"log_dir,omitempty"`
-	Offline         bool                   `yaml:"offline,omitempty"`
 	NumaNode        string                 `yaml:"numa_node,omitempty"`
 	Config          map[string]interface{} `yaml:"config,omitempty"`
 	ResourceControl ResourceControl        `yaml:"resource_control,omitempty"`
@@ -171,6 +171,43 @@ func (s WorkerSpec) GetMainPort() int {
 
 // IsImported returns if the node is imported from TiDB-Ansible
 func (s WorkerSpec) IsImported() bool {
+	return s.Imported
+}
+
+// PortalSpec represents the Portal topology specification in topology.yaml
+type PortalSpec struct {
+	Host            string                 `yaml:"host"`
+	SSHPort         int                    `yaml:"ssh_port,omitempty"`
+	Imported        bool                   `yaml:"imported,omitempty"`
+	Port            int                    `yaml:"port" default:"8280"`
+	DeployDir       string                 `yaml:"deploy_dir,omitempty"`
+	DataDir         string                 `yaml:"data_dir,omitempty"`
+	LogDir          string                 `yaml:"log_dir,omitempty"`
+	Timeout         int                    `yaml:"timeout" default:"5"`
+	NumaNode        string                 `yaml:"numa_node,omitempty"`
+	Config          map[string]interface{} `yaml:"config,omitempty"`
+	ResourceControl ResourceControl        `yaml:"resource_control,omitempty"`
+	Arch            string                 `yaml:"arch,omitempty"`
+	OS              string                 `yaml:"os,omitempty"`
+}
+
+// Role returns the component role of the instance
+func (s PortalSpec) Role() string {
+	return ComponentDMPortal
+}
+
+// SSH returns the host and SSH port of the instance
+func (s PortalSpec) SSH() (string, int) {
+	return s.Host, s.SSHPort
+}
+
+// GetMainPort returns the main port of the instance
+func (s PortalSpec) GetMainPort() int {
+	return s.Port
+}
+
+// IsImported returns if the node is imported from TiDB-Ansible
+func (s PortalSpec) IsImported() bool {
 	return s.Imported
 }
 

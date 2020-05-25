@@ -454,6 +454,115 @@ func (i *DMWorkerInstance) ScaleConfig(e executor.TiOpsExecutor, b Specification
 	return i.InitConfig(e, clusterName, clusterVersion, deployUser, paths)
 }
 
+// DMPortalComponent represents DM portal component.
+type DMPortalComponent struct {
+	*DMSpecification
+}
+
+// Name implements Component interface.
+func (c *DMPortalComponent) Name() string {
+	return ComponentDMPortal
+}
+
+// Instances implements Component interface.
+func (c *DMPortalComponent) Instances() []Instance {
+	ins := make([]Instance, 0, len(c.Portals))
+	for _, s := range c.Portals {
+		s := s
+		ins = append(ins, &DMPortalInstance{
+			dmInstance: dmInstance{
+				InstanceSpec: s,
+				name:         c.Name(),
+				host:         s.Host,
+				port:         s.Port,
+				sshp:         s.SSHPort,
+				topo:         c.DMSpecification,
+
+				usedPorts: []int{
+					s.Port,
+				},
+				usedDirs: []string{
+					s.DeployDir,
+					s.DataDir,
+				},
+				statusFn: func(_ ...string) string {
+					url := fmt.Sprintf("http://%s:%d", s.Host, s.Port)
+					return statusByURL(url)
+				},
+			}})
+	}
+	return ins
+}
+
+// DMPortalInstance represent the DM portal instance
+type DMPortalInstance struct {
+	dmInstance
+}
+
+// InitConfig implement Instance interface
+func (i *DMPortalInstance) InitConfig(e executor.TiOpsExecutor, clusterName, clusterVersion, deployUser string, paths DirPaths) error {
+	if err := i.dmInstance.InitConfig(e, clusterName, clusterVersion, deployUser, paths); err != nil {
+		return err
+	}
+
+	spec := i.InstanceSpec.(PortalSpec)
+	cfg := scripts.NewDMPortalScript(
+		i.GetHost(),
+		paths.Deploy,
+		paths.Data[0],
+		paths.Log,
+	).WithPort(spec.Port).WithNumaNode(spec.NumaNode).WithTimeOut(spec.Timeout)
+	fp := filepath.Join(paths.Cache, fmt.Sprintf("run_dm-portal_%s_%d.sh", i.GetHost(), i.GetPort()))
+	if err := cfg.ConfigToFile(fp); err != nil {
+		return err
+	}
+	dst := filepath.Join(paths.Deploy, "scripts", "run_dm-portal.sh")
+
+	if err := e.Transfer(fp, dst, false); err != nil {
+		return err
+	}
+
+	if _, _, err := e.Execute("chmod +x "+dst, false); err != nil {
+		return err
+	}
+
+	specConfig := spec.Config
+	// merge config files for imported instance
+	if i.IsImported() {
+		configPath := ClusterPath(
+			clusterName,
+			AnsibleImportedConfigPath,
+			fmt.Sprintf(
+				"%s-%s-%d.toml",
+				i.ComponentName(),
+				i.GetHost(),
+				i.GetPort(),
+			),
+		)
+		importConfig, err := ioutil.ReadFile(configPath)
+		if err != nil {
+			return err
+		}
+		mergedConfig, err := mergeImported(importConfig, spec.Config)
+		if err != nil {
+			return err
+		}
+		specConfig = mergedConfig
+	}
+
+	return i.mergeServerConfig(e, i.topo.ServerConfigs.Portal, specConfig, paths)
+}
+
+// ScaleConfig deploy temporary config on scaling
+func (i *DMPortalInstance) ScaleConfig(e executor.TiOpsExecutor, b Specification, clusterName, clusterVersion, deployUser string, paths DirPaths) error {
+	s := i.dmInstance.topo
+	defer func() {
+		i.dmInstance.topo = s
+	}()
+	i.dmInstance.topo = b.GetDMSpecification()
+	return i.InitConfig(e, clusterName, clusterVersion, deployUser, paths)
+}
+
 // GetGlobalOptions returns cluster topology
 func (topo *DMSpecification) GetGlobalOptions() GlobalOptions {
 	return topo.GlobalOptions

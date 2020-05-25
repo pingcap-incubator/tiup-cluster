@@ -63,6 +63,15 @@ dm-worker_servers:
 #     config:
 #   - host: 10.0.1.19
 
+dm-portal_servers:
+  - host: 10.0.1.11
+    port: 8280
+#     ssh_port: 22
+#     timeout: 5
+#     deploy_dir: "/dm-deploy/dm-portal-8280"
+#     log_dir: "/dm-deploy/dm-portal-8280/log"
+#     numa_node: "0,1"
+
 monitoring_servers:
   - host: 10.0.1.13
     # ssh_port: 22

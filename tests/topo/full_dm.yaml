@@ -18,7 +18,6 @@ dm-master_servers:
     data_dir: /home/tidb/my_master_data
   - host: 172.19.0.104
 
-
 dm-worker_servers:
   - host: 172.19.0.101
     port: 8262
@@ -27,3 +26,7 @@ dm-worker_servers:
   - host: 172.19.0.102
   - host: 172.19.0.103
   - host: 172.19.0.104
+
+dm-portal_servers:
+  - host: 172.19.0.101
+  - host: 172.19.0.102

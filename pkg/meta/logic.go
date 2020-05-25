@@ -43,6 +43,7 @@ import (
 const (
 	ComponentDMMaster         = "dm-master"
 	ComponentDMWorker         = "dm-worker"
+	ComponentDMPortal         = "dm-portal"
 	ComponentTiDB             = "tidb"
 	ComponentTiKV             = "tikv"
 	ComponentPD               = "pd"
