@@ -14,6 +14,8 @@
 package operator
 
 import (
+	"encoding/json"
+	"fmt"
 	"strconv"
 	"time"
 
@@ -152,6 +154,41 @@ func ScaleInCluster(
 	binlogClient, err := api.NewBinlogClient(pdEndpoint, nil /* tls.Config */)
 	if err != nil {
 		return err
+	}
+
+	var tiflashInstances []meta.Instance
+	for _, instance := range (&meta.TiFlashComponent{ClusterSpecification: spec}).Instances() {
+		if !deletedNodes.Exist(instance.ID()) {
+			tiflashInstances = append(tiflashInstances, instance)
+		}
+	}
+
+	if len(tiflashInstances) > 0 {
+		var tikvInstances []meta.Instance
+		for _, instance := range (&meta.TiKVComponent{ClusterSpecification: spec}).Instances() {
+			if !deletedNodes.Exist(instance.ID()) {
+				tikvInstances = append(tikvInstances, instance)
+			}
+		}
+
+		type replicateConfig struct {
+			MaxReplicas int `json:"max-replicas"`
+		}
+
+		var config replicateConfig
+		bytes, err := pdClient.GetReplicateConfig()
+		if err != nil {
+			return err
+		}
+		if err := json.Unmarshal(bytes, &config); err != nil {
+			return err
+		}
+
+		maxReplicas := config.MaxReplicas
+
+		if len(tikvInstances) < maxReplicas {
+			return fmt.Errorf("max-replicas will be more than tikv instances after scale-in. TiFlash will be unable to receive data from leader")
+		}
 	}
 
 	timeoutOpt := &utils.RetryOption{
