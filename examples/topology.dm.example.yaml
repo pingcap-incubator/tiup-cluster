@@ -26,6 +26,14 @@ monitored:
 # #           ^       ^
 # # You can overwrite this configuration via instance-level `config` field
 
+# server_configs:
+#  dm-master:
+#    rpc-timeout: "30s"
+#    rpc-rate-limit: 10.0
+#    rpc-rate-burst: 40
+#  dm-worker:
+#
+
 dm-master_servers:
   - host: 10.0.1.11
     port: 8261

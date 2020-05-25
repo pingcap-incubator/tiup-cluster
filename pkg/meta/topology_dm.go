@@ -28,8 +28,8 @@ import (
 type (
 	// DMServerConfigs represents the server runtime configuration
 	DMServerConfigs struct {
-		Master map[string]interface{} `yaml:"master"`
-		Worker map[string]interface{} `yaml:"worker"`
+		Master map[string]interface{} `yaml:"dm-master"`
+		Worker map[string]interface{} `yaml:"dm-worker"`
 	}
 
 	// DMTopologySpecification represents the specification of topology.yaml

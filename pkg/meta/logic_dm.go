@@ -60,7 +60,12 @@ func (i *dmInstance) InitConfig(e executor.TiOpsExecutor, _, _, user string, pat
 	port := i.GetPort()
 	sysCfg := filepath.Join(paths.Cache, fmt.Sprintf("%s-%s-%d.service", comp, host, port))
 
-	systemCfg := system.NewConfig(comp, user, paths.Deploy)
+	resource := MergeResourceControl(i.topo.GlobalOptions.ResourceControl, i.resourceControl())
+	systemCfg := system.NewConfig(comp, user, paths.Deploy).
+		WithMemoryLimit(resource.MemoryLimit).
+		WithCPUQuota(resource.CPUQuota).
+		WithIOReadBandwidthMax(resource.IOReadBandwidthMax).
+		WithIOWriteBandwidthMax(resource.IOWriteBandwidthMax)
 
 	if err := systemCfg.ConfigToFile(sysCfg); err != nil {
 		return err
@@ -143,7 +148,27 @@ func (i *dmInstance) DataDir() string {
 	if !dataDir.IsValid() {
 		return ""
 	}
-	return dataDir.Interface().(string)
+
+	// the default data_dir is relative to deploy_dir
+	if dataDir.String() != "" && !strings.HasPrefix(dataDir.String(), "/") {
+		return filepath.Join(i.DeployDir(), dataDir.String())
+	}
+
+	return dataDir.String()
+}
+
+func (i *dmInstance) OS() string {
+	return reflect.ValueOf(i.InstanceSpec).FieldByName("OS").Interface().(string)
+}
+
+func (i *dmInstance) Arch() string {
+	return reflect.ValueOf(i.InstanceSpec).FieldByName("Arch").Interface().(string)
+}
+
+func (i *dmInstance) resourceControl() ResourceControl {
+	return reflect.ValueOf(i.InstanceSpec).
+		FieldByName("ResourceControl").
+		Interface().(ResourceControl)
 }
 
 func (i *dmInstance) LogDir() string {
@@ -163,14 +188,6 @@ func (i *dmInstance) LogDir() string {
 	return logDir
 }
 
-func (i *dmInstance) OS() string {
-	return reflect.ValueOf(i.InstanceSpec).FieldByName("OS").Interface().(string)
-}
-
-func (i *dmInstance) Arch() string {
-	return reflect.ValueOf(i.InstanceSpec).FieldByName("Arch").Interface().(string)
-}
-
 func (i *dmInstance) GetPort() int {
 	return i.port
 }
@@ -183,8 +200,8 @@ func (i *dmInstance) UsedDirs() []string {
 	return i.usedDirs
 }
 
-func (i *dmInstance) Status(pdList ...string) string {
-	return i.statusFn(pdList...)
+func (i *dmInstance) Status(masterList ...string) string {
+	return i.statusFn(masterList...)
 }
 
 // DMSpecification of cluster
