@@ -58,7 +58,8 @@ func (c *DMPortalScript) WithNumaNode(numa string) *DMPortalScript {
 	return c
 }
 
-func (c *DMPortalScript) WithTimeOut(timeout int) *DMPortalScript {
+// WithTimeout set Timeout field of DMWorkerScript
+func (c *DMPortalScript) WithTimeout(timeout int) *DMPortalScript {
 	c.Timeout = timeout
 	return c
 }
