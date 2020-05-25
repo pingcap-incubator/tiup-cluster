@@ -62,17 +62,18 @@ type MasterSpec struct {
 	SSHPort  int    `yaml:"ssh_port,omitempty"`
 	Imported bool   `yaml:"imported,omitempty"`
 	// Use Name to get the name with a default value if it's empty.
-	Name      string                 `yaml:"name"`
-	Port      int                    `yaml:"port" default:"8261"`
-	PeerPort  int                    `yaml:"peer_port" default:"8291"`
-	DeployDir string                 `yaml:"deploy_dir,omitempty"`
-	DataDir   string                 `yaml:"data_dir,omitempty"`
-	LogDir    string                 `yaml:"log_dir,omitempty"`
-	Offline   bool                   `yaml:"offline,omitempty"`
-	NumaNode  string                 `yaml:"numa_node,omitempty"`
-	Config    map[string]interface{} `yaml:"config,omitempty"`
-	Arch      string                 `yaml:"arch,omitempty"`
-	OS        string                 `yaml:"os,omitempty"`
+	Name            string                 `yaml:"name"`
+	Port            int                    `yaml:"port" default:"8261"`
+	PeerPort        int                    `yaml:"peer_port" default:"8291"`
+	DeployDir       string                 `yaml:"deploy_dir,omitempty"`
+	DataDir         string                 `yaml:"data_dir,omitempty"`
+	LogDir          string                 `yaml:"log_dir,omitempty"`
+	Offline         bool                   `yaml:"offline,omitempty"`
+	NumaNode        string                 `yaml:"numa_node,omitempty"`
+	Config          map[string]interface{} `yaml:"config,omitempty"`
+	ResourceControl ResourceControl        `yaml:"resource_control,omitempty"`
+	Arch            string                 `yaml:"arch,omitempty"`
+	OS              string                 `yaml:"os,omitempty"`
 }
 
 // Status queries current status of the instance
@@ -124,16 +125,17 @@ type WorkerSpec struct {
 	SSHPort  int    `yaml:"ssh_port,omitempty"`
 	Imported bool   `yaml:"imported,omitempty"`
 	// Use Name to get the name with a default value if it's empty.
-	Name      string                 `yaml:"name"`
-	Port      int                    `yaml:"port" default:"8262"`
-	DeployDir string                 `yaml:"deploy_dir,omitempty"`
-	DataDir   string                 `yaml:"data_dir,omitempty"`
-	LogDir    string                 `yaml:"log_dir,omitempty"`
-	Offline   bool                   `yaml:"offline,omitempty"`
-	NumaNode  string                 `yaml:"numa_node,omitempty"`
-	Config    map[string]interface{} `yaml:"config,omitempty"`
-	Arch      string                 `yaml:"arch,omitempty"`
-	OS        string                 `yaml:"os,omitempty"`
+	Name            string                 `yaml:"name"`
+	Port            int                    `yaml:"port" default:"8262"`
+	DeployDir       string                 `yaml:"deploy_dir,omitempty"`
+	DataDir         string                 `yaml:"data_dir,omitempty"`
+	LogDir          string                 `yaml:"log_dir,omitempty"`
+	Offline         bool                   `yaml:"offline,omitempty"`
+	NumaNode        string                 `yaml:"numa_node,omitempty"`
+	Config          map[string]interface{} `yaml:"config,omitempty"`
+	ResourceControl ResourceControl        `yaml:"resource_control,omitempty"`
+	Arch            string                 `yaml:"arch,omitempty"`
+	OS              string                 `yaml:"os,omitempty"`
 }
 
 // Status queries current status of the instance
