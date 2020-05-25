@@ -35,11 +35,12 @@ import (
 )
 
 type checkOptions struct {
-	user         string // username to login to the SSH server
-	identityFile string // path to the private key file
-	usePassword  bool   // use password instead of identity file for ssh connection
-	opr          *operator.CheckOptions
-	applyFix     bool // try to apply fixes of failed checks
+	user                string // username to login to the SSH server
+	identityFile        string // path to the private key file
+	usePassword         bool   // use password instead of identity file for ssh connection
+	opr                 *operator.CheckOptions
+	applyFix            bool // try to apply fixes of failed checks
+	skipClusterConflict bool // skip conflict checking with exist clusters
 }
 
 func newCheckCmd() *cobra.Command {
@@ -61,12 +62,14 @@ func newCheckCmd() *cobra.Command {
 				return err
 			}
 
-			// use a dummy cluster name, the real cluster name is set during deploy
-			if err := prepare.CheckClusterPortConflict("nonexist-dummy-tidb-cluster", &topo); err != nil {
-				return err
-			}
-			if err := prepare.CheckClusterDirConflict("nonexist-dummy-tidb-cluster", &topo); err != nil {
-				return err
+			if !opt.skipClusterConflict {
+				// use a dummy cluster name, the real cluster name is set during deploy
+				if err := prepare.CheckClusterPortConflict("nonexist-dummy-tidb-cluster", &topo); err != nil {
+					return err
+				}
+				if err := prepare.CheckClusterDirConflict("nonexist-dummy-tidb-cluster", &topo); err != nil {
+					return err
+				}
 			}
 
 			sshConnProps, err := cliutil.ReadIdentityFileOrPassword(opt.identityFile, opt.usePassword)
@@ -90,6 +93,7 @@ func newCheckCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&opt.opr.EnableMem, "enable-mem", false, "Enable memory size check")
 	cmd.Flags().BoolVar(&opt.opr.EnableDisk, "enable-disk", false, "Enable disk IO (fio) check")
 	cmd.Flags().BoolVar(&opt.applyFix, "apply", false, "Try to fix failed checks")
+	cmd.Flags().BoolVar(&opt.skipClusterConflict, "skip-exist-cluster", false, "Skip port and dir conflict checking with existing clusters.")
 
 	return cmd
 }
