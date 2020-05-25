@@ -13,7 +13,7 @@ export TIUP_CLUSTER_EXECUTE_DEFAULT_TIMEOUT=300s
 
 export version=${version-v4.0.0-rc.1}
 export old_version=${old_version-v3.0.12}
-export dm_version=${dm_version-v2.0.0.beta.1}
+export dm_version=${dm_version-nightly}
 
 function tiup-cluster() {
 	# echo "in function"
