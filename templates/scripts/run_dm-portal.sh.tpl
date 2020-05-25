@@ -11,6 +11,7 @@ cd "${DEPLOY_DIR}" || exit 1
 exec numactl --cpunodebind={{.NumaNode}} --membind={{.NumaNode}} bin/dm-portal \
 {{- else}}
 exec bin/dm-portal \
+{{- end}}
     --port="{{.Port}}" \
     --task-file-path="{{.DataDir}}" \
     --timeout="{{.Timeout}}" >> "{{.LogDir}}/dm-portal_stdout.log" 2>> "{{.LogDir}}/dm-portal_stderr.log"
