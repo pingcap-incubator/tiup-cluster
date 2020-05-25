@@ -25,6 +25,7 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/backoff"
 )
 
 func newTestCmd() *cobra.Command {
@@ -62,7 +63,9 @@ func newTestCmd() *cobra.Command {
 }
 
 func checkMasterOnline(addr string) error {
-	conn, err := grpc.Dial(addr, grpc.WithInsecure(), grpc.WithBackoffMaxDelay(2*time.Second))
+	bc := backoff.DefaultConfig
+	bc.MaxDelay = 2 * time.Second
+	conn, err := grpc.Dial(addr, grpc.WithInsecure(), grpc.WithConnectParams(grpc.ConnectParams{Backoff: bc}))
 	if err != nil {
 		return err
 	}
@@ -71,14 +74,16 @@ func checkMasterOnline(addr string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	resp, err := cli.ShowDDLLocks(ctx, req)
-	if err == nil && resp.Result == false {
+	if err == nil && !resp.Result {
 		return errors.Errorf("check master ddl locks failed: %s", resp.Msg)
 	}
 	return err
 }
 
 func checkWorkerOnline(addr string) error {
-	conn, err := grpc.Dial(addr, grpc.WithInsecure(), grpc.WithBackoffMaxDelay(2*time.Second))
+	bc := backoff.DefaultConfig
+	bc.MaxDelay = 2 * time.Second
+	conn, err := grpc.Dial(addr, grpc.WithInsecure(), grpc.WithConnectParams(grpc.ConnectParams{Backoff: bc}))
 	if err != nil {
 		return err
 	}
@@ -87,7 +92,7 @@ func checkWorkerOnline(addr string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	resp, err := cli.QueryStatus(ctx, req)
-	if err == nil && resp.Result == false {
+	if err == nil && !resp.Result {
 		return errors.Errorf("check worker status failed: %s", resp.Msg)
 	}
 	return err
