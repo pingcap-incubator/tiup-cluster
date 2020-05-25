@@ -512,6 +512,7 @@ func (topo *DMTopologySpecification) Merge(that *DMTopologySpecification) *DMTop
 		ServerConfigs:    topo.ServerConfigs,
 		Masters:          append(topo.Masters, that.Masters...),
 		Workers:          append(topo.Workers, that.Workers...),
+		Portals:          append(topo.Portals, that.Portals...),
 		Monitors:         append(topo.Monitors, that.Monitors...),
 		Grafana:          append(topo.Grafana, that.Grafana...),
 		Alertmanager:     append(topo.Alertmanager, that.Alertmanager...),

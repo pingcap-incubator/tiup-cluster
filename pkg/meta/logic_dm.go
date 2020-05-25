@@ -599,17 +599,19 @@ func (topo *DMSpecification) ComponentsByStopOrder() (comps []Component) {
 
 // ComponentsByStartOrder return component in the order need to start.
 func (topo *DMSpecification) ComponentsByStartOrder() (comps []Component) {
-	// "pd", "tikv", "pump", "tidb", "tiflash", "drainer", "cdc", "prometheus", "grafana", "alertmanager"
+	// "dm-master", "dm-worker", "dm-portal"
 	comps = append(comps, &DMMasterComponent{topo})
 	comps = append(comps, &DMWorkerComponent{topo})
+	comps = append(comps, &DMPortalComponent{topo})
 	return
 }
 
 // ComponentsByUpdateOrder return component in the order need to be updated.
 func (topo *DMSpecification) ComponentsByUpdateOrder() (comps []Component) {
-	// "tiflash", "pd", "tikv", "pump", "tidb", "drainer", "cdc", "prometheus", "grafana", "alertmanager"
+	// "dm-master", "dm-worker", "dm-portal"
 	comps = append(comps, &DMMasterComponent{topo})
 	comps = append(comps, &DMWorkerComponent{topo})
+	comps = append(comps, &DMPortalComponent{topo})
 	return
 }
 
