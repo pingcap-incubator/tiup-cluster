@@ -881,7 +881,17 @@ server_configs:
 		return nil, err
 	}
 
-	conf, err := merge(topo.ServerConfigs.TiFlashLearner, src)
+	// Normally the number of TiFlash nodes is smaller than TiKV nodes, and we need more raft threads to match the write speed of TiKV.
+	defaultConfigurations := make(map[string]interface{})
+	defaultConfigurations["raftstore.apply-pool-size"] = 4
+	defaultConfigurations["raftstore.store-pool-size"] = 4
+
+	conf, err := merge(defaultConfigurations, topo.ServerConfigs.TiFlashLearner)
+	if err != nil {
+		return nil, err
+	}
+
+	conf, err = merge(conf, src)
 	if err != nil {
 		return nil, err
 	}
