@@ -216,14 +216,25 @@ func displayClusterTopology(clusterName string, opt *operator.Options) error {
 }
 
 func formatInstanceStatus(status string) string {
-	switch strings.ToLower(status) {
-	case "up", "healthy":
+	lowercaseStatus := strings.ToLower(status)
+
+	if strings.Contains(lowercaseStatus, "healthy") {
+		switch {
+		case strings.HasPrefix(lowercaseStatus, "healthy|l"): // healthy|l , healthy|l|ui
+			return color.HiGreenString(status)
+		case strings.HasPrefix(lowercaseStatus, "unhealthy"): // unhealthy, unhealthy|ui
+			return color.RedString(status)
+		default: // healthy, healthy|ui
+			return color.GreenString(status)
+		}
+	}
+
+	switch lowercaseStatus {
+	case "up":
 		return color.GreenString(status)
-	case "healthy|l": // PD leader
-		return color.HiGreenString(status)
 	case "offline", "tombstone", "disconnected":
 		return color.YellowString(status)
-	case "down", "unhealthy", "err":
+	case "down", "err":
 		return color.RedString(status)
 	default:
 		return status
