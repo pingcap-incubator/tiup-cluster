@@ -291,7 +291,7 @@ func (s PDSpec) Status(pdList ...string) string {
 	}
 
 	// find dashboard node
-	dashboardAddr, err := pdapi.GetDashboardAddress()
+	dashboardAddr, _ := pdapi.GetDashboardAddress()
 
 	for _, member := range healths.Healths {
 		suffix := ""
