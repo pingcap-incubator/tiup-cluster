@@ -435,7 +435,7 @@ func (i *TiDBInstance) InitConfig(e executor.TiOpsExecutor, clusterName, cluster
 		return err
 	}
 
-	return checkConfig(e, i.ComponentName(), clusterVersion, i.ComponentName()+".toml", paths)
+	return checkConfig(e, i.ComponentName(), clusterVersion, i.OS(), i.Arch(), i.ComponentName()+".toml", paths)
 }
 
 // ScaleConfig deploy temporary config on scaling
@@ -543,7 +543,7 @@ func (i *TiKVInstance) InitConfig(e executor.TiOpsExecutor, clusterName, cluster
 		return err
 	}
 
-	return checkConfig(e, i.ComponentName(), clusterVersion, i.ComponentName()+".toml", paths)
+	return checkConfig(e, i.ComponentName(), clusterVersion, i.OS(), i.Arch(), i.ComponentName()+".toml", paths)
 }
 
 // ScaleConfig deploy temporary config on scaling
@@ -664,7 +664,7 @@ func (i *PDInstance) InitConfig(e executor.TiOpsExecutor, clusterName, clusterVe
 		return err
 	}
 
-	return checkConfig(e, i.ComponentName(), clusterVersion, i.ComponentName()+".toml", paths)
+	return checkConfig(e, i.ComponentName(), clusterVersion, i.OS(), i.Arch(), i.ComponentName()+".toml", paths)
 }
 
 // ScaleConfig deploy temporary config on scaling
@@ -876,6 +876,9 @@ server_configs:
     security.ca-path: ""
     security.cert-path: ""
     security.key-path: ""
+    # Normally the number of TiFlash nodes is smaller than TiKV nodes, and we need more raft threads to match the write speed of TiKV.
+    raftstore.apply-pool-size: 4
+    raftstore.store-pool-size: 4
 `, cfg.LogDir, cfg.IP, cfg.FlashServicePort, cfg.FlashProxyPort, cfg.FlashProxyStatusPort, firstDataDir)), &topo)
 
 	if err != nil {

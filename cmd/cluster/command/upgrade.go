@@ -24,8 +24,8 @@ import (
 	"github.com/pingcap-incubator/tiup-cluster/pkg/meta"
 	operator "github.com/pingcap-incubator/tiup-cluster/pkg/operation"
 	"github.com/pingcap-incubator/tiup-cluster/pkg/task"
-	"github.com/pingcap-incubator/tiup/pkg/repository"
 	"github.com/pingcap-incubator/tiup/pkg/utils"
+	"github.com/pingcap-incubator/tiup/pkg/version"
 	"github.com/pingcap/errors"
 	"github.com/spf13/cobra"
 	"golang.org/x/mod/semver"
@@ -52,7 +52,7 @@ func newUpgradeCmd() *cobra.Command {
 
 func versionCompare(curVersion, newVersion string) error {
 	// Can always upgrade to 'nightly' event the current version is 'nightly'
-	if repository.Version(newVersion).IsNightly() {
+	if newVersion == version.NightlyVersion {
 		return nil
 	}
 
@@ -125,23 +125,23 @@ func upgrade(clusterName, clusterVersion string, opt operator.Options) error {
 					tb.BackupComponent(inst.ComponentName(), metadata.Version, inst.GetHost(), deployDir).
 						CopyComponent(inst.ComponentName(), inst.OS(), inst.Arch(), version, inst.GetHost(), deployDir)
 				}
-				tb.InitConfig(
-					clusterName,
-					clusterVersion,
-					inst,
-					metadata.User,
-					meta.DirPaths{
-						Deploy: deployDir,
-						Data:   dataDirs,
-						Log:    logDir,
-						Cache:  meta.ClusterPath(clusterName, meta.TempConfigPath),
-					},
-				)
 				hasImported = true
 			} else {
 				tb.BackupComponent(inst.ComponentName(), metadata.Version, inst.GetHost(), deployDir).
 					CopyComponent(inst.ComponentName(), inst.OS(), inst.Arch(), version, inst.GetHost(), deployDir)
 			}
+			tb.InitConfig(
+				clusterName,
+				clusterVersion,
+				inst,
+				metadata.User,
+				meta.DirPaths{
+					Deploy: deployDir,
+					Data:   dataDirs,
+					Log:    logDir,
+					Cache:  meta.ClusterPath(clusterName, meta.TempConfigPath),
+				},
+			)
 			copyCompTasks = append(copyCompTasks, tb.Build())
 		}
 	}
